@@ -65,9 +65,13 @@ go build -o slack-buddy
 ```
 
 ## Git Repository
-- **Status**: Initialized with 2 commits
+- **Version**: v1.0.0-beta
+- **Status**: Beta release ready for testing
 - **Security**: Token and binaries excluded via .gitignore
-- **Branch**: master (ready for GitHub)
+- **Branches**: 
+  - `master` - Main development branch
+  - `beta` - Current beta release branch
+- **Tags**: v1.0.0-beta
 
 ## Next Features (Ideas)
 - Channel cleanup detection (inactive channels)

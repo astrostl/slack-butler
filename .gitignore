@@ -1,0 +1,29 @@
+# Binaries
+slack-buddy
+slack-buddy.exe
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Go build cache
+go.sum
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test coverage
+coverage.out

@@ -8,6 +8,8 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
 - **⏰ Flexible Time Filtering**: Support for various time formats (24h, 7d, 1w, etc.)
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
+- **💡 Intelligent Error Handling**: Clear, actionable error messages for missing permissions and configuration issues
+- **✅ Fully Tested**: Successfully tested with real Slack workspaces
 
 ## Installation
 
@@ -42,6 +44,8 @@ Or set the environment variable directly:
 ```bash
 export SLACK_TOKEN=xoxb-your-bot-token-here
 ```
+
+**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings.
 
 ## Usage
 

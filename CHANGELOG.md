@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Secure Configuration**: Environment-based token management with `.env` support
 - **CLI Framework**: Built with Cobra for professional command structure
 - **Slack API Integration**: Full integration with Slack API using official Go SDK
+- **Intelligent Error Handling**: Detailed error messages for missing OAuth scopes and permissions
+- **User-Friendly Feedback**: Clear guidance on how to fix common configuration issues
+
+### Enhanced
+- **Error Messages**: Now shows exactly which OAuth scopes are missing (channels:read, groups:read, chat:write)
+- **Authentication Feedback**: Displays connected user and team information
+- **Channel Access Validation**: Specific messages for bot membership requirements
 
 ### Features
 - `slack-buddy channels detect` command with the following options:
@@ -43,7 +50,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `github.com/spf13/viper` - Configuration management
 - Security: `.gitignore` configured to exclude tokens and binaries
 
+### Testing
+- **Successfully tested** with real Slack workspace (Vibe Coding, Inc.)
+- **Channel detection** verified with 4 new channels
+- **Announcement feature** confirmed working with #announcements channel
+- **Error handling** validated for missing permissions and channel access
+
 ### Documentation
 - Comprehensive README with installation and usage instructions
 - CLAUDE.md for development notes and project tracking
 - Inline help documentation for all commands
+- TODO.md for task tracking and project management

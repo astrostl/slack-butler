@@ -73,6 +73,32 @@ go build -o slack-buddy
   - `beta` - Current beta release branch
 - **Tags**: v1.0.0-beta
 
+## Development Guidelines
+
+### Release Process
+**IMPORTANT**: Always maintain documentation with every release (stable or beta):
+
+1. **CHANGELOG.md** - Update with new version, features, and changes
+   - Follow semantic versioning (MAJOR.MINOR.PATCH)
+   - Use `-beta`, `-alpha` suffixes for pre-releases
+   - Document all breaking changes, new features, and bug fixes
+
+2. **README.md** - Keep synchronized with current features
+   - Update usage examples if commands change
+   - Add new features to feature list
+   - Update installation instructions if needed
+   - Ensure roadmap reflects current plans
+
+3. **CLAUDE.md** - Update development notes
+   - Record version changes and release status
+   - Update project structure if modified
+   - Add new development commands or processes
+
+### Version Strategy
+- **Beta releases**: `1.x.x-beta` for feature-complete testing
+- **Stable releases**: `1.x.x` for production-ready versions
+- **Major versions**: Breaking changes or significant feature additions
+
 ## Next Features (Ideas)
 - Channel cleanup detection (inactive channels)
 - User activity monitoring

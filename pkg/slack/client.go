@@ -9,7 +9,7 @@ import (
 )
 
 type Client struct {
-	api *slack.Client
+	api SlackAPI
 }
 
 type Channel struct {
@@ -20,7 +20,27 @@ type Channel struct {
 }
 
 func NewClient(token string) (*Client, error) {
-	api := slack.New(token)
+	// Validate token format before using it
+	if err := ValidateSlackToken(token); err != nil {
+		return nil, fmt.Errorf("invalid token: %v", err)
+	}
+
+	api := NewRealSlackAPI(token)
+	
+	auth, err := api.AuthTest()
+	if err != nil {
+		return nil, fmt.Errorf("authentication failed: %v", SanitizeForLogging(err.Error()))
+	}
+
+	fmt.Printf("Connected as: %s (team: %s)\n", auth.User, auth.Team)
+	return &Client{api: api}, nil
+}
+
+// NewClientWithAPI creates a client with a custom API implementation (for testing)
+func NewClientWithAPI(api SlackAPI) (*Client, error) {
+	if api == nil {
+		return nil, fmt.Errorf("API cannot be nil")
+	}
 	
 	auth, err := api.AuthTest()
 	if err != nil {
@@ -86,6 +106,11 @@ func (c *Client) FormatNewChannelAnnouncement(channels []Channel, since time.Tim
 }
 
 func (c *Client) PostMessage(channel, message string) error {
+	// Validate channel name format
+	if err := ValidateChannelName(channel); err != nil {
+		return fmt.Errorf("invalid channel name '%s': %v", channel, err)
+	}
+
 	channelID := strings.TrimPrefix(channel, "#")
 	
 	_, _, err := c.api.PostMessage(channelID, slack.MsgOptionText(message, false))

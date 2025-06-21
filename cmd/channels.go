@@ -53,6 +53,10 @@ func runDetect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create Slack client: %v", err)
 	}
 
+	return runDetectWithClient(client, cutoffTime, announceTo)
+}
+
+func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceChannel string) error {
 	newChannels, err := client.GetNewChannels(cutoffTime)
 	if err != nil {
 		return fmt.Errorf("failed to get new channels: %v", err)
@@ -68,12 +72,12 @@ func runDetect(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  #%s (created: %s)\n", channel.Name, channel.Created.Format("2006-01-02 15:04:05"))
 	}
 
-	if announceTo != "" {
+	if announceChannel != "" {
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
-		if err := client.PostMessage(announceTo, message); err != nil {
-			return fmt.Errorf("failed to post announcement to %s: %v", announceTo, err)
+		if err := client.PostMessage(announceChannel, message); err != nil {
+			return fmt.Errorf("failed to post announcement to %s: %v", announceChannel, err)
 		}
-		fmt.Printf("Announcement posted to %s\n", announceTo)
+		fmt.Printf("Announcement posted to %s\n", announceChannel)
 	}
 
 	return nil

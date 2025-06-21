@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"slack-buddy/pkg/slack"
+	"slack-buddy-ai/pkg/slack"
 	"time"
 
 	"github.com/spf13/cobra"

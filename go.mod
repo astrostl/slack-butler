@@ -1,4 +1,4 @@
-module slack-buddy
+module slack-buddy-ai
 
 go 1.24.4
 

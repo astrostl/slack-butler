@@ -1,7 +1,7 @@
 package main
 
 import (
-	"slack-buddy/cmd"
+	"slack-buddy-ai/cmd"
 )
 
 func main() {

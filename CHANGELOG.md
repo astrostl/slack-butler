@@ -14,10 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web dashboard for workspace insights
 - Scheduled automation features
 
-## [0.1.0] - 2025-06-21
+## [1.0.0-beta] - 2025-06-21
 
 ### Added
-- Initial release of Slack Buddy AI CLI tool
+- **Beta release** of Slack Buddy AI CLI tool
 - **Channel Detection Feature**: Detect new channels created within specified time periods
 - **Flexible Time Filtering**: Support for various time formats (24h, 7d, 1w, etc.)
 - **Smart Announcements**: Post formatted announcements to designated channels

@@ -47,8 +47,8 @@ test:
 coverage:
 	@echo "Generating test coverage..."
 	@mkdir -p $(COVERAGE_DIR)
-	@go test -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
-	@go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
+	go test -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
+	go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
 	@echo "Coverage report: $(COVERAGE_DIR)/coverage.html"
 
 # Clean build artifacts and coverage files
@@ -177,21 +177,13 @@ mod-verify:
 security:
 	$(call run-security)
 
-# Install development tools
+# Install development tools (versions pinned in tools.go/go.mod)
 .PHONY: install-tools
 install-tools:
-	@echo "Installing development tools..."
-	@echo "Installing linters and quality tools..."
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-	@echo "Installing security tools..."
-	go install github.com/securego/gosec/v2/cmd/gosec@latest
-	go install golang.org/x/vuln/cmd/govulncheck@latest
-	@echo "Installing release tools..."
-	@if ! command -v goreleaser >/dev/null 2>&1; then \
-		go install github.com/goreleaser/goreleaser@latest; \
-	fi
-	@echo "All development tools installed!"
+	@echo "Installing development tools from go.mod versions..."
+	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck, goreleaser"
+	@cat tools.go | grep _ | awk '{print $$2}' | xargs -I {} go install {}
+	@echo "✅ All development tools installed successfully!"
 
 # Create full release with checksums
 .PHONY: release
@@ -209,7 +201,7 @@ release: clean
 # Main workflow suites
 .PHONY: dev quality ci release-full
 
-# Quick development cycle
+# Quick development cycle (format + vet + test + build)
 dev:
 	$(call run-fmt)
 	$(call run-vet)
@@ -217,39 +209,44 @@ dev:
 	@$(MAKE) build
 	@echo "✅ Development cycle complete!"
 
-# Complete quality validation
-quality: security
+# Complete quality validation (security + format + vet + lint + complexity)
+quality:
+	$(call run-security)
 	$(call run-fmt-check)
 	$(call run-vet)
 	$(call run-lint)
 	$(call run-complexity-check)
 	@echo "✅ Quality checks completed!"
 
-# Full CI pipeline
+# Full CI pipeline (clean + deps + quality + coverage + build)
 ci: clean deps quality coverage build
 	@echo "✅ CI pipeline completed!"
 
 # Full release workflow with quality checks
-release-full: clean deps quality coverage build release
+release-full: ci release
 	@echo "✅ Release workflow completed!"
 
 # Show available targets
 .PHONY: help
 help:
-	@echo "slack-buddy-ai Makefile"
+	@echo "slack-buddy-ai Makefile (Go $(GO_VERSION))"
+	@echo "Version: $(VERSION) | Commit: $(GIT_COMMIT)"
 	@echo ""
 	@echo "🚀 Main workflows:"
 	@echo "  make dev         - Quick: format + vet + test + build"
-	@echo "  make quality     - Complete: all quality checks + security"
+	@echo "  make quality     - Complete: security + format + vet + lint + complexity"
 	@echo "  make ci          - Full: clean + deps + quality + coverage + build"
 	@echo "  make release-full - Release: ci + create release with checksums"
 	@echo ""
 	@echo "📦 Core targets:"
 	@echo "  build        - Build binary"
-	@echo "  test         - Run tests"
-	@echo "  coverage     - Generate test coverage"
+	@echo "  test         - Run tests with race detection"
+	@echo "  coverage     - Generate test coverage report"
 	@echo "  clean        - Clean artifacts"
 	@echo "  deps         - Install dependencies"
+	@echo ""
+	@echo "🔒 Security suite:"
+	@echo "  security     - Complete security analysis (gosec + vuln-check + mod-verify)"
 	@echo ""
 	@echo "🔧 Individual targets:"
 	@echo "  fmt          - Format code (use 'dev' instead)"
@@ -260,8 +257,7 @@ help:
 	@echo "  gosec        - Static security analysis"
 	@echo "  vuln-check   - Check for vulnerabilities"
 	@echo "  mod-verify   - Verify module integrity"
-	@echo "  security     - Complete security analysis"
 	@echo ""
 	@echo "⚙️  Setup:"
-	@echo "  install-tools - Install dev tools"
+	@echo "  install-tools - Install dev tools (from go.mod versions)"
 	@echo "  release      - Create release (standalone)"

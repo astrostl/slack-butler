@@ -70,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hardcoded Secrets Detection**: Pattern-based detection of potential secrets in code
 
 ### Enhanced Build System
-- **Enhanced Makefile**: New security targets (`security`, `vuln-check`, `security-full`, `install-security`)
+- **Enhanced Makefile**: New security targets (`security`, `vuln-check`, `gosec`, `mod-verify`)
 - **Tool Installation**: Security tool installation helpers
 
 ### Documentation Updates

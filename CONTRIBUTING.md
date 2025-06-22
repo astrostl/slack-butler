@@ -56,8 +56,8 @@ We welcome pull requests for improvements:
 # All tests must pass
 make test
 
-# Run with race detection
-make test-race
+# All tests include race detection by default
+make test
 
 # Check coverage (aim to maintain current levels)
 make coverage

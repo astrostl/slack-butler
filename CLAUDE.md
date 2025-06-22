@@ -82,7 +82,7 @@ make release-full
 
 ### Setup and Tools
 ```bash
-# Install all development tools (linting, security, release)
+# Install development tools (versions pinned in go.mod)
 make install-tools
 
 # Install dependencies and tidy modules

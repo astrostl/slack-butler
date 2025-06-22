@@ -7,7 +7,7 @@ Project task tracking and development notes.
 
 ## Completed Tasks
 - [x] Security Documentation - Basic SECURITY.md with vulnerability reporting process
-- [x] Enhanced Build System - Added security targets to Makefile (security-full, vuln-check)
+- [x] Enhanced Build System - Added security targets to Makefile (security, vuln-check, gosec)
 - [x] Unit Tests - Good unit test suite with solid coverage
 - [x] Integration Tests - Mock Slack API integration testing
 - [x] Code Quality - golangci-lint configuration with 30+ linters

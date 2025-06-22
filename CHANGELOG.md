@@ -10,10 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 - Channel cleanup detection for inactive channels
 
+## [1.0.2] - 2025-06-22
+
+### Added
+- **CONTRIBUTING.md**: Comprehensive contribution guidelines for community project
+- **Extended Test Suite**: Added main_test.go and additional integration tests
+- **Enhanced Test Coverage**: Improved health command tests and logger test coverage
+
+### Fixed  
+- **Import Paths**: Updated all import paths to use full GitHub module path for proper dependency resolution
+
+## [1.0.1] - 2025-06-22
+
+### Fixed
+- **Module Path**: Fixed Go module path to match GitHub repository URL
+
 ## [1.0.0] - 2025-06-22
 
 ### Added - Stable Release
-- **Logger Test Coverage**: Comprehensive test suite for pkg/logger package (0% to 75% coverage)
+- **Logger Test Coverage**: Comprehensive test suite for pkg/logger package with strong coverage
 - **Documentation Accuracy**: Fixed incorrect flag syntax in .env.example
 - **Test Quality**: All tests passing with legitimate coverage (no artificial shortcuts)
 

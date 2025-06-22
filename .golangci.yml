@@ -12,8 +12,6 @@ linters-settings:
   gosec:
     severity: "low"
     confidence: "low"
-    excludes:
-      - G104 # Allow unhandled errors in some contexts
   
   # Code quality linters  
   govet:

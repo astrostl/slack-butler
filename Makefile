@@ -95,7 +95,7 @@ deps:
 .PHONY: fmt
 fmt:
 	@echo "Formatting code..."
-	go fmt ./...
+	gofmt -s -w .
 
 # Lint code (requires golangci-lint)
 .PHONY: lint
@@ -221,9 +221,9 @@ ci: clean deps fmt vet lint complexity-check security-full test-race coverage bu
 .PHONY: fmt-check
 fmt-check:
 	@echo "Checking code formatting..."
-	@if [ -n "$$(gofmt -l .)" ]; then \
+	@if [ -n "$$(gofmt -s -l .)" ]; then \
 		echo "Code is not properly formatted. Run 'make fmt' to fix:"; \
-		gofmt -l .; \
+		gofmt -s -l .; \
 		exit 1; \
 	else \
 		echo "Code is properly formatted"; \

@@ -69,8 +69,8 @@ slack-buddy-ai/
 go build -o slack-buddy
 
 # Code quality checks
-make fmt             # Format code with gofmt (required for commits)
-make fmt-check       # Check formatting (CI-friendly)
+make fmt             # Format code with gofmt -s (required for commits)
+make fmt-check       # Check formatting with simplify flag (CI-friendly)
 make complexity-check # Check cyclomatic complexity
 make quality         # Run all quality checks (fmt-check + complexity-check)
 
@@ -136,7 +136,7 @@ make ci              # Full CI checks including complexity
 
 ### Code Quality Standards
 
-- **Code Formatting**: Always run `make fmt` before committing - properly formatted code is required for all commits
+- **Code Formatting**: Always run `make fmt` before committing - uses `gofmt -s` for strict formatting with simplification
 - **Format Verification**: Use `make fmt-check` to verify formatting in CI/automated checks
 - **Cyclomatic Complexity**: Keep functions under 15 complexity threshold - use `make complexity-check` to verify
 - **Quality Gate**: Use `make quality` to check both formatting and complexity before commits

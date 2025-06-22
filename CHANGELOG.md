@@ -10,12 +10,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 - Channel cleanup detection for inactive channels
 
+## [1.0.3] - 2025-06-22
+
+### Fixed
+- **Documentation Accuracy**: Updated all documentation to reflect current Makefile targets and functionality
+- **CLAUDE.md**: Removed outdated references and test coverage percentages
+- **README.md**: Fixed reference to non-existent `make security-full` target
+- **Code Quality**: Fixed unhandled error warnings in cmd/root.go for better gosec compliance
+
+### Improved
+- **Documentation Consistency**: All documentation now accurately reflects current project state
+- **Makefile Integration**: Optimized development workflow with proper target composition
+
 ## [1.0.2] - 2025-06-22
 
 ### Added
 - **CONTRIBUTING.md**: Comprehensive contribution guidelines for community project
 - **Extended Test Suite**: Added main_test.go and additional integration tests
-- **Enhanced Test Coverage**: Improved health command tests and logger test coverage
+- **Enhanced Makefile**: Complete rewrite with organized target structure and comprehensive workflow management
+  - **Main Workflows**: `dev`, `quality`, `ci`, `release-full` for different development stages
+  - **Helper Functions**: Centralized logic for formatting, linting, security checks with consistent error reporting
+  - **Tool Management**: Automated installation of development, linting, security, and release tools via `install-tools`
+  - **Security Integration**: Complete security pipeline with `gosec`, `govulncheck`, and module verification
+  - **Build Optimization**: Enhanced build process with embedded version info, build time, and git commit
+  - **Release Automation**: GoReleaser integration for multi-platform releases with checksums
+  - **Quality Gates**: Comprehensive quality checks including formatting, vetting, linting, and complexity analysis
+  - **CI Pipeline**: Full continuous integration workflow with dependency management and artifact cleanup
+
+### Improved
+- **Developer Experience**: Streamlined workflows reduce common development tasks to single commands
+- **Code Quality**: Automated formatting, linting, and complexity checking prevents technical debt
+- **Security**: Integrated vulnerability scanning and static security analysis in development workflow
+- **Build Consistency**: Standardized build process with embedded metadata for better version tracking
+- **Documentation**: Enhanced help system with organized target categories and clear usage examples
 
 ### Fixed  
 - **Import Paths**: Updated all import paths to use full GitHub module path for proper dependency resolution

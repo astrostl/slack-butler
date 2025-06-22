@@ -34,7 +34,7 @@ var rootCmd = &cobra.Command{
 			return
 		}
 		// Show help if no version flag and no subcommand
-		cmd.Help()
+		_ = cmd.Help()
 	},
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,
@@ -76,8 +76,8 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// Explicitly bind environment variables
-	viper.BindEnv("token", "SLACK_TOKEN")
-	viper.BindEnv("debug", "SLACK_DEBUG")
+	_ = viper.BindEnv("token", "SLACK_TOKEN")
+	_ = viper.BindEnv("debug", "SLACK_DEBUG")
 
 	// Set log level based on debug flag
 	if viper.GetBool("debug") {

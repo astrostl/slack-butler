@@ -64,32 +64,85 @@ slack-buddy-ai/
 ```
 
 ## Development Commands
-```bash
-# Build the tool
-go build -o slack-buddy
 
-# Code quality checks
+### Main Workflows
+```bash
+# Quick development cycle (format + vet + test + build)
+make dev
+
+# Complete quality validation (security + format + vet + lint + complexity)
+make quality
+
+# Full CI pipeline (clean + deps + quality + coverage + build)
+make ci
+
+# Full release workflow with quality checks
+make release-full
+```
+
+### Setup and Tools
+```bash
+# Install all development tools (linting, security, release)
+make install-tools
+
+# Install dependencies and tidy modules
+make deps
+
+# Clean build artifacts and coverage files
+make clean
+```
+
+### Individual Quality Checks
+```bash
+# Code formatting
 make fmt             # Format code with gofmt -s (required for commits)
 make fmt-check       # Check formatting with simplify flag (CI-friendly)
-make complexity-check # Check cyclomatic complexity
-make quality         # Run all quality checks (fmt-check + complexity-check)
 
-# Development workflow
-make dev             # Quick cycle: fmt, vet, test, build
-make ci              # Full CI checks including complexity
+# Code analysis
+make vet             # Go vet analysis
+make lint            # golangci-lint analysis
+make complexity-check # Check cyclomatic complexity (threshold: 15)
 
-# Test help output
+# Security analysis
+make gosec           # Static security analysis with gosec
+make vuln-check      # Check for known vulnerabilities with govulncheck
+make mod-verify      # Verify module integrity
+make security        # Complete security analysis (all above)
+```
+
+### Testing and Coverage
+```bash
+# Run tests with race detection
+make test
+
+# Generate test coverage report
+make coverage
+```
+
+### Build and Release
+```bash
+# Build the tool
+make build           # Build binary with embedded version info
+
+# Release management
+make release         # Create release with GoReleaser (standalone)
+```
+
+### Help and Documentation
+```bash
+# Show all available targets
+make help
+
+# Test CLI help output
 ./slack-buddy --help
-
-# Test channel detection
 ./slack-buddy channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.0.2 - Current Stable Release
+- **Version**: 1.0.3 - Current Stable Release
 - **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Module path fixes and additional test coverage improvements (v1.0.1, v1.0.2)
+- **Recent Updates**: Documentation accuracy fixes and Makefile optimization (v1.0.3)
 - **Branches**: 
   - `main` - Stable release branch
 
@@ -115,9 +168,8 @@ make ci              # Full CI checks including complexity
 - **Efficient Processing**: Skips messages from other users, focusing only on bot's own announcements
 
 ## Test Coverage
-- **Comprehensive Test Coverage** - Strong test coverage across all packages and core functionality
 - **Comprehensive Test Suite** - Legitimate test scenarios covering business logic
-- **All Tests Passing** - Tests pass with race detection enabled
+- **All Tests Passing** - Tests pass with race detection enabled  
 - **Error Path Coverage** - Key error scenarios and edge cases validated
 - **Boundary Testing** - Time precision and API failure testing
 - **Mock Infrastructure** - Realistic Slack API mocking for testing
@@ -207,7 +259,7 @@ make ci              # Full CI checks including complexity
 
 ### Security Tools & Configuration
 - **Security Documentation**: Basic SECURITY.md with community vulnerability reporting process
-- **Build System Integration**: Makefile with security targets (security-full, vuln-check, install-security)
+- **Build System Integration**: Makefile with security targets (security, vuln-check, gosec, mod-verify)
 
 ### Security Status
 - **Code Quality**: ✅ **IMPROVED** - Fixed gosec G104 unhandled error warning
@@ -215,4 +267,3 @@ make ci              # Full CI checks including complexity
 
 ## Next Features (Ideas)
 - Channel cleanup detection (inactive channels)
-- GoReleaser for automated releases

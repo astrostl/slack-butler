@@ -4,7 +4,7 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.0.2 - Stable Release** ✅
+**Version 1.0.3 - Stable Release** ✅
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk in production environments.
 
@@ -182,51 +182,78 @@ go build -o slack-buddy
 
 ### Testing
 ```bash
-# Run all tests
+# Run all tests with race detection
 make test
-
-# Run tests with race detection
-make test-race
 
 # Generate coverage report
 make coverage
-
-# Run security analysis
-make security-full
 ```
 
 ### Development Commands
 ```bash
-# Install development dependencies
-make deps
+# Install development and security tools
+make install-tools
 
-# Quick development cycle
+# Quick development cycle (format + vet + test + build)
 make dev
 
-# Full CI-like checks
+# Complete quality validation (security + format + vet + lint + complexity)
+make quality
+
+# Full CI pipeline (clean + deps + quality + coverage + build)
 make ci
 
-# Install security tools
-make install-security
+# Full release workflow with quality checks
+make release-full
 
-# Install release tools
-make install-release
+# Install dependencies
+make deps
+
+# Clean build artifacts
+make clean
+```
+
+### Individual Quality Checks
+```bash
+# Format code
+make fmt
+
+# Check formatting (CI-friendly)
+make fmt-check
+
+# Vet code
+make vet
+
+# Lint code
+make lint
+
+# Check cyclomatic complexity
+make complexity-check
+
+# Static security analysis
+make gosec
+
+# Check for vulnerabilities
+make vuln-check
+
+# Verify module integrity
+make mod-verify
+
+# Complete security analysis
+make security
 ```
 
 ### Release Management
 
 #### Local Release Process
 ```bash
-# Install GoReleaser (one-time setup)
-make install-release
+# Install development tools (includes GoReleaser)
+make install-tools
 
-# Check configuration
-make release-check
+# Create full release with checksums (includes quality checks)
+make release-full
 
-# Build artifacts only (no checksums)
-make release-build
-
-# Create full release with checksums
+# Standalone release creation
 make release
 ```
 
@@ -262,7 +289,7 @@ make release
 - Never commit your `.env` file or Slack tokens
 - Use bot tokens (`xoxb-`) with minimal required OAuth scopes
 - Store tokens in environment variables, never in code
-- Test `make security-full` locally (may require tool installation)
+- Test `make security` locally (may require tool installation)
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security information.
 

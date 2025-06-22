@@ -100,7 +100,7 @@ func TestFatalFunction(t *testing.T) {
 		// Create a temporary logger to avoid affecting other tests
 		tempLog := logrus.New()
 		tempLog.ExitFunc = func(int) {} // Override exit to prevent test termination
-		
+
 		// Test the formatting path of Fatal (without actual exit)
 		entry := tempLog.WithField("test", "fatal")
 		entry.Fatal("test fatal message")

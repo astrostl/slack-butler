@@ -133,7 +133,7 @@ func checkRequiredPermissions(client *slack.Client) []string {
 
 	// Test groups:read permission (for private channels)
 	// Note: This is optional and won't cause a failure
-	
+
 	// Test chat:write permission (for announcements)
 	// We can't easily test this without actually posting, so we'll check it during actual use
 
@@ -143,7 +143,7 @@ func checkRequiredPermissions(client *slack.Client) []string {
 func testBasicFunctionality(client *slack.Client) error {
 	// Test getting channel list with a reasonable timeout
 	logger.WithField("operation", "health_check").Debug("Testing basic channel listing functionality")
-	
+
 	cutoffTime := time.Now().Add(-24 * time.Hour)
 	channels, err := client.GetNewChannels(cutoffTime)
 	if err != nil {
@@ -158,14 +158,14 @@ func testBasicFunctionality(client *slack.Client) error {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		   (len(substr) == 0 || 
-		    (len(s) > 0 && 
-		     (s == substr || 
-		      (len(s) > len(substr) && 
-		       (s[:len(substr)] == substr || 
-		        s[len(s)-len(substr):] == substr || 
-		        containsSubstring(s, substr))))))
+	return len(s) >= len(substr) &&
+		(len(substr) == 0 ||
+			(len(s) > 0 &&
+				(s == substr ||
+					(len(s) > len(substr) &&
+						(s[:len(substr)] == substr ||
+							s[len(s)-len(substr):] == substr ||
+							containsSubstring(s, substr))))))
 }
 
 func containsSubstring(s, substr string) bool {

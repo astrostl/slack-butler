@@ -13,10 +13,10 @@ var Log *logrus.Logger
 
 func init() {
 	Log = logrus.New()
-	
+
 	// Set output to stdout
 	Log.SetOutput(os.Stdout)
-	
+
 	// Set log level based on environment (default to Info)
 	level := os.Getenv("SLACK_LOG_LEVEL")
 	switch level {
@@ -29,7 +29,7 @@ func init() {
 	default:
 		Log.SetLevel(logrus.InfoLevel)
 	}
-	
+
 	// Use JSON formatter for production, text for development
 	format := os.Getenv("SLACK_LOG_FORMAT")
 	if format == "json" {

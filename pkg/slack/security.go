@@ -41,11 +41,11 @@ func SanitizeForLogging(input string) string {
 	// Replace any token-like patterns with [REDACTED]
 	tokenPattern := regexp.MustCompile(`xoxb-[a-zA-Z0-9-]+`)
 	result := tokenPattern.ReplaceAllString(input, "[REDACTED]")
-	
+
 	// Also redact test tokens
 	testTokenPattern := regexp.MustCompile(`MOCK-[A-Z0-9-]+`)
 	result = testTokenPattern.ReplaceAllString(result, "[REDACTED]")
-	
+
 	return result
 }
 
@@ -57,12 +57,12 @@ func ValidateChannelName(channelName string) error {
 
 	// Remove # prefix for validation
 	name := strings.TrimPrefix(channelName, "#")
-	
+
 	// Check if name is empty after removing prefix
 	if name == "" {
 		return fmt.Errorf("channel name cannot be empty")
 	}
-	
+
 	// Basic channel name validation (alphanumeric, hyphens, underscores)
 	channelPattern := regexp.MustCompile(`^[a-z0-9_-]+$`)
 	if !channelPattern.MatchString(name) {

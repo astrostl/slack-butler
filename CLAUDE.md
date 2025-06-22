@@ -68,6 +68,12 @@ slack-buddy-ai/
 # Build the tool
 go build -o slack-buddy
 
+# Format code (required for all commits)
+make fmt
+
+# Check code formatting (CI-friendly)
+make fmt-check
+
 # Test help output
 ./slack-buddy --help
 
@@ -123,6 +129,14 @@ go build -o slack-buddy
 - **Version Validation**: Use `go version`, `go mod verify`, or other appropriate tools to check current state before suggesting changes.
 
 **Example**: Go 1.24.4 is a legitimate version that exists and should not be "corrected" to an earlier version without explicit user request.
+
+### Code Quality Standards
+
+- **Code Formatting**: Always run `make fmt` before committing - properly formatted code is required for all commits
+- **Format Verification**: Use `make fmt-check` to verify formatting in CI/automated checks
+- **Follow existing patterns** - Look at surrounding code for style and conventions
+- **Error Handling** - Handle errors properly with meaningful, actionable messages
+- **Logging** - Add appropriate logging (debug level for verbose information)
 
 ### Release Process
 **IMPORTANT**: Always maintain documentation with every release (stable or beta):

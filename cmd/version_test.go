@@ -24,7 +24,7 @@ func TestVersionCommand(t *testing.T) {
 	// Restore stdout and read output
 	w.Close()
 	os.Stdout = oldStdout
-	
+
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r)
 	output := buf.String()
@@ -60,7 +60,7 @@ func TestVersionCommandDefaults(t *testing.T) {
 	// Restore stdout and read output
 	w.Close()
 	os.Stdout = oldStdout
-	
+
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r)
 	output := buf.String()

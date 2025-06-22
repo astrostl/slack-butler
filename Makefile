@@ -206,6 +206,18 @@ dev: fmt vet test build
 .PHONY: ci
 ci: clean deps fmt vet lint security-full test-race coverage build
 
+# Check code formatting
+.PHONY: fmt-check
+fmt-check:
+	@echo "Checking code formatting..."
+	@if [ -n "$$(gofmt -l .)" ]; then \
+		echo "Code is not properly formatted. Run 'make fmt' to fix:"; \
+		gofmt -l .; \
+		exit 1; \
+	else \
+		echo "Code is properly formatted"; \
+	fi
+
 # Install the binary to $GOPATH/bin
 .PHONY: install
 install:
@@ -242,6 +254,7 @@ help:
 	@echo "  clean        - Clean build artifacts (removes bin/ and build/)"
 	@echo "  deps         - Install dependencies"
 	@echo "  fmt          - Format code"
+	@echo "  fmt-check    - Check if code is properly formatted (CI-friendly)"
 	@echo "  lint         - Lint code (requires golangci-lint)"
 	@echo "  vet          - Vet code"
 	@echo "  security     - Run security scan (requires gosec)"

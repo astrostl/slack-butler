@@ -18,7 +18,7 @@ func TestMainFunctionExists(t *testing.T) {
 			args: []string{"slack-buddy", "--version"},
 		},
 		{
-			name: "Main with help flag", 
+			name: "Main with help flag",
 			args: []string{"slack-buddy", "--help"},
 		},
 	}

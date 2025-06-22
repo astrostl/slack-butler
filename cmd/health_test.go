@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 )
 
 func TestHealthCommandSetup(t *testing.T) {
@@ -116,7 +116,7 @@ func TestRunHealthSuccess(t *testing.T) {
 		assert.NotNil(t, healthCmd)
 		assert.Equal(t, "health", healthCmd.Use)
 		assert.NotNil(t, healthCmd.RunE)
-		
+
 		// Test that token validation would pass with a properly formatted token
 		token := "xoxb-test-token-12345678901234567890123456789012"
 		assert.True(t, isValidTokenFormat(token))
@@ -127,11 +127,11 @@ func TestRunHealthSuccess(t *testing.T) {
 		verboseFlag := healthCmd.Flags().Lookup("verbose")
 		assert.NotNil(t, verboseFlag)
 		assert.Equal(t, "v", verboseFlag.Shorthand)
-		
+
 		// Set verbose flag
 		err := healthCmd.Flags().Set("verbose", "true")
 		assert.NoError(t, err)
-		
+
 		// Verify flag was set
 		verbose, err := healthCmd.Flags().GetBool("verbose")
 		assert.NoError(t, err)
@@ -188,9 +188,9 @@ func TestRunHealthErrors(t *testing.T) {
 		err := runHealth(healthCmd, []string{})
 		assert.Error(t, err)
 		// This should fail at client initialization due to token validation
-		assert.True(t, 
+		assert.True(t,
 			strings.Contains(err.Error(), "client initialization failed") ||
-			strings.Contains(err.Error(), "token format validation failed"))
+				strings.Contains(err.Error(), "token format validation failed"))
 	})
 }
 
@@ -207,7 +207,7 @@ func TestTestBasicFunctionality(t *testing.T) {
 	t.Run("Basic functionality test with error", func(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		mockAPI.SetGetConversationsError(true) // Force an error
-		
+
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
 

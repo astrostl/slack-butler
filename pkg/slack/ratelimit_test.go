@@ -85,7 +85,7 @@ func TestRateLimiter(t *testing.T) {
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
-		
+
 		// Start first request to set lastRequest
 		_ = rl.Wait(context.Background())
 
@@ -117,7 +117,7 @@ func TestRateLimiter(t *testing.T) {
 
 		// First call sets lastRequest
 		_ = rl.Wait(ctx)
-		
+
 		// Second call should wait minInterval * 2^backoffCount
 		_ = rl.Wait(ctx)
 
@@ -203,7 +203,7 @@ func TestClientRateLimitingIntegration(t *testing.T) {
 
 	t.Run("Rate limit error triggers exponential backoff", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		
+
 		// First call will succeed to establish client
 		client, err := NewClientWithAPI(mockAPI)
 		if err != nil {
@@ -235,7 +235,7 @@ func TestClientRateLimitingIntegration(t *testing.T) {
 		mockAPI.AddChannel("test-id", "test", time.Now(), "Test channel")
 
 		start := time.Now()
-		
+
 		// Next call should have exponential backoff applied
 		_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
 		if err != nil {

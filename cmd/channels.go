@@ -12,9 +12,9 @@ import (
 )
 
 var channelsCmd = &cobra.Command{
-	Use:   "channels",
-	Short: "Manage channels in your Slack workspace",
-	Long:  `Commands for managing and monitoring channels in your Slack workspace.`,
+	Use:          "channels",
+	Short:        "Manage channels in your Slack workspace",
+	Long:         `Commands for managing and monitoring channels in your Slack workspace.`,
 	SilenceUsage: true, // Don't show usage on errors
 }
 
@@ -25,7 +25,7 @@ var detectCmd = &cobra.Command{
 
 Use --dry-run to preview what would be announced without actually posting messages.`,
 	SilenceUsage: true, // Don't show usage on errors
-	RunE: runDetect,
+	RunE:         runDetect,
 }
 
 var (
@@ -53,12 +53,12 @@ func runDetect(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid days format '%s': must be a number (e.g., 1, 7, 30)", since)
 	}
-	
+
 	if days < 0 {
 		return fmt.Errorf("days must be positive, got %g", days)
 	}
 
-	duration := time.Duration(days * 24) * time.Hour
+	duration := time.Duration(days*24) * time.Hour
 	cutoffTime := time.Now().Add(-duration)
 
 	client, err := slack.NewClient(token)
@@ -81,14 +81,14 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 		if err != nil {
 			return err // Return the clean error message directly
 		}
-		
+
 		originalCount := len(newChannels)
 		newChannels = filteredChannels
 		if originalCount > len(newChannels) {
 			logger.WithFields(logger.LogFields{
 				"original_count": originalCount,
 				"filtered_count": len(newChannels),
-				"skipped_count": originalCount - len(newChannels),
+				"skipped_count":  originalCount - len(newChannels),
 			}).Info("Filtered out previously announced channels")
 		}
 	}
@@ -104,7 +104,7 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 		"count": len(newChannels),
 		"since": cutoffTime.Format("2006-01-02 15:04:05"),
 	}).Info("Found new channels")
-	
+
 	for _, channel := range newChannels {
 		logger.WithFields(logger.LogFields{
 			"channel": channel.Name,
@@ -124,7 +124,7 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 
 	if announceChannel != "" {
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
-		
+
 		if isDryRun {
 			fmt.Printf("\n--- DRY RUN ---\n")
 			fmt.Printf("Would announce to channel: %s\n", announceChannel)
@@ -135,7 +135,7 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 			if err := client.PostMessage(announceChannel, message); err != nil {
 				logger.WithFields(logger.LogFields{
 					"channel": announceChannel,
-					"error": err.Error(),
+					"error":   err.Error(),
 				}).Error("Failed to post announcement")
 				return fmt.Errorf("failed to post announcement to %s: %v", announceChannel, err)
 			}

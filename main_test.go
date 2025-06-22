@@ -10,7 +10,7 @@ func TestVersionVariables(t *testing.T) {
 		t.Error("Version variable should not be empty")
 	}
 	if BuildTime == "" {
-		t.Error("BuildTime variable should not be empty") 
+		t.Error("BuildTime variable should not be empty")
 	}
 	if GitCommit == "" {
 		t.Error("GitCommit variable should not be empty")

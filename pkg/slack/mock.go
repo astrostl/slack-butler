@@ -9,14 +9,14 @@ import (
 
 // MockSlackAPI implements SlackAPI for testing
 type MockSlackAPI struct {
-	AuthTestResponse         *slack.AuthTestResponse
-	AuthTestError           error
-	Channels               []slack.Channel
-	GetConversationsError  error
+	AuthTestResponse            *slack.AuthTestResponse
+	AuthTestError               error
+	Channels                    []slack.Channel
+	GetConversationsError       error
 	GetConversationHistoryError error
-	ConversationHistory    map[string][]slack.Message
-	PostMessageError       error
-	PostedMessages         []MockMessage
+	ConversationHistory         map[string][]slack.Message
+	PostMessageError            error
+	PostedMessages              []MockMessage
 }
 
 type MockMessage struct {
@@ -56,12 +56,12 @@ func (m *MockSlackAPI) GetConversationHistory(params *slack.GetConversationHisto
 	if m.GetConversationHistoryError != nil {
 		return nil, m.GetConversationHistoryError
 	}
-	
+
 	messages, exists := m.ConversationHistory[params.ChannelID]
 	if !exists {
 		messages = []slack.Message{}
 	}
-	
+
 	return &slack.GetConversationHistoryResponse{
 		Messages: messages,
 	}, nil
@@ -178,7 +178,7 @@ func (m *MockSlackAPI) AddMessageToHistory(channelID, text, user string, timesta
 	if m.ConversationHistory == nil {
 		m.ConversationHistory = make(map[string][]slack.Message)
 	}
-	
+
 	message := slack.Message{
 		Msg: slack.Msg{
 			Type:      "message",
@@ -187,7 +187,7 @@ func (m *MockSlackAPI) AddMessageToHistory(channelID, text, user string, timesta
 			Timestamp: timestamp,
 		},
 	}
-	
+
 	m.ConversationHistory[channelID] = append(m.ConversationHistory[channelID], message)
 }
 

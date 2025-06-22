@@ -170,8 +170,5 @@ go build -o slack-buddy
 
 ## Next Features (Ideas)
 - Channel cleanup detection (inactive channels)
-- User activity monitoring
-- Automated channel archiving
-- Integration with other workspace tools
 - GoReleaser for automated releases
 - Shell completions (bash, zsh, fish)

@@ -17,14 +17,7 @@ Project task tracking and development notes.
 
 ## Feature Ideas
 - Channel cleanup detection (inactive channels)
-- User activity monitoring
-- Automated channel archiving based on activity
-- Integration with other workspace tools (GitHub, Jira, etc.)
-- Web dashboard for workspace insights
-- Scheduled automation (cron-like functionality)
 - Bulk channel operations
-- Channel analytics and reporting
-- Integration with Slack workflows
 - Multi-workspace support
 
 ## Bug Reports

@@ -32,10 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 - Channel cleanup detection for inactive channels
-- User activity monitoring
-- Automated channel archiving
-- Web dashboard for workspace insights
-- Scheduled automation features
 
 ## [1.0.1-beta] - 2025-06-21
 

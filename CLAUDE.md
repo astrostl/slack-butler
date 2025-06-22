@@ -52,7 +52,6 @@ slack-buddy-ai/
 │   ├── channels.go     # Channel management commands
 │   └── *_test.go       # Command tests
 ├── pkg/                 # Core packages
-│   ├── config/         # Configuration management
 │   ├── logger/         # Structured logging
 │   └── slack/          # Slack API wrapper and client
 ├── docs/               # Documentation
@@ -116,6 +115,16 @@ go build -o slack-buddy
 - **Mock Infrastructure** - Realistic Slack API mocking for testing
 
 ## Development Guidelines
+
+### Code Review and Verification Principles
+**CRITICAL**: Always verify technical claims before making changes:
+
+- **Go Version Verification**: Never assume a Go version doesn't exist without checking. Go releases follow their own schedule and may have versions that seem unusual but are legitimate.
+- **Dependency Verification**: Before claiming a dependency or feature doesn't exist, verify by checking documentation, running commands, or testing functionality.
+- **Fact Checking**: When identifying "issues" in configuration or code, verify the issue actually exists rather than making assumptions based on patterns or expectations.
+- **Version Validation**: Use `go version`, `go mod verify`, or other appropriate tools to check current state before suggesting changes.
+
+**Example**: Go 1.24.4 is a legitimate version that exists and should not be "corrected" to an earlier version without explicit user request.
 
 ### Release Process
 **IMPORTANT**: Always maintain documentation with every release (stable or beta):
@@ -189,4 +198,3 @@ go build -o slack-buddy
 ## Next Features (Ideas)
 - Channel cleanup detection (inactive channels)
 - GoReleaser for automated releases
-- Shell completions (bash, zsh, fish)

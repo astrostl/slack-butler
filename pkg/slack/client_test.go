@@ -472,3 +472,17 @@ func TestFilterAlreadyAnnouncedChannels(t *testing.T) {
 		assert.Len(t, filtered, 0) // No channels returned
 	})
 }
+
+func TestGetChannelInfo(t *testing.T) {
+	t.Run("GetChannelInfo returns expected error", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		// This function is a stub used for permission testing
+		info, err := client.GetChannelInfo("C1234567890")
+		
+		assert.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "channel_not_found")
+	})
+}

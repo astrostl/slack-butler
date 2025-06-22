@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"slack-buddy-ai/pkg/slack"
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"testing"
 	"time"
 

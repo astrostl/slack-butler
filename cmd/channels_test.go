@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"slack-buddy-ai/pkg/slack"
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 )
 
 func TestDetectCommandSetup(t *testing.T) {

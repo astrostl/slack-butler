@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"slack-buddy-ai/pkg/logger"
+	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -35,6 +35,9 @@ var rootCmd = &cobra.Command{
 		}
 		// Show help if no version flag and no subcommand
 		cmd.Help()
+	},
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true,
 	},
 }
 
@@ -71,6 +74,10 @@ func init() {
 func initConfig() {
 	viper.SetEnvPrefix("SLACK")
 	viper.AutomaticEnv()
+	
+	// Explicitly bind environment variables
+	viper.BindEnv("token", "SLACK_TOKEN")
+	viper.BindEnv("debug", "SLACK_DEBUG")
 	
 	// Set log level based on debug flag
 	if viper.GetBool("debug") {

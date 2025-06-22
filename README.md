@@ -1,5 +1,7 @@
 # Slack Buddy AI
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-buddy-ai)](https://goreportcard.com/report/github.com/astrostl/slack-buddy-ai)
+
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
 **Version 1.0.0 - Stable Release** ✅
@@ -10,6 +12,8 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
+- **🚫 Idempotency**: Automatically prevents re-announcing channels that have already been announced
+- **🩺 Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **⏰ Flexible Time Filtering**: Support for days-based filtering (1, 7, 30, etc.)
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
 - **🛡️ Security Features**: Basic security scanning and dependency monitoring (community-maintained)
@@ -155,7 +159,6 @@ slack-buddy-ai/
 │   ├── channels.go     # Channel management commands
 │   └── *_test.go       # Command tests
 ├── pkg/                 # Core packages
-│   ├── config/         # Configuration management
 │   ├── logger/         # Structured logging
 │   └── slack/          # Slack API wrapper and client
 ├── docs/               # Documentation

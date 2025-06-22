@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"slack-buddy-ai/pkg/logger"
-	"slack-buddy-ai/pkg/slack"
+	"github.com/astrostl/slack-buddy-ai/pkg/logger"
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"strconv"
 	"time"
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"slack-buddy-ai/pkg/logger"
+	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 	"strings"
 	"sync"
 	"time"

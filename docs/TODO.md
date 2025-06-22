@@ -13,7 +13,6 @@ Project task tracking and development notes.
 - [x] Code Quality - golangci-lint configuration with 30+ linters
 - [x] Error Handling - Fixed unhandled error in cmd/root.go (gosec G104)
 - [x] GoReleaser Configuration - Added .goreleaser.yaml with local release support
-- [x] Shell Completions - Built-in Cobra completions for bash, zsh, fish, powershell
 - [x] Health Check Command - Added comprehensive health and connectivity testing
 
 ## Feature Ideas

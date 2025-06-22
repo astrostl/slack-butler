@@ -97,6 +97,17 @@ func (m *MockSlackAPI) SetGetConversationsError(hasError bool) {
 	}
 }
 
+func (m *MockSlackAPI) SetGetConversationsErrorWithMessage(hasError bool, message string) {
+	if hasError {
+		if message == "" {
+			message = "failed to get conversations"
+		}
+		m.GetConversationsError = fmt.Errorf("%s", message)
+	} else {
+		m.GetConversationsError = nil
+	}
+}
+
 func (m *MockSlackAPI) SetPostMessageError(errorType string) {
 	switch errorType {
 	case "missing_scope":

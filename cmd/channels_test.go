@@ -60,7 +60,7 @@ func TestRunDetectFunction(t *testing.T) {
 		originalSince := since
 		
 		// Set valid token and invalid time format
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-for-validation-only")
+		t.Setenv("SLACK_TOKEN", "xoxb-TEST-TOKEN-MOCK-FOR-TESTING-ONLY-NOT-REAL")
 		
 		// Force viper to reload environment
 		initConfig()
@@ -111,7 +111,7 @@ func TestRunDetectSuccessPath(t *testing.T) {
 		originalAnnounceTo := announceTo
 		
 		// Set up test environment
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-for-validation-only")
+		t.Setenv("SLACK_TOKEN", "xoxb-TEST-TOKEN-MOCK-FOR-TESTING-ONLY-NOT-REAL")
 		initConfig()
 		
 		since = "1h"
@@ -136,7 +136,7 @@ func TestRunDetectSuccessPath(t *testing.T) {
 		originalAnnounceTo := announceTo
 		
 		// Set up test environment
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-for-validation-only")
+		t.Setenv("SLACK_TOKEN", "xoxb-TEST-TOKEN-MOCK-FOR-TESTING-ONLY-NOT-REAL")
 		initConfig()
 		
 		since = "2h"

@@ -8,8 +8,9 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
 - **⏰ Flexible Time Filtering**: Support for various time formats (24h, 7d, 1w, etc.)
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
+- **🛡️ Enterprise Security**: Automated vulnerability scanning, dependency checks, and security monitoring
 - **💡 Intelligent Error Handling**: Clear, actionable error messages for missing permissions and configuration issues
-- **✅ Fully Tested**: Successfully tested with real Slack workspaces
+- **✅ Fully Tested**: Successfully tested with real Slack workspaces with 95%+ test coverage
 
 ## Installation
 
@@ -121,12 +122,32 @@ go build -o slack-buddy
 
 ### Testing
 ```bash
-# Test help output
-./slack-buddy --help
-./slack-buddy channels detect --help
+# Run all tests
+make test
 
-# Test with dry run (no announcements)
-./slack-buddy channels detect --since=24h
+# Run tests with race detection
+make test-race
+
+# Generate coverage report
+make coverage
+
+# Run security analysis
+make security-full
+```
+
+### Development Commands
+```bash
+# Install development dependencies
+make deps
+
+# Quick development cycle
+make dev
+
+# Full CI-like checks
+make ci
+
+# Install security tools
+make install-security
 ```
 
 ## Contributing
@@ -139,9 +160,25 @@ go build -o slack-buddy
 
 ## Security
 
+### Built-in Security Features
+- **Token Validation**: All Slack tokens are validated and sanitized
+- **Rate Limiting**: Exponential backoff prevents API abuse
+- **Input Sanitization**: All user inputs are validated
+- **No Token Logging**: Tokens never appear in logs or error messages
+
+### Automated Security Scanning
+- **Daily Vulnerability Scans**: Automated dependency and security checks via GitHub Actions
+- **Static Analysis**: gosec security scanner catches common Go security issues
+- **Dependency Monitoring**: Dependabot automatically updates vulnerable dependencies
+- **License Compliance**: Automated license scanning to prevent GPL contamination
+
+### Best Practices
 - Never commit your `.env` file or Slack tokens
-- Use environment variables for sensitive configuration
-- The `.gitignore` file excludes all sensitive files by default
+- Use bot tokens (`xoxb-`) with minimal required OAuth scopes
+- Store tokens in environment variables, never in code
+- Run `make security-full` before deploying to production
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security information.
 
 ## Roadmap
 

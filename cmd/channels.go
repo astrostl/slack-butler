@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"slack-buddy-ai/pkg/logger"
 	"slack-buddy-ai/pkg/slack"
 	"time"
 
@@ -63,20 +64,35 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 	}
 
 	if len(newChannels) == 0 {
-		fmt.Printf("No new channels found since %s\n", cutoffTime.Format("2006-01-02 15:04:05"))
+		logger.WithFields(logger.LogFields{
+			"since": cutoffTime.Format("2006-01-02 15:04:05"),
+		}).Info("No new channels found")
 		return nil
 	}
 
-	fmt.Printf("Found %d new channel(s) since %s:\n", len(newChannels), cutoffTime.Format("2006-01-02 15:04:05"))
+	logger.WithFields(logger.LogFields{
+		"count": len(newChannels),
+		"since": cutoffTime.Format("2006-01-02 15:04:05"),
+	}).Info("Found new channels")
+	
 	for _, channel := range newChannels {
+		logger.WithFields(logger.LogFields{
+			"channel": channel.Name,
+			"created": channel.Created.Format("2006-01-02 15:04:05"),
+		}).Info("New channel detected")
 		fmt.Printf("  #%s (created: %s)\n", channel.Name, channel.Created.Format("2006-01-02 15:04:05"))
 	}
 
 	if announceChannel != "" {
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
 		if err := client.PostMessage(announceChannel, message); err != nil {
+			logger.WithFields(logger.LogFields{
+				"channel": announceChannel,
+				"error": err.Error(),
+			}).Error("Failed to post announcement")
 			return fmt.Errorf("failed to post announcement to %s: %v", announceChannel, err)
 		}
+		logger.WithField("channel", announceChannel).Info("Announcement posted successfully")
 		fmt.Printf("Announcement posted to %s\n", announceChannel)
 	}
 

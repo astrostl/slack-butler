@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
+	"slack-buddy-ai/pkg/logger"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,7 +16,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		logger.WithField("error", err.Error()).Error("Command execution failed")
 		os.Exit(1)
 	}
 }
@@ -24,7 +24,9 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().String("token", "", "Slack bot token (can also be set via SLACK_TOKEN env var)")
-	viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
+	if err := viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token")); err != nil {
+		logger.WithField("error", err.Error()).Fatal("Failed to bind token flag")
+	}
 }
 
 func initConfig() {

@@ -10,7 +10,7 @@ func TestNewClient(t *testing.T) {
 	t.Run("Valid token creates client", func(t *testing.T) {
 		// This test uses the real NewClient function but with dependency injection
 		// We test the validation logic without actually making network calls
-		token := "xoxb-test-token-for-validation-only"
+		token := "xoxb-TEST-TOKEN-MOCK-FOR-TESTING-ONLY-NOT-REAL"
 		
 		// This will fail at the network call step, but validates token format first
 		client, err := NewClient(token)

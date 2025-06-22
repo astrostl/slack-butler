@@ -1,0 +1,152 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+output:
+  format: colored-line-number
+  print-issued-lines: false
+  print-linter-name: true
+
+linters-settings:
+  # Security-focused linters
+  gosec:
+    severity: "low"
+    confidence: "low"
+    excludes:
+      - G104 # Allow unhandled errors in some contexts
+  
+  # Code quality linters  
+  govet:
+    check-shadowing: true
+    enable-all: true
+  
+  staticcheck:
+    go: "1.21"
+    checks: ["all"]
+  
+  # Performance linters
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+  
+  # Style linters
+  gofmt:
+    simplify: true
+  
+  goimports:
+    local-prefixes: github.com/astrostl/slack-buddy-ai
+  
+  # Complexity linters
+  cyclop:
+    max-complexity: 15
+  
+  gocognit:
+    min-complexity: 20
+  
+  # Error handling
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  # Unused code detection
+  unused:
+    go: "1.21"
+  
+  deadcode:
+    test: true
+  
+  # Security-specific settings
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+    ignore-tests: true
+  
+  # Documentation
+  godot:
+    scope: declarations
+    exclude:
+      - "^SPDX-License-Identifier:"
+    capital: true
+
+linters:
+  enable:
+    # Security linters
+    - gosec          # Security issues
+    - goconst        # Repeated strings that should be constants
+    
+    # Code quality
+    - govet          # Go vet built-in linter
+    - staticcheck    # Advanced static analysis
+    - unused         # Unused code detection
+    - deadcode       # Dead code detection
+    - ineffassign    # Ineffectual assignment detection
+    - typecheck      # Type checking errors
+    
+    # Style and formatting
+    - gofmt          # Code formatting
+    - goimports      # Import formatting
+    - misspell       # Spelling mistakes
+    - godot          # Comments should end in period
+    
+    # Performance
+    - prealloc       # Slice preallocation
+    - bodyclose      # HTTP response body close
+    
+    # Error handling
+    - errcheck       # Unchecked errors
+    - errorlint      # Error wrapping
+    
+    # Complexity
+    - cyclop         # Cyclomatic complexity
+    - gocognit       # Cognitive complexity
+    - nestif         # Nested if statements
+    
+    # Potential bugs
+    - nilerr         # Nil error return
+    - noctx          # HTTP requests without context
+    - rowserrcheck   # SQL rows.Err check
+    - sqlclosecheck  # SQL close check
+    
+  disable:
+    - varnamelen     # Variable name length (too strict for CLI)
+    - exhaustruct    # Exhaustive struct initialization (overkill)
+    - nlreturn       # New line before return (style preference)
+    - wsl            # Whitespace linter (too opinionated)
+    - lll            # Line length (handled by formatting)
+    - funlen         # Function length (context-dependent)
+    - gochecknoglobals # Global variables (needed for CLI)
+
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    # Exclude security issues in test files for mock data
+    - path: _test\.go
+      linters: [gosec]
+      text: "G101|G102|G103|G104|G301|G302|G303|G304|G305"
+      
+    # Allow globals in main.go for CLI root
+    - path: main\.go
+      linters: [gochecknoglobals]
+      
+    # Allow init functions in config
+    - path: pkg/config/
+      linters: [gochecknoinits]
+      
+    # Allow deep nesting in test setup
+    - path: _test\.go
+      linters: [nestif, cyclop, gocognit]
+      
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+severity:
+  default-severity: error
+  rules:
+    - linters: [govet, staticcheck, unused, deadcode, errcheck]
+      severity: error
+    - linters: [gosec]
+      severity: warning
+    - linters: [misspell, godot, gofmt]
+      severity: info

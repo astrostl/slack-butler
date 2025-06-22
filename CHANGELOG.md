@@ -5,9 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-06-22
+## [Unreleased]
 
-### Added - Security Infrastructure (Community-Maintained)
+### Planned
+- Channel cleanup detection for inactive channels
+
+## [1.0.0] - 2025-06-22
+
+### Added - Stable Release
+- **Logger Test Coverage**: Comprehensive test suite for pkg/logger package (0% to 75% coverage)
+- **Documentation Accuracy**: Fixed incorrect flag syntax in .env.example
+- **Test Quality**: All tests passing with legitimate coverage (no artificial shortcuts)
+
+### Security Infrastructure (Community-Maintained)
 - **Security Documentation**: Basic SECURITY.md with community vulnerability reporting process
 - **Code Quality Configuration**: golangci-lint with security and quality linters
 
@@ -29,9 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Unhandled Error**: Fixed gosec G104 warning in cmd/root.go by properly handling viper.BindPFlag error
 - **Repository Organization**: Moved build artifacts and documentation to organized directories
-
-### Planned
-- Channel cleanup detection for inactive channels
+- **Flag Documentation**: Corrected time flag examples in .env.example (removed incorrect 'd' suffix)
 
 ## [1.0.1-beta] - 2025-06-21
 

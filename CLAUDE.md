@@ -72,13 +72,11 @@ go build -o slack-buddy
 ```
 
 ## Git Repository
-- **Version**: In Development (post v1.0.1-beta)
+- **Version**: In Development
 - **Status**: ✅ **COMMUNITY PROJECT** - Well-tested with basic security features
-- **Security**: ✅ **BASIC SECURITY** - Security workflows configured, community-maintained
+- **Security**: ✅ **BASIC SECURITY** - Security tools available, community-maintained
 - **Branches**: 
-  - `master` - Main development branch
-  - `beta` - Current beta release branch (well-tested community project)
-- **Tags**: v1.0.0-beta, v1.0.1-beta
+  - `main` - Main development branch
 
 ## Testing Results
 - **Workspace**: Successfully tested with "Vibe Coding, Inc." Slack workspace
@@ -91,7 +89,7 @@ go build -o slack-buddy
   - Bot not in channel
   - Channel not found
 
-## Test Coverage (v1.0.1-beta)
+## Test Coverage
 - **Good Test Coverage** - Solid test coverage across core functionality
 - **Comprehensive Test Suite** - Good test scenarios covering business logic
 - **All Tests Passing** - Tests pass with race detection enabled

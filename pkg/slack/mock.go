@@ -66,6 +66,10 @@ func (m *MockSlackAPI) PostMessage(channelID string, options ...slack.MsgOption)
 // Helper methods for testing
 
 func (m *MockSlackAPI) AddChannel(id, name string, created time.Time, purpose string) {
+	m.AddChannelWithCreator(id, name, created, purpose, "U1234567")
+}
+
+func (m *MockSlackAPI) AddChannelWithCreator(id, name string, created time.Time, purpose, creator string) {
 	channel := slack.Channel{
 		GroupConversation: slack.GroupConversation{
 			Conversation: slack.Conversation{
@@ -76,6 +80,7 @@ func (m *MockSlackAPI) AddChannel(id, name string, created time.Time, purpose st
 			Purpose: slack.Purpose{
 				Value: purpose,
 			},
+			Creator: creator,
 		},
 	}
 	m.Channels = append(m.Channels, channel)

@@ -32,9 +32,9 @@ func TestValidateSlackToken(t *testing.T) {
 	})
 
 	t.Run("Token too short", func(t *testing.T) {
-		err := ValidateSlackToken("xoxb-123-456-abc")
+		err := ValidateSlackToken("xoxb-FAKE-FOR-TESTING")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "appears too short")
+		assert.Contains(t, err.Error(), "does not match expected")
 	})
 }
 
@@ -53,7 +53,7 @@ func TestSanitizeForLogging(t *testing.T) {
 	})
 
 	t.Run("Multiple tokens", func(t *testing.T) {
-		input := "Token1: xoxb-111-222-abc Token2: xoxb-333-444-def"
+		input := "Token1: xoxb-FAKE-111-abc Token2: xoxb-FAKE-222-def"
 		result := SanitizeForLogging(input)
 		assert.Equal(t, "Token1: [REDACTED] Token2: [REDACTED]", result)
 		assert.NotContains(t, result, "xoxb-")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slack-buddy-ai/pkg/logger"
 	"slack-buddy-ai/pkg/slack"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -19,21 +20,25 @@ var channelsCmd = &cobra.Command{
 var detectCmd = &cobra.Command{
 	Use:   "detect",
 	Short: "Detect new channels created in a time period",
-	Long:  `Detect new channels created during a specified time period and optionally announce them to another channel.`,
-	RunE:  runDetect,
+	Long: `Detect new channels created during a specified time period and optionally announce them to another channel.
+
+Use --dry-run to preview what would be announced without actually posting messages.`,
+	RunE: runDetect,
 }
 
 var (
 	since      string
 	announceTo string
+	dryRun     bool
 )
 
 func init() {
 	rootCmd.AddCommand(channelsCmd)
 	channelsCmd.AddCommand(detectCmd)
 
-	detectCmd.Flags().StringVar(&since, "since", "24h", "Time period to look back (e.g., 24h, 7d, 1w)")
+	detectCmd.Flags().StringVar(&since, "since", "1", "Number of days to look back (e.g., 1, 7, 30)")
 	detectCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce new channels to (e.g., #general)")
+	detectCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be announced without actually posting messages")
 }
 
 func runDetect(cmd *cobra.Command, args []string) error {
@@ -42,11 +47,16 @@ func runDetect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("slack token is required. Set SLACK_TOKEN environment variable or use --token flag")
 	}
 
-	duration, err := time.ParseDuration(since)
+	days, err := strconv.ParseFloat(since, 64)
 	if err != nil {
-		return fmt.Errorf("invalid time format '%s': %v", since, err)
+		return fmt.Errorf("invalid days format '%s': must be a number (e.g., 1, 7, 30)", since)
+	}
+	
+	if days < 0 {
+		return fmt.Errorf("days must be positive, got %g", days)
 	}
 
+	duration := time.Duration(days * 24) * time.Hour
 	cutoffTime := time.Now().Add(-duration)
 
 	client, err := slack.NewClient(token)
@@ -54,10 +64,10 @@ func runDetect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create Slack client: %v", err)
 	}
 
-	return runDetectWithClient(client, cutoffTime, announceTo)
+	return runDetectWithClient(client, cutoffTime, announceTo, dryRun)
 }
 
-func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceChannel string) error {
+func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceChannel string, isDryRun bool) error {
 	newChannels, err := client.GetNewChannels(cutoffTime)
 	if err != nil {
 		return fmt.Errorf("failed to get new channels: %v", err)
@@ -83,17 +93,35 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 		fmt.Printf("  #%s (created: %s)\n", channel.Name, channel.Created.Format("2006-01-02 15:04:05"))
 	}
 
+	// Add summary list at the end for easy copying
+	if len(newChannels) > 0 {
+		fmt.Println()
+		fmt.Printf("New channels found (%d):\n", len(newChannels))
+		for _, channel := range newChannels {
+			fmt.Printf("  #%s\n", channel.Name)
+		}
+	}
+
 	if announceChannel != "" {
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
-		if err := client.PostMessage(announceChannel, message); err != nil {
-			logger.WithFields(logger.LogFields{
-				"channel": announceChannel,
-				"error": err.Error(),
-			}).Error("Failed to post announcement")
-			return fmt.Errorf("failed to post announcement to %s: %v", announceChannel, err)
+		
+		if isDryRun {
+			fmt.Printf("\n--- DRY RUN ---\n")
+			fmt.Printf("Would announce to channel: %s\n", announceChannel)
+			fmt.Printf("Message content:\n%s\n", message)
+			fmt.Printf("--- END DRY RUN ---\n")
+			logger.WithField("channel", announceChannel).Info("Dry run: announcement preview shown")
+		} else {
+			if err := client.PostMessage(announceChannel, message); err != nil {
+				logger.WithFields(logger.LogFields{
+					"channel": announceChannel,
+					"error": err.Error(),
+				}).Error("Failed to post announcement")
+				return fmt.Errorf("failed to post announcement to %s: %v", announceChannel, err)
+			}
+			logger.WithField("channel", announceChannel).Info("Announcement posted successfully")
+			fmt.Printf("Announcement posted to %s\n", announceChannel)
 		}
-		logger.WithField("channel", announceChannel).Info("Announcement posted successfully")
-		fmt.Printf("Announcement posted to %s\n", announceChannel)
 	}
 
 	return nil

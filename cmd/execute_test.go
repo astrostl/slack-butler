@@ -22,7 +22,7 @@ func TestExecuteErrorPaths(t *testing.T) {
 		os.Args = []string{"slack-buddy", "--help"}
 		
 		assert.NotPanics(t, func() {
-			Execute()
+			Execute("dev", "unknown", "unknown")
 		})
 	})
 }

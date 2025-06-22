@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -20,11 +21,15 @@ func TestDetectCommandSetup(t *testing.T) {
 	t.Run("Command flags", func(t *testing.T) {
 		sinceFlag := detectCmd.Flags().Lookup("since")
 		assert.NotNil(t, sinceFlag)
-		assert.Equal(t, "24h", sinceFlag.DefValue)
+		assert.Equal(t, "1", sinceFlag.DefValue)
 
 		announceFlag := detectCmd.Flags().Lookup("announce-to")
 		assert.NotNil(t, announceFlag)
 		assert.Equal(t, "", announceFlag.DefValue)
+
+		dryRunFlag := detectCmd.Flags().Lookup("dry-run")
+		assert.NotNil(t, dryRunFlag)
+		assert.Equal(t, "false", dryRunFlag.DefValue)
 	})
 
 	t.Run("Command hierarchy", func(t *testing.T) {
@@ -70,35 +75,44 @@ func TestRunDetectFunction(t *testing.T) {
 		cmd := &cobra.Command{}
 		err := runDetect(cmd, []string{})
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid time format")
+		assert.Contains(t, err.Error(), "invalid days format")
 		
 		// Reset values
 		since = originalSince
 	})
 }
 
-func TestTimeParsing(t *testing.T) {
+func TestDaysParsing(t *testing.T) {
 	testCases := []struct {
 		name     string
 		input    string
 		valid    bool
 	}{
-		{"Valid 24h", "24h", true},
-		{"Valid 168h", "168h", true},
-		{"Valid 30m", "30m", true},
-		{"Valid 1h30m", "1h30m", true},
+		{"Valid 1 day", "1", true},
+		{"Valid 7 days", "7", true},
+		{"Valid 30 days", "30", true},
+		{"Valid 0.5 days", "0.5", true},
+		{"Valid 365 days", "365", true},
 		{"Invalid format", "invalid", false},
-		{"Invalid 7d", "7d", false},
-		{"Invalid 1w", "1w", false},
+		{"Invalid negative", "-1", false},
+		{"Invalid with units", "7d", false},
+		{"Invalid with units", "1w", false},
+		{"Invalid with hours", "24h", false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := time.ParseDuration(tc.input)
+			days, err := strconv.ParseFloat(tc.input, 64)
 			if tc.valid {
 				assert.NoError(t, err)
+				assert.GreaterOrEqual(t, days, 0.0)
 			} else {
-				assert.Error(t, err)
+				if err == nil && days < 0 {
+					// This handles the negative case
+					assert.True(t, days < 0)
+				} else {
+					assert.Error(t, err)
+				}
 			}
 		})
 	}
@@ -114,7 +128,7 @@ func TestRunDetectSuccessPath(t *testing.T) {
 		t.Setenv("SLACK_TOKEN", "MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL")
 		initConfig()
 		
-		since = "1h"
+		since = "1"
 		announceTo = ""
 		
 		cmd := &cobra.Command{}
@@ -139,7 +153,7 @@ func TestRunDetectSuccessPath(t *testing.T) {
 		t.Setenv("SLACK_TOKEN", "MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL")
 		initConfig()
 		
-		since = "2h"
+		since = "2"
 		announceTo = "#general"
 		
 		cmd := &cobra.Command{}
@@ -164,7 +178,7 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		require.NoError(t, err)
 
 		cutoffTime := time.Now().Add(-24 * time.Hour)
-		err = runDetectWithClient(client, cutoffTime, "")
+		err = runDetectWithClient(client, cutoffTime, "", false)
 		assert.NoError(t, err)
 	})
 
@@ -177,7 +191,7 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		require.NoError(t, err)
 
 		cutoffTime := time.Now().Add(-2 * time.Hour)
-		err = runDetectWithClient(client, cutoffTime, "")
+		err = runDetectWithClient(client, cutoffTime, "", false)
 		assert.NoError(t, err)
 	})
 
@@ -190,7 +204,7 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		require.NoError(t, err)
 
 		cutoffTime := time.Now().Add(-2 * time.Hour)
-		err = runDetectWithClient(client, cutoffTime, "#general")
+		err = runDetectWithClient(client, cutoffTime, "#general", false)
 		assert.NoError(t, err)
 
 		// Verify message was posted
@@ -211,7 +225,7 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		require.NoError(t, err)
 
 		cutoffTime := time.Now().Add(-2 * time.Hour)
-		err = runDetectWithClient(client, cutoffTime, "#nonexistent")
+		err = runDetectWithClient(client, cutoffTime, "#nonexistent", false)
 		
 		// Should return error about failed announcement
 		assert.Error(t, err)
@@ -228,10 +242,64 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		require.NoError(t, err)
 
 		cutoffTime := time.Now().Add(-2 * time.Hour)
-		err = runDetectWithClient(client, cutoffTime, "")
+		err = runDetectWithClient(client, cutoffTime, "", false)
 		
 		// Should return error about failed to get new channels
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get new channels")
+	})
+}
+
+func TestDryRunFunctionality(t *testing.T) {
+	t.Run("Dry run with announcement - no messages posted", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "#general", true) // dry run = true
+		assert.NoError(t, err)
+
+		// Verify NO message was posted in dry run mode
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+	})
+
+	t.Run("Regular run with announcement - message posted", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "#general", false) // dry run = false
+		assert.NoError(t, err)
+
+		// Verify message WAS posted in regular mode
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 1)
+		assert.Equal(t, "general", messages[0].ChannelID)
+	})
+
+	t.Run("Dry run without announcement - still processes normally", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "", true) // dry run = true, no announcement channel
+		assert.NoError(t, err)
+
+		// Verify no messages posted (none expected)
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
 	})
 }

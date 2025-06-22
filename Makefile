@@ -23,8 +23,8 @@ BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
-# Linker flags to embed build info
-LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
+# Linker flags to embed build info and optimize binary size
+LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.GitCommit=$(GIT_COMMIT)"
 
 # Default target
 .PHONY: all
@@ -150,6 +150,54 @@ install-security:
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	@echo "Security tools installed!"
 
+# Install release tools
+.PHONY: install-release
+install-release:
+	@echo "Installing release tools..."
+	@if ! command -v goreleaser >/dev/null 2>&1; then \
+		echo "Installing goreleaser..."; \
+		go install github.com/goreleaser/goreleaser@latest; \
+	else \
+		echo "goreleaser already installed"; \
+	fi
+	@echo "Release tools installed!"
+
+# Build release artifacts locally with GoReleaser
+.PHONY: release-build
+release-build: clean
+	@echo "Building release artifacts with GoReleaser..."
+	@mkdir -p $(BUILD_DIR)/dist
+	@if ! command -v goreleaser >/dev/null 2>&1; then \
+		echo "goreleaser not installed. Run: make install-release"; \
+		exit 1; \
+	fi
+	goreleaser build --snapshot --clean --output $(BUILD_DIR)/dist/
+	@echo "Release artifacts built in $(BUILD_DIR)/dist/"
+
+# Create full release with checksums
+.PHONY: release
+release: clean
+	@echo "Creating full release with checksums..."
+	@if ! command -v goreleaser >/dev/null 2>&1; then \
+		echo "goreleaser not installed. Run: make install-release"; \
+		exit 1; \
+	fi
+	goreleaser release --snapshot --clean
+	@echo "Release created in dist/ with checksums"
+	@echo "Files:"
+	@ls -la dist/
+
+# Check GoReleaser configuration
+.PHONY: release-check
+release-check:
+	@echo "Checking GoReleaser configuration..."
+	@if ! command -v goreleaser >/dev/null 2>&1; then \
+		echo "goreleaser not installed. Run: make install-release"; \
+		exit 1; \
+	fi
+	goreleaser check
+	@echo "GoReleaser configuration is valid!"
+
 # Quick development cycle: format, vet, test, build
 .PHONY: dev
 dev: fmt vet test build
@@ -207,3 +255,9 @@ help:
 	@echo "  run          - Build and run with --help"
 	@echo "  version-check - Check Go version"
 	@echo "  help         - Show this help"
+	@echo ""
+	@echo "Release targets:"
+	@echo "  install-release - Install GoReleaser and release tools"
+	@echo "  release-build   - Build release artifacts (no checksums)"
+	@echo "  release         - Create full release with checksums"
+	@echo "  release-check   - Validate GoReleaser configuration"

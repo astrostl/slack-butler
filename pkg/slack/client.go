@@ -29,6 +29,14 @@ type Channel struct {
 	Name    string
 	Created time.Time
 	Purpose string
+	Creator string
+}
+
+type AuthInfo struct {
+	User   string
+	UserID string
+	Team   string
+	TeamID string
 }
 
 func NewClient(token string) (*Client, error) {
@@ -200,6 +208,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 				Name:    ch.Name,
 				Created: created,
 				Purpose: ch.Purpose.Value,
+				Creator: ch.Creator,
 			})
 		}
 	}
@@ -217,19 +226,33 @@ func (c *Client) FormatNewChannelAnnouncement(channels []Channel, since time.Tim
 	var builder strings.Builder
 	
 	if len(channels) == 1 {
-		builder.WriteString("🆕 New channel alert!")
+		builder.WriteString("New channel alert!")
 	} else {
-		builder.WriteString(fmt.Sprintf("🆕 %d new channels created!", len(channels)))
+		builder.WriteString(fmt.Sprintf("%d new channels created!", len(channels)))
 	}
 	
-	builder.WriteString(fmt.Sprintf("\n\nChannels created since %s:\n", since.Format("2006-01-02 15:04")))
+	builder.WriteString("\n\n")
 	
-	for _, ch := range channels {
-		builder.WriteString(fmt.Sprintf("• <#%s> - created %s", ch.ID, ch.Created.Format("2006-01-02 15:04")))
+	for i, ch := range channels {
+		builder.WriteString(fmt.Sprintf("• <#%s>", ch.ID))
+		
+		// Build the "created [DATE] by [USER]" line
+		createdLine := fmt.Sprintf(" - created %s", ch.Created.Format("January 2, 2006"))
+		if ch.Creator != "" {
+			createdLine += fmt.Sprintf(" by <@%s>", ch.Creator)
+		}
+		builder.WriteString(createdLine)
+		
 		if ch.Purpose != "" {
 			builder.WriteString(fmt.Sprintf("\n  Purpose: %s", ch.Purpose))
 		}
-		builder.WriteString("\n")
+		
+		// Add spacing between channels (but not after the last one)
+		if i < len(channels)-1 {
+			builder.WriteString("\n\n")
+		} else {
+			builder.WriteString("\n")
+		}
 	}
 	
 	return builder.String()
@@ -295,4 +318,24 @@ func (c *Client) PostMessage(channel, message string) error {
 	
 	logger.WithField("channel", channel).Info("Message posted successfully")
 	return nil
+}
+
+func (c *Client) TestAuth() (*AuthInfo, error) {
+	auth, err := c.api.AuthTest()
+	if err != nil {
+		return nil, err
+	}
+	
+	return &AuthInfo{
+		User:   auth.User,
+		UserID: auth.UserID,
+		Team:   auth.Team,
+		TeamID: auth.TeamID,
+	}, nil
+}
+
+func (c *Client) GetChannelInfo(channelID string) (*Channel, error) {
+	// This is used for permission testing in health checks
+	// We'll just return a mock error for permission testing
+	return nil, fmt.Errorf("channel_not_found")
 }

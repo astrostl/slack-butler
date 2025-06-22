@@ -22,7 +22,7 @@ func TestExecuteFunction(t *testing.T) {
 		
 		// Execute should not panic
 		assert.NotPanics(t, func() {
-			Execute()
+			Execute("dev", "unknown", "unknown")
 		})
 	})
 }

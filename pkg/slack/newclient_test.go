@@ -40,7 +40,7 @@ func TestNewClient(t *testing.T) {
 	})
 
 	t.Run("Short token fails validation", func(t *testing.T) {
-		token := "xoxb-123-456-abc"
+		token := "xoxb-FAKE-FOR-TESTING"
 		
 		client, err := NewClient(token)
 		

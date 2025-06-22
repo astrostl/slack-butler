@@ -155,29 +155,39 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 				Name:    "test-channel",
 				Created: time.Now(),
 				Purpose: "Test purpose",
+				Creator: "U1234567",
 			},
 		}
 		
 		since := time.Now().Add(-1 * time.Hour)
 		message := client.FormatNewChannelAnnouncement(channels, since)
 		
-		assert.Contains(t, message, "🆕 New channel alert!")
+		assert.Contains(t, message, "New channel alert!")
 		assert.Contains(t, message, "C1234567890") // Channel ID in link format
 		assert.Contains(t, message, "Test purpose")
+		assert.Contains(t, message, "by <@U1234567>")
+		assert.Contains(t, message, "created")
+		// Check for natural date format
+		expectedDate := time.Now().Format("January 2, 2006")
+		assert.Contains(t, message, expectedDate)
 	})
 
 	t.Run("Multiple channels", func(t *testing.T) {
 		channels := []Channel{
-			{ID: "C1234567890", Name: "channel1", Created: time.Now()},
-			{ID: "C0987654321", Name: "channel2", Created: time.Now()},
+			{ID: "C1234567890", Name: "channel1", Created: time.Now(), Creator: "U1111111"},
+			{ID: "C0987654321", Name: "channel2", Created: time.Now(), Creator: "U2222222"},
 		}
 		
 		since := time.Now().Add(-1 * time.Hour)
 		message := client.FormatNewChannelAnnouncement(channels, since)
 		
-		assert.Contains(t, message, "🆕 2 new channels created!")
+		assert.Contains(t, message, "2 new channels created!")
 		assert.Contains(t, message, "C1234567890") // First channel ID
 		assert.Contains(t, message, "C0987654321") // Second channel ID
+		assert.Contains(t, message, "by <@U1111111>")
+		assert.Contains(t, message, "by <@U2222222>")
+		// Check for spacing between channels (should have double newlines)
+		assert.Contains(t, message, "\n\n•")
 	})
 
 	t.Run("Channel without purpose", func(t *testing.T) {
@@ -187,6 +197,7 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 				Name:    "test-channel",
 				Created: time.Now(),
 				Purpose: "",
+				Creator: "U3333333",
 			},
 		}
 		
@@ -194,7 +205,27 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 		message := client.FormatNewChannelAnnouncement(channels, since)
 		
 		assert.Contains(t, message, "C1234567890") // Channel ID in link format
+		assert.Contains(t, message, "by <@U3333333>")
 		assert.NotContains(t, message, "Purpose:")
+	})
+
+	t.Run("Channel without creator", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "test-channel",
+				Created: time.Now(),
+				Purpose: "Test purpose",
+				Creator: "",
+			},
+		}
+		
+		since := time.Now().Add(-1 * time.Hour)
+		message := client.FormatNewChannelAnnouncement(channels, since)
+		
+		assert.Contains(t, message, "C1234567890") // Channel ID in link format
+		assert.Contains(t, message, "Purpose: Test purpose")
+		assert.NotContains(t, message, " by <@")
 	})
 }
 

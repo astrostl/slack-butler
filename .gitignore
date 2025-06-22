@@ -7,6 +7,10 @@ build/
 bin/
 dist/
 
+# GoReleaser artifacts
+*.tar.gz
+*.zip
+
 # Environment files
 .env
 .env.local

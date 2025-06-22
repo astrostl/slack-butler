@@ -8,7 +8,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
-- **⏰ Flexible Time Filtering**: Support for various time formats (24h, 7d, 1w, etc.)
+- **⏰ Flexible Time Filtering**: Support for days-based filtering (1, 7, 30, etc.)
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
 - **🛡️ Security Features**: Basic security scanning and dependency monitoring (community-maintained)
 - **💡 Intelligent Error Handling**: Clear, actionable error messages for missing permissions and configuration issues
@@ -17,7 +17,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 ## Installation
 
 ### Prerequisites
-- Go 1.24.4 or higher
+- Go 1.24.4
 - Slack Bot Token with appropriate permissions
 
 ### Build from Source
@@ -53,53 +53,92 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 
 ## Usage
 
+### Health Check
+```bash
+# Basic health check
+./slack-buddy health
+
+# Detailed health check with verbose output
+./slack-buddy health --verbose
+```
+
 ### Basic Channel Detection
 ```bash
 # Load environment variables
 source .env
 
-# Detect new channels from the last 24 hours
+# Detect new channels from the last day
 ./slack-buddy channels detect
 
 # Detect from last week
-./slack-buddy channels detect --since=7d
+./slack-buddy channels detect --since=7
 ```
 
 ### With Announcements
 ```bash
 # Detect and announce to #general
-./slack-buddy channels detect --since=24h --announce-to=#general
+./slack-buddy channels detect --since=1 --announce-to=#general
 
 # Detect from last 3 days and announce to #announcements
-./slack-buddy channels detect --since=3d --announce-to=#announcements
+./slack-buddy channels detect --since=3 --announce-to=#announcements
+```
+
+### Dry Run Mode
+```bash
+# Preview what would be announced without posting
+./slack-buddy channels detect --since=1 --announce-to=#general --dry-run
+
+# Test announcement formatting and channel detection safely
+./slack-buddy channels detect --since=7 --announce-to=#announcements --dry-run
 ```
 
 ### Using Token Flag
 ```bash
 # Use token directly without .env file
-./slack-buddy channels detect --token=xoxb-your-token --since=1w
+./slack-buddy channels detect --token=xoxb-your-token --since=7
 ```
 
 ### Time Format Examples
-- `24h` - Last 24 hours
-- `7d` - Last 7 days
-- `1w` - Last week
-- `48h` - Last 48 hours
-- `30m` - Last 30 minutes
+- `1` - Last 1 day (24 hours)
+- `7` - Last 7 days (1 week)
+- `2` - Last 2 days (48 hours)
+- `0.5` - Last 12 hours (half day)
+- `30` - Last 30 days (1 month)
 
 ## Commands
+
+### `health`
+Check Slack connectivity and validate configuration.
+
+**Purpose:**
+- Verify token validity and format
+- Test Slack API connectivity
+- Check required OAuth scopes and permissions
+- Validate bot user information
+- Test basic API functionality
+
+**Flags:**
+- `-v, --verbose` - Show detailed health check information
+
+**Examples:**
+```bash
+./slack-buddy health
+./slack-buddy health --verbose
+```
 
 ### `channels detect`
 Detect new channels created within a specified time period.
 
 **Flags:**
-- `--since` - Time period to look back (default: "24h")
+- `--since` - Number of days to look back (default: "1")
 - `--announce-to` - Channel to announce new channels to
+- `--dry-run` - Preview what would be announced without posting messages
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
 **Examples:**
 ```bash
-./slack-buddy channels detect --since=7d --announce-to=#general
+./slack-buddy channels detect --since=7 --announce-to=#general
+./slack-buddy channels detect --since=1 --announce-to=#general --dry-run
 ```
 
 ## Development
@@ -158,7 +197,33 @@ make ci
 
 # Install security tools
 make install-security
+
+# Install release tools
+make install-release
 ```
+
+### Release Management
+
+#### Local Release Process
+```bash
+# Install GoReleaser (one-time setup)
+make install-release
+
+# Check configuration
+make release-check
+
+# Build artifacts only (no checksums)
+make release-build
+
+# Create full release with checksums
+make release
+```
+
+#### Release Features
+- **Multi-platform builds**: Linux, macOS, Windows (amd64, arm64)
+- **Checksums**: SHA256 checksums for all artifacts
+- **Archives**: tar.gz (Unix) and zip (Windows) with documentation
+- **Local-only**: No GitHub integration (release.disable: true)
 
 ## Contributing
 
@@ -215,4 +280,4 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-This is a community project with **no official support**. For issues, feature requests, or questions, please open an issue on GitHub with the understanding that responses are provided on a best-effort basis by volunteers.
+This is a community project with **no official support**. For issues, feature requests, or questions, please open an issue on GitHub with the understanding that responses are provided on a best-effort basis.

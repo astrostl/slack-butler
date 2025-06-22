@@ -3,9 +3,7 @@
 Project task tracking and development notes.
 
 ## Current Tasks
-- [ ] Add GoReleaser configuration for distribution
-- [ ] Add shell completions (bash, zsh, fish)
-- [ ] Add health check command for Slack connectivity
+- None identified
 
 ## Completed Tasks
 - [x] Security Documentation - Basic SECURITY.md with vulnerability reporting process
@@ -14,6 +12,9 @@ Project task tracking and development notes.
 - [x] Integration Tests - Mock Slack API integration testing
 - [x] Code Quality - golangci-lint configuration with 30+ linters
 - [x] Error Handling - Fixed unhandled error in cmd/root.go (gosec G104)
+- [x] GoReleaser Configuration - Added .goreleaser.yaml with local release support
+- [x] Shell Completions - Built-in Cobra completions for bash, zsh, fish, powershell
+- [x] Health Check Command - Added comprehensive health and connectivity testing
 
 ## Feature Ideas
 - Channel cleanup detection (inactive channels)

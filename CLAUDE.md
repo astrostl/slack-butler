@@ -34,22 +34,29 @@ source .env
 ```
 
 ## Required Slack Permissions
-- `channels:read` - To list channels
+- `channels:read` - To list public channels
+- `groups:read` - To list private channels
 - `chat:write` - To post announcements
 
 ## Project Structure
 ```
 slack-buddy-ai/
 ├── main.go              # Entry point
-├── cmd/
+├── cmd/                 # CLI commands and tests
 │   ├── root.go         # Root command and configuration
-│   └── channels.go     # Channel management commands
-├── pkg/
-│   └── slack/
-│       └── client.go   # Slack API wrapper
+│   ├── channels.go     # Channel management commands
+│   └── *_test.go       # Command tests
+├── pkg/                 # Core packages
+│   ├── config/         # Configuration management
+│   ├── logger/         # Structured logging
+│   └── slack/          # Slack API wrapper and client
+├── docs/               # Documentation
+├── bin/                # Build outputs
+├── build/              # Build artifacts (coverage, reports)
 ├── .env                # Token storage (git-ignored)
-├── .gitignore          # Excludes sensitive files
-└── go.mod              # Go module definition
+├── .env.example        # Configuration template
+├── Makefile            # Build automation
+└── go.mod              # Dependencies
 ```
 
 ## Development Commands
@@ -129,44 +136,37 @@ go build -o slack-buddy
 - **Mock Properly**: Use mocks for external dependencies, but test real logic
 - **Test Real Scenarios**: Integration tests should simulate realistic user workflows
 
-**Current Test Stats:**
-- **383+ test cases** across comprehensive unit and integration suites
-- **87.3% code coverage** achieved with legitimate, valuable tests
-- **Unit Tests**: Core functionality, message formatting, time parsing, edge cases
-- **Integration Tests**: Mock Slack API interactions, complete error handling scenarios
-- **CLI Tests**: End-to-end command execution with dependency injection
-- **Security Tests**: Token validation, input sanitization, error path coverage
-- **Race Detection**: All tests pass with `-race` flag enabled
-- **Mock Framework**: Robust Slack API mocking without artificial shortcuts
+**Current Test Status:**
+- Good test suite covering core functionality
+- Unit tests for business logic and message formatting
+- Integration tests with mock Slack API interactions
+- CLI tests for end-to-end command execution
+- Error path testing for key scenarios
+- Race detection enabled for all tests
+- Realistic mock framework for external dependencies
 
 **Test Quality Standards:**
-- Each test must have clear purpose and validate specific behavior
-- Integration tests must use realistic mock data
-- Error paths must be tested, not just happy paths
-- Tests must be maintainable and readable
-- No tests that always pass regardless of implementation
-- **Good Coverage**: Solid coverage across core packages
-- **Appropriate Gaps**: Remaining uncovered lines are external dependencies (network, OS)
-- **No Artificial Inflation**: All test cases validate real functionality and scenarios
+- Tests must validate actual functionality and behavior
+- Integration tests use realistic mock data
+- Error paths are tested along with happy paths
+- Tests are maintainable and readable
+- No artificial test inflation or empty placeholders
+- Solid coverage of core business logic
+- External dependencies properly mocked
 
 ## Security Infrastructure (Community-Maintained)
 
-### Security Workflows
-- **GitHub Actions Security Workflow**: Security scanning workflows configured (may require fixes)
-- **Vulnerability Scanning**: govulncheck integration available (requires working Go version)
+### Security Tools Available
+- **Vulnerability Scanning**: govulncheck integration available (requires manual setup)
 - **Static Security Analysis**: gosec security scanner integration available
-- **Dependency Monitoring**: Basic dependency monitoring via Dependabot
 - **License Compliance**: Basic GPL/copyleft license detection
 - **Code Quality**: golangci-lint with security and quality linters
 
 ### Security Tools & Configuration
-- **Dependabot**: Weekly dependency updates for Go modules and GitHub Actions
 - **Security Documentation**: Basic SECURITY.md with community vulnerability reporting process
 - **Build System Integration**: Makefile with security targets (security-full, vuln-check, install-security)
 
 ### Security Status
-- **Workflow Status**: ⚠️ **COMMUNITY-MAINTAINED** - Security workflows exist but may need fixes
-- **Go Version**: ✅ **FIXED** - Updated GitHub Actions to use correct Go 1.24.4
 - **Code Quality**: ✅ **IMPROVED** - Fixed gosec G104 unhandled error warning
 - **Compliance**: ✅ **BASIC** - No known GPL dependencies
 
@@ -175,5 +175,5 @@ go build -o slack-buddy
 - User activity monitoring
 - Automated channel archiving
 - Integration with other workspace tools
-- CI/CD pipeline with GoReleaser for automated releases
+- GoReleaser for automated releases
 - Shell completions (bash, zsh, fish)

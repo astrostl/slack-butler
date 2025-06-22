@@ -5,20 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Planned
-- Channel cleanup detection for inactive channels
-- User activity monitoring
-- Automated channel archiving
-- Web dashboard for workspace insights
-- Scheduled automation features
-
-## [Unreleased] - In Development
+## [Unreleased] - 2025-06-22
 
 ### Added - Security Infrastructure (Community-Maintained)
-- **🛡️ Security Workflows**: GitHub Actions workflows for security scanning (may require fixes)
-- **Dependency Updates**: Dependabot configuration for Go modules and GitHub Actions
 - **Security Documentation**: Basic SECURITY.md with community vulnerability reporting process
 - **Code Quality Configuration**: golangci-lint with security and quality linters
 
@@ -38,9 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Community Focus**: Aligned documentation with volunteer/community project reality
 
 ### Fixed
-- **Go Version Mismatch**: Fixed GitHub Actions workflow to use Go 1.24.4 (matches go.mod)
 - **Unhandled Error**: Fixed gosec G104 warning in cmd/root.go by properly handling viper.BindPFlag error
 - **Repository Organization**: Moved build artifacts and documentation to organized directories
+
+### Planned
+- Channel cleanup detection for inactive channels
+- User activity monitoring
+- Automated channel archiving
+- Web dashboard for workspace insights
+- Scheduled automation features
 
 ## [1.0.1-beta] - 2025-06-21
 

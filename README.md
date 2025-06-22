@@ -33,7 +33,8 @@ go build -o slack-buddy
 1. Go to [Slack API](https://api.slack.com/apps)
 2. Create a new app for your workspace
 3. Add the following OAuth scopes:
-   - `channels:read` - To list channels
+   - `channels:read` - To list public channels
+   - `groups:read` - To list private channels
    - `chat:write` - To post announcements
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
@@ -48,7 +49,7 @@ Or set the environment variable directly:
 export SLACK_TOKEN=xoxb-your-bot-token-here
 ```
 
-**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings.
+**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels.
 
 ## Usage
 
@@ -107,13 +108,20 @@ Detect new channels created within a specified time period.
 ```
 slack-buddy-ai/
 ├── main.go              # Entry point
-├── cmd/
+├── cmd/                 # CLI commands and tests
 │   ├── root.go         # Root command and configuration
-│   └── channels.go     # Channel management commands
-├── pkg/
-│   └── slack/
-│       └── client.go   # Slack API wrapper
+│   ├── channels.go     # Channel management commands
+│   └── *_test.go       # Command tests
+├── pkg/                 # Core packages
+│   ├── config/         # Configuration management
+│   ├── logger/         # Structured logging
+│   └── slack/          # Slack API wrapper and client
+├── docs/               # Documentation
+├── bin/                # Build outputs
+├── build/              # Build artifacts (coverage, reports)
 ├── .env                # Token storage (git-ignored)
+├── .env.example        # Configuration template
+├── Makefile            # Build automation
 └── go.mod              # Dependencies
 ```
 
@@ -169,12 +177,10 @@ make install-security
 - **No Token Logging**: Tokens never appear in logs or error messages
 
 ### Security Scanning (Best Effort)
-- **Security Workflows**: GitHub Actions configured for vulnerability scanning (community-maintained)
 - **Static Analysis**: gosec security scanner integration available
-- **Dependency Updates**: Dependabot configured for automated dependency updates
 - **License Compliance**: Basic license scanning to avoid GPL dependencies
 
-> **Note**: Security scanning is community-maintained and may require fixes. No guarantees provided.
+> **Note**: Security scanning tools are available but require manual setup. No guarantees provided.
 
 ### Best Practices
 - Never commit your `.env` file or Slack tokens

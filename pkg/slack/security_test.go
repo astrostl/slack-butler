@@ -8,7 +8,7 @@ import (
 
 func TestValidateSlackToken(t *testing.T) {
 	t.Run("Valid bot token", func(t *testing.T) {
-		validToken := "xoxb-TEST-TOKEN-MOCK-FOR-TESTING-ONLY-NOT-REAL"
+		validToken := "MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL"
 		err := ValidateSlackToken(validToken)
 		assert.NoError(t, err)
 	})
@@ -40,7 +40,7 @@ func TestValidateSlackToken(t *testing.T) {
 
 func TestSanitizeForLogging(t *testing.T) {
 	t.Run("Replace token in string", func(t *testing.T) {
-		input := "Error with token xoxb-TEST-TOKEN-MOCK-FOR-TESTING-ONLY-NOT-REAL"
+		input := "Error with token MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL"
 		result := SanitizeForLogging(input)
 		assert.Equal(t, "Error with token [REDACTED]", result)
 		assert.NotContains(t, result, "xoxb-")

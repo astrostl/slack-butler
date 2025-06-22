@@ -12,6 +12,12 @@ BINARY_PATH=./bin/$(BINARY_NAME)
 MODULE_NAME=slack-buddy-ai
 GO_VERSION=1.24.4
 
+# Build directories
+BUILD_DIR=./build
+COVERAGE_DIR=$(BUILD_DIR)/coverage
+REPORTS_DIR=$(BUILD_DIR)/reports
+ARTIFACTS_DIR=$(BUILD_DIR)/artifacts
+
 # Build info
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -36,12 +42,12 @@ build:
 .PHONY: build-all
 build-all: clean
 	@echo "Building for multiple platforms..."
-	@mkdir -p bin
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 .
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-arm64 .
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe .
-	@echo "Cross-platform binaries built in bin/"
+	@mkdir -p $(ARTIFACTS_DIR)
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(ARTIFACTS_DIR)/$(BINARY_NAME)-linux-amd64 .
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(ARTIFACTS_DIR)/$(BINARY_NAME)-darwin-amd64 .
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(ARTIFACTS_DIR)/$(BINARY_NAME)-darwin-arm64 .
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(ARTIFACTS_DIR)/$(BINARY_NAME)-windows-amd64.exe .
+	@echo "Cross-platform binaries built in $(ARTIFACTS_DIR)/"
 
 # Run tests
 .PHONY: test
@@ -59,9 +65,10 @@ test-race:
 .PHONY: coverage
 coverage:
 	@echo "Generating test coverage..."
-	go test -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+	@mkdir -p $(COVERAGE_DIR)
+	go test -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
+	go tool cover -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
+	@echo "Coverage report generated: $(COVERAGE_DIR)/coverage.html"
 
 # Show coverage stats
 .PHONY: coverage-stats
@@ -73,8 +80,7 @@ coverage-stats:
 .PHONY: clean
 clean:
 	@echo "Cleaning up..."
-	rm -rf bin/
-	rm -f coverage*.out coverage*.html
+	rm -rf bin/ $(BUILD_DIR)/
 	rm -f $(BINARY_NAME)
 	@echo "Cleaned up build artifacts and coverage files"
 
@@ -111,7 +117,9 @@ vet:
 .PHONY: security
 security:
 	@echo "Running security scan..."
+	@mkdir -p $(REPORTS_DIR)
 	@if command -v gosec >/dev/null 2>&1; then \
+		gosec -fmt=json -out=$(REPORTS_DIR)/security-report.json ./...; \
 		gosec ./...; \
 	else \
 		echo "gosec not installed. Run: go install github.com/securego/gosec/v2/cmd/gosec@latest"; \
@@ -177,13 +185,13 @@ version-check:
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build        - Build the binary"
-	@echo "  build-all    - Build for multiple platforms"
+	@echo "  build        - Build the binary (output: bin/)"
+	@echo "  build-all    - Build for multiple platforms (output: build/artifacts/)"
 	@echo "  test         - Run tests"
 	@echo "  test-race    - Run tests with race detection"
-	@echo "  coverage     - Generate test coverage report"
+	@echo "  coverage     - Generate test coverage report (output: build/coverage/)"
 	@echo "  coverage-stats - Show coverage statistics"
-	@echo "  clean        - Clean build artifacts"
+	@echo "  clean        - Clean build artifacts (removes bin/ and build/)"
 	@echo "  deps         - Install dependencies"
 	@echo "  fmt          - Format code"
 	@echo "  lint         - Lint code (requires golangci-lint)"

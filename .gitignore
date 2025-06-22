@@ -2,14 +2,19 @@
 slack-buddy
 slack-buddy.exe
 
+# Build artifacts and reports
+build/
+bin/
+dist/
+
 # Environment files
 .env
 .env.local
 .env.production
 .env.staging
 
-# Go build cache
-go.sum
+# Go build cache (remove go.sum from gitignore - it should be committed)
+# go.sum should actually be committed for reproducible builds
 
 # IDE files
 .vscode/
@@ -25,5 +30,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Test coverage
-coverage.out
+# Test coverage files (now in build/coverage/)
+coverage*.out
+coverage*.html
+
+# Security reports
+security-report.json

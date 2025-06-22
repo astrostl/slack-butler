@@ -1,4 +1,4 @@
-module slack-buddy-ai
+module github.com/astrostl/slack-buddy-ai
 
 go 1.24.4
 

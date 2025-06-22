@@ -168,6 +168,8 @@ func TestClientRateLimitingIntegration(t *testing.T) {
 
 	t.Run("PostMessage applies rate limiting", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
+		// Add the test channel that will be used for posting
+		mockAPI.AddChannel("CTEST", "test", time.Now().Add(-24*time.Hour), "Test channel")
 		client, err := NewClientWithAPI(mockAPI)
 		if err != nil {
 			t.Fatalf("Failed to create client: %v", err)

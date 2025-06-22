@@ -9,12 +9,14 @@ import (
 
 // MockSlackAPI implements SlackAPI for testing
 type MockSlackAPI struct {
-	AuthTestResponse    *slack.AuthTestResponse
-	AuthTestError       error
-	Channels           []slack.Channel
-	GetConversationsError error
-	PostMessageError    error
-	PostedMessages      []MockMessage
+	AuthTestResponse         *slack.AuthTestResponse
+	AuthTestError           error
+	Channels               []slack.Channel
+	GetConversationsError  error
+	GetConversationHistoryError error
+	ConversationHistory    map[string][]slack.Message
+	PostMessageError       error
+	PostedMessages         []MockMessage
 }
 
 type MockMessage struct {
@@ -26,11 +28,13 @@ type MockMessage struct {
 func NewMockSlackAPI() *MockSlackAPI {
 	return &MockSlackAPI{
 		AuthTestResponse: &slack.AuthTestResponse{
-			User: "test-bot",
-			Team: "Test Team",
+			User:   "test-bot",
+			UserID: "U0000000", // Bot's user ID for filtering
+			Team:   "Test Team",
 		},
-		Channels:       []slack.Channel{},
-		PostedMessages: []MockMessage{},
+		Channels:            []slack.Channel{},
+		ConversationHistory: make(map[string][]slack.Message),
+		PostedMessages:      []MockMessage{},
 	}
 }
 
@@ -46,6 +50,21 @@ func (m *MockSlackAPI) GetConversations(params *slack.GetConversationsParameters
 		return nil, "", m.GetConversationsError
 	}
 	return m.Channels, "", nil
+}
+
+func (m *MockSlackAPI) GetConversationHistory(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error) {
+	if m.GetConversationHistoryError != nil {
+		return nil, m.GetConversationHistoryError
+	}
+	
+	messages, exists := m.ConversationHistory[params.ChannelID]
+	if !exists {
+		messages = []slack.Message{}
+	}
+	
+	return &slack.GetConversationHistoryResponse{
+		Messages: messages,
+	}, nil
 }
 
 func (m *MockSlackAPI) PostMessage(channelID string, options ...slack.MsgOption) (string, string, error) {
@@ -153,6 +172,31 @@ func (m *MockSlackAPI) GetPostedMessages() []MockMessage {
 
 func (m *MockSlackAPI) ClearPostedMessages() {
 	m.PostedMessages = []MockMessage{}
+}
+
+func (m *MockSlackAPI) AddMessageToHistory(channelID, text, user string, timestamp string) {
+	if m.ConversationHistory == nil {
+		m.ConversationHistory = make(map[string][]slack.Message)
+	}
+	
+	message := slack.Message{
+		Msg: slack.Msg{
+			Type:      "message",
+			Text:      text,
+			User:      user,
+			Timestamp: timestamp,
+		},
+	}
+	
+	m.ConversationHistory[channelID] = append(m.ConversationHistory[channelID], message)
+}
+
+func (m *MockSlackAPI) SetConversationHistoryError(hasError bool) {
+	if hasError {
+		m.GetConversationHistoryError = fmt.Errorf("failed to get conversation history")
+	} else {
+		m.GetConversationHistoryError = nil
+	}
 }
 
 // Simulate specific error types

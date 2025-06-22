@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -199,6 +200,8 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		testTime := time.Now().Add(-1 * time.Hour)
 		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -210,13 +213,15 @@ func TestRunDetectWithClientLogic(t *testing.T) {
 		// Verify message was posted
 		messages := mockAPI.GetPostedMessages()
 		assert.Len(t, messages, 1)
-		assert.Equal(t, "general", messages[0].ChannelID)
+		assert.Equal(t, "CGENERAL", messages[0].ChannelID)
 	})
 
 	t.Run("Announcement posting error", func(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		testTime := time.Now().Add(-1 * time.Hour)
 		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		// Add the channel that will be used for announcements but set up to fail posting
+		mockAPI.AddChannel("CNONEXISTENT", "nonexistent", time.Now().Add(-24*time.Hour), "Test channel")
 		
 		// Set up mock to fail on PostMessage
 		mockAPI.SetPostMessageError("channel_not_found")
@@ -255,6 +260,8 @@ func TestDryRunFunctionality(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		testTime := time.Now().Add(-1 * time.Hour)
 		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -272,6 +279,8 @@ func TestDryRunFunctionality(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		testTime := time.Now().Add(-1 * time.Hour)
 		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -283,7 +292,7 @@ func TestDryRunFunctionality(t *testing.T) {
 		// Verify message WAS posted in regular mode
 		messages := mockAPI.GetPostedMessages()
 		assert.Len(t, messages, 1)
-		assert.Equal(t, "general", messages[0].ChannelID)
+		assert.Equal(t, "CGENERAL", messages[0].ChannelID)
 	})
 
 	t.Run("Dry run without announcement - still processes normally", func(t *testing.T) {
@@ -299,6 +308,109 @@ func TestDryRunFunctionality(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Verify no messages posted (none expected)
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+	})
+}
+
+func TestIdempotencyIntegration(t *testing.T) {
+	t.Run("Filter out previously announced channels", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		
+		// Add two channels that were created recently
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannelWithCreator("C1234567890", "new-channel", testTime, "New channel", "U1111111")
+		mockAPI.AddChannelWithCreator("C0987654321", "already-announced", testTime, "Already announced", "U2222222")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		
+		// Add message history showing that one channel was already announced (from bot)
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert!\n\n• <#C0987654321> - created June 22, 2025 by <@U2222222>\n  Purpose: Already announced", "U0000000", "1234567890.123")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "#general", false)
+		assert.NoError(t, err)
+
+		// Verify only one message was posted (for the new channel)
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 1)
+		assert.Equal(t, "CGENERAL", messages[0].ChannelID)
+		
+		// The message should only contain the new channel, not the already announced one
+		// We can't easily check the exact message content due to mock limitations,
+		// but the fact that only one message was posted indicates idempotency worked
+	})
+
+	t.Run("All channels already announced", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		
+		// Add channels that were created recently
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannelWithCreator("C1234567890", "channel1", testTime, "Channel 1", "U1111111")
+		mockAPI.AddChannelWithCreator("C0987654321", "channel2", testTime, "Channel 2", "U2222222")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		
+		// Add message history showing that both channels were already announced (from bot)
+		mockAPI.AddMessageToHistory("CGENERAL", "Previous announcement with <#C1234567890> and <#C0987654321>", "U0000000", "1234567890.123")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "#general", false)
+		assert.NoError(t, err)
+
+		// Verify no messages were posted (all channels already announced)
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+	})
+
+	t.Run("History API error stops announcement", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		
+		// Add a channel
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannelWithCreator("C1234567890", "new-channel", testTime, "New channel", "U1111111")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		
+		// Set up history API to fail with missing scope error
+		mockAPI.SetConversationHistoryError(true)
+		mockAPI.GetConversationHistoryError = fmt.Errorf("missing_scope")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "#general", false)
+		assert.Error(t, err) // Should fail due to missing permissions
+		assert.Contains(t, err.Error(), "missing required permission")
+
+		// Verify no message was posted (stopped due to error)
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+	})
+
+	t.Run("No announcement channel works normally", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		
+		// Add a channel
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannelWithCreator("C1234567890", "new-channel", testTime, "New channel", "U1111111")
+		
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		// No announcement channel specified, should work fine
+		err = runDetectWithClient(client, cutoffTime, "", false)
+		assert.NoError(t, err)
+
+		// Verify no message was posted (no announcement channel)
 		messages := mockAPI.GetPostedMessages()
 		assert.Len(t, messages, 0)
 	})

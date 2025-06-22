@@ -15,6 +15,7 @@ var channelsCmd = &cobra.Command{
 	Use:   "channels",
 	Short: "Manage channels in your Slack workspace",
 	Long:  `Commands for managing and monitoring channels in your Slack workspace.`,
+	SilenceUsage: true, // Don't show usage on errors
 }
 
 var detectCmd = &cobra.Command{
@@ -23,6 +24,7 @@ var detectCmd = &cobra.Command{
 	Long: `Detect new channels created during a specified time period and optionally announce them to another channel.
 
 Use --dry-run to preview what would be announced without actually posting messages.`,
+	SilenceUsage: true, // Don't show usage on errors
 	RunE: runDetect,
 }
 
@@ -71,6 +73,24 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 	newChannels, err := client.GetNewChannels(cutoffTime)
 	if err != nil {
 		return fmt.Errorf("failed to get new channels: %v", err)
+	}
+
+	// Filter out channels that have already been announced (idempotency)
+	if announceChannel != "" {
+		filteredChannels, err := client.FilterAlreadyAnnouncedChannels(newChannels, announceChannel)
+		if err != nil {
+			return err // Return the clean error message directly
+		}
+		
+		originalCount := len(newChannels)
+		newChannels = filteredChannels
+		if originalCount > len(newChannels) {
+			logger.WithFields(logger.LogFields{
+				"original_count": originalCount,
+				"filtered_count": len(newChannels),
+				"skipped_count": originalCount - len(newChannels),
+			}).Info("Filtered out previously announced channels")
+		}
 	}
 
 	if len(newChannels) == 0 {

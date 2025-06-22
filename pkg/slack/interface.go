@@ -8,6 +8,7 @@ import (
 type SlackAPI interface {
 	AuthTest() (*slack.AuthTestResponse, error)
 	GetConversations(params *slack.GetConversationsParameters) ([]slack.Channel, string, error)
+	GetConversationHistory(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error)
 	PostMessage(channelID string, options ...slack.MsgOption) (string, string, error)
 }
 
@@ -29,6 +30,10 @@ func (r *RealSlackAPI) AuthTest() (*slack.AuthTestResponse, error) {
 
 func (r *RealSlackAPI) GetConversations(params *slack.GetConversationsParameters) ([]slack.Channel, string, error) {
 	return r.client.GetConversations(params)
+}
+
+func (r *RealSlackAPI) GetConversationHistory(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error) {
+	return r.client.GetConversationHistory(params)
 }
 
 func (r *RealSlackAPI) PostMessage(channelID string, options ...slack.MsgOption) (string, string, error) {

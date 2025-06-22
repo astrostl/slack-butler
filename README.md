@@ -36,6 +36,7 @@ go build -o slack-buddy
    - `channels:read` - To list public channels
    - `groups:read` - To list private channels
    - `chat:write` - To post announcements
+   - `channels:history` - To prevent duplicate announcements (idempotency)
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
 ### 2. Configure Token

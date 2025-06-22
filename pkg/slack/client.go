@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slack-buddy-ai/pkg/logger"
 	"strings"
 	"sync"
@@ -55,8 +56,8 @@ func NewClient(token string) (*Client, error) {
 	logger.WithFields(logger.LogFields{
 		"user": auth.User,
 		"team": auth.Team,
-	}).Info("Successfully connected to Slack")
-	fmt.Printf("Connected as: %s (team: %s)\n", auth.User, auth.Team)
+	}).Debug("Successfully connected to Slack")
+	// Connection info logged but not printed to reduce output noise
 	return &Client{
 		api: api,
 		rateLimiter: &RateLimiter{
@@ -80,8 +81,8 @@ func NewClientWithAPI(api SlackAPI) (*Client, error) {
 	logger.WithFields(logger.LogFields{
 		"user": auth.User,
 		"team": auth.Team,
-	}).Info("Successfully connected to Slack")
-	fmt.Printf("Connected as: %s (team: %s)\n", auth.User, auth.Team)
+	}).Debug("Successfully connected to Slack")
+	// Connection info logged but not printed to reduce output noise
 	return &Client{
 		api: api,
 		rateLimiter: &RateLimiter{
@@ -213,7 +214,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 		}
 	}
 
-	logger.WithField("new_channels_count", len(newChannels)).Info("Channel detection completed")
+	logger.WithField("new_channels_count", len(newChannels)).Debug("Channel detection completed")
 	return newChannels, nil
 }
 
@@ -273,7 +274,11 @@ func (c *Client) PostMessage(channel, message string) error {
 		return fmt.Errorf("invalid channel name '%s': %v", channel, err)
 	}
 
-	channelID := strings.TrimPrefix(channel, "#")
+	// Resolve channel name to channel ID
+	channelID, err := c.resolveChannelNameToID(channel)
+	if err != nil {
+		return fmt.Errorf("failed to find channel %s: %v", channel, err)
+	}
 	
 	// Rate limit before API call
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*10)
@@ -283,7 +288,7 @@ func (c *Client) PostMessage(channel, message string) error {
 		return fmt.Errorf("rate limiter cancelled: %v", err)
 	}
 	
-	_, _, err := c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
+	_, _, err = c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
 	if err != nil {
 		errStr := err.Error()
 		logger.WithFields(logger.LogFields{
@@ -338,4 +343,182 @@ func (c *Client) GetChannelInfo(channelID string) (*Channel, error) {
 	// This is used for permission testing in health checks
 	// We'll just return a mock error for permission testing
 	return nil, fmt.Errorf("channel_not_found")
+}
+
+// GetPreviouslyAnnouncedChannels retrieves channel IDs that have been previously announced
+// in the specified announcement channel by parsing the message history from our bot only
+func (c *Client) GetPreviouslyAnnouncedChannels(announcementChannel string) (map[string]bool, error) {
+	logger.WithField("announcement_channel", announcementChannel).Debug("Fetching previously announced channels")
+	
+	// First get our bot's user ID for filtering
+	authInfo, err := c.TestAuth()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bot user ID: %v", err)
+	}
+	
+	// Resolve channel name to channel ID
+	channelID, err := c.resolveChannelNameToID(announcementChannel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find channel %s: %v", announcementChannel, err)
+	}
+	
+	// Rate limit before API call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
+	defer cancel()
+	
+	if err := c.rateLimiter.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("rate limiter cancelled: %v", err)
+	}
+	
+	// Get conversation history - limit to 1000 messages to look back reasonably far
+	params := &slack.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Limit:     1000,
+	}
+	
+	response, err := c.api.GetConversationHistory(params)
+	if err != nil {
+		errStr := err.Error()
+		
+		// Debug: Log the exact error from Slack API
+		logger.WithFields(logger.LogFields{
+			"channel": announcementChannel,
+			"raw_error": errStr,
+		}).Debug("Raw Slack API error for conversation history")
+		
+		// Handle rate limiting
+		if strings.Contains(errStr, "rate_limited") {
+			c.rateLimiter.OnRateLimitError()
+			return nil, fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+		}
+		
+		if strings.Contains(errStr, "missing_scope") {
+			return nil, fmt.Errorf("missing required permission: your bot needs the 'channels:history' OAuth scope to prevent duplicate announcements.\n\nPlease add this scope in your Slack app settings at https://api.slack.com/apps")
+		}
+		if strings.Contains(errStr, "channel_not_found") {
+			return nil, fmt.Errorf("cannot access channel '%s' to read message history. Make sure the bot is a member of the channel and has the 'channels:history' permission", announcementChannel)
+		}
+		return nil, fmt.Errorf("failed to get history from %s: %v", announcementChannel, err)
+	}
+	
+	// Mark successful API call
+	c.rateLimiter.OnSuccess()
+	
+	// Parse messages to extract channel IDs that have been announced by our bot only
+	announcedChannels := make(map[string]bool)
+	botMessagesChecked := 0
+	
+	for _, message := range response.Messages {
+		// Only check messages posted by our bot
+		if message.User != authInfo.UserID {
+			continue
+		}
+		
+		botMessagesChecked++
+		
+		// Look for channel mentions in the format <#CHANNEL_ID>
+		// This matches our announcement format
+		channelIDs := extractChannelIDs(message.Text)
+		for _, channelID := range channelIDs {
+			announcedChannels[channelID] = true
+		}
+	}
+	
+	logger.WithFields(logger.LogFields{
+		"announcement_channel": announcementChannel,
+		"total_messages_checked": len(response.Messages),
+		"bot_messages_checked": botMessagesChecked,
+		"bot_user_id": authInfo.UserID,
+		"previously_announced_count": len(announcedChannels),
+	}).Debug("Completed parsing announcement history")
+	
+	return announcedChannels, nil
+}
+
+// FilterAlreadyAnnouncedChannels removes channels that have already been announced
+func (c *Client) FilterAlreadyAnnouncedChannels(channels []Channel, announcementChannel string) ([]Channel, error) {
+	if announcementChannel == "" {
+		// No announcement channel specified, return all channels
+		return channels, nil
+	}
+	
+	// Get previously announced channels
+	previouslyAnnounced, err := c.GetPreviouslyAnnouncedChannels(announcementChannel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get previously announced channels: %v", err)
+	}
+	
+	// Filter out already announced channels
+	var filteredChannels []Channel
+	for _, channel := range channels {
+		if !previouslyAnnounced[channel.ID] {
+			filteredChannels = append(filteredChannels, channel)
+			logger.WithField("channel", channel.Name).Debug("Channel not previously announced, including in announcement")
+		} else {
+			logger.WithField("channel", channel.Name).Debug("Channel previously announced, skipping")
+		}
+	}
+	
+	logger.WithFields(logger.LogFields{
+		"original_count": len(channels),
+		"filtered_count": len(filteredChannels),
+		"skipped_count": len(channels) - len(filteredChannels),
+	}).Info("Filtered already announced channels")
+	
+	return filteredChannels, nil
+}
+
+// extractChannelIDs extracts channel IDs from Slack message text in the format <#CHANNEL_ID>
+func extractChannelIDs(text string) []string {
+	// Regular expression to match Slack channel mentions: <#CHANNEL_ID> or <#CHANNEL_ID|channel-name>
+	re := regexp.MustCompile(`<#([A-Z0-9]+)(?:\|[^>]+)?>`)
+	matches := re.FindAllStringSubmatch(text, -1)
+	
+	// Initialize with empty slice to ensure we never return nil
+	channelIDs := []string{}
+	for _, match := range matches {
+		if len(match) > 1 {
+			channelIDs = append(channelIDs, match[1])
+		}
+	}
+	
+	return channelIDs
+}
+
+// resolveChannelNameToID converts a channel name (like "#general" or "general") to its Slack channel ID
+func (c *Client) resolveChannelNameToID(channelName string) (string, error) {
+	// Clean the channel name
+	cleanName := strings.TrimPrefix(channelName, "#")
+	
+	// Rate limit before API call
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	defer cancel()
+	
+	if err := c.rateLimiter.Wait(ctx); err != nil {
+		return "", fmt.Errorf("rate limiter cancelled: %v", err)
+	}
+	
+	// Get all channels to find the matching one
+	params := &slack.GetConversationsParameters{
+		Types: []string{"public_channel", "private_channel"},
+		Limit: 1000,
+	}
+	
+	channels, _, err := c.api.GetConversations(params)
+	if err != nil {
+		c.rateLimiter.OnRateLimitError()
+		return "", fmt.Errorf("failed to get channels: %v", err)
+	}
+	
+	// Mark successful API call
+	c.rateLimiter.OnSuccess()
+	
+	// Find channel by name
+	for _, channel := range channels {
+		if channel.Name == cleanName {
+			return channel.ID, nil
+		}
+	}
+	
+	return "", fmt.Errorf("channel '%s' not found", channelName)
 }

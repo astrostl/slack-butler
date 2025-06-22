@@ -5,6 +5,7 @@ import (
 	"os"
 	"slack-buddy-ai/pkg/logger"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -44,7 +45,7 @@ func Execute(ver, build, commit string) {
 	gitCommit = commit
 
 	if err := rootCmd.Execute(); err != nil {
-		logger.WithField("error", err.Error()).Error("Command execution failed")
+		// Cobra already displays the error, no need to log it again
 		os.Exit(1)
 	}
 }
@@ -54,11 +55,15 @@ func init() {
 	
 	// Global flags
 	rootCmd.PersistentFlags().String("token", "", "Slack bot token (can also be set via SLACK_TOKEN env var)")
+	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug logging")
 	rootCmd.Flags().BoolP("version", "v", false, "Print version information")
 	
 	// Bind flags to viper
 	if err := viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token")); err != nil {
 		logger.WithField("error", err.Error()).Fatal("Failed to bind token flag")
+	}
+	if err := viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")); err != nil {
+		logger.WithField("error", err.Error()).Fatal("Failed to bind debug flag")
 	}
 	
 }
@@ -66,4 +71,11 @@ func init() {
 func initConfig() {
 	viper.SetEnvPrefix("SLACK")
 	viper.AutomaticEnv()
+	
+	// Set log level based on debug flag
+	if viper.GetBool("debug") {
+		logger.Log.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.Log.SetLevel(logrus.InfoLevel)
+	}
 }

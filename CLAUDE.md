@@ -11,7 +11,8 @@
 ## Current Features
 - **Channel Detection**: Detect new channels created during a specified time period
 - **Announcement System**: Optionally announce new channels to a target channel
-- **Time-based Filtering**: Support for various time formats (24h, 7d, 1w, etc.)
+- **Time-based Filtering**: Support for days-based time filtering (1, 7, 30, etc.)
+- **Idempotency**: Automatically prevents re-announcing channels that have already been announced by reading message history
 
 ## Configuration
 - **Token Storage**: Uses `.env` file (git-ignored) with `SLACK_TOKEN` environment variable
@@ -23,19 +24,23 @@
 # Set token via environment
 source .env
 
-# Basic channel detection (last 24 hours)
+# Basic channel detection (last 1 day)
 ./slack-buddy channels detect
 
-# Custom time period with announcement
-./slack-buddy channels detect --since=7d --announce-to=#general
+# Custom time period with announcement (last 7 days)
+./slack-buddy channels detect --since=7 --announce-to=#general
 
-# Using token flag directly
-./slack-buddy channels detect --token=xoxb-your-token --since=3d
+# Using token flag directly (last 3 days)
+./slack-buddy channels detect --token=xoxb-your-token --since=3
+
+# Dry run to preview announcements without posting
+./slack-buddy channels detect --since=7 --announce-to=#general --dry-run
 ```
 
 ## Required Slack Permissions
 - `channels:read` - To list public channels
 - `groups:read` - To list private channels
+- `channels:history` - To read announcement channel history for idempotency
 - `chat:write` - To post announcements
 
 ## Project Structure
@@ -84,10 +89,20 @@ go build -o slack-buddy
 - **Channel Detection**: ✅ Found 4 new channels in last 24h
 - **Announcement Feature**: ✅ Posted formatted message to #announcements
 - **Error Handling**: ✅ Provides clear, actionable error messages for:
-  - Missing OAuth scopes (channels:read, groups:read, chat:write)
+  - Missing OAuth scopes (channels:read, groups:read, chat:write, channels:history)
   - Invalid tokens
   - Bot not in channel
   - Channel not found
+
+## Idempotency Feature
+- **Smart Duplicate Prevention**: Reads announcement channel message history to identify previously announced channels
+- **Bot-Only Filtering**: Only processes messages posted by the bot itself, ignoring user messages for accuracy
+- **Automatic Filtering**: Only announces channels that haven't been announced before
+- **History Analysis**: Parses up to 1000 recent messages in the announcement channel to extract channel IDs
+- **Permission Enforcement**: Requires proper permissions and fails fast if `channels:history` scope is missing to prevent duplicate announcements
+- **Channel ID Extraction**: Uses regex pattern matching to find `<#CHANNEL_ID>` mentions in messages
+- **Rate Limiting**: Respects Slack API rate limits when reading message history
+- **Efficient Processing**: Skips messages from other users, focusing only on bot's own announcements
 
 ## Test Coverage
 - **Good Test Coverage** - Solid test coverage across core functionality

@@ -232,6 +232,8 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 func TestPostMessage(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for posting
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		client, _ := NewClientWithAPI(mockAPI)
 		
 		err := client.PostMessage("#general", "Test message")
@@ -239,7 +241,7 @@ func TestPostMessage(t *testing.T) {
 		
 		messages := mockAPI.GetPostedMessages()
 		assert.Len(t, messages, 1)
-		assert.Equal(t, "general", messages[0].ChannelID)
+		assert.Equal(t, "CGENERAL", messages[0].ChannelID)
 	})
 
 	t.Run("Channel name validation", func(t *testing.T) {
@@ -253,6 +255,8 @@ func TestPostMessage(t *testing.T) {
 
 	t.Run("Missing scope error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for posting
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		client, _ := NewClientWithAPI(mockAPI)
 		
 		mockAPI.SetPostMessageError("missing_scope")
@@ -276,6 +280,8 @@ func TestPostMessage(t *testing.T) {
 
 	t.Run("Not in channel error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
+		// Add the private channel that will be used for posting
+		mockAPI.AddChannel("CPRIVATE", "private", time.Now().Add(-24*time.Hour), "Private channel")
 		client, _ := NewClientWithAPI(mockAPI)
 		
 		mockAPI.SetPostMessageError("not_in_channel")
@@ -287,6 +293,8 @@ func TestPostMessage(t *testing.T) {
 	
 	t.Run("Generic error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for posting
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		client, _ := NewClientWithAPI(mockAPI)
 		
 		mockAPI.SetPostMessageError("some_other_error")
@@ -295,5 +303,172 @@ func TestPostMessage(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to post message to #general")
 		assert.Contains(t, err.Error(), "some_other_error")
+	})
+}
+
+func TestExtractChannelIDs(t *testing.T) {
+	testCases := []struct {
+		name     string
+		text     string
+		expected []string
+	}{
+		{
+			"Single channel mention",
+			"Check out <#C1234567890>",
+			[]string{"C1234567890"},
+		},
+		{
+			"Multiple channel mentions",
+			"See <#C1111111111> and <#C2222222222>",
+			[]string{"C1111111111", "C2222222222"},
+		},
+		{
+			"Channel mention with pipe",
+			"Visit <#C1234567890|general>",
+			[]string{"C1234567890"},
+		},
+		{
+			"Mixed format mentions",
+			"Channels: <#C1111111111> and <#C2222222222|random>",
+			[]string{"C1111111111", "C2222222222"},
+		},
+		{
+			"No channel mentions",
+			"This is just regular text",
+			[]string{},
+		},
+		{
+			"Announcement format",
+			"New channel alert!\n\n• <#C1234567890> - created June 22, 2025 by <@U1234567>\n• <#C0987654321> - created June 22, 2025 by <@U2222222>",
+			[]string{"C1234567890", "C0987654321"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := extractChannelIDs(tc.text)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestGetPreviouslyAnnouncedChannels(t *testing.T) {
+	t.Run("Success with announced channels", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		// Add some message history with channel announcements
+		// Use bot's user ID (U0000000) for messages that should be processed
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert!\n\n• <#C1234567890> - created June 22, 2025 by <@U1234567>", "U0000000", "1234567890.123")
+		// This message from another user should be ignored
+		mockAPI.AddMessageToHistory("CGENERAL", "Check out <#C0987654321|random>", "U1111111", "1234567891.123")
+		
+		channels, err := client.GetPreviouslyAnnouncedChannels("#general")
+		
+		assert.NoError(t, err)
+		assert.True(t, channels["C1234567890"])  // From bot message
+		assert.False(t, channels["C0987654321"]) // From other user, should be ignored
+		assert.False(t, channels["C9999999999"]) // Not announced
+	})
+
+	t.Run("No history", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		channels, err := client.GetPreviouslyAnnouncedChannels("#general")
+		
+		assert.NoError(t, err)
+		assert.Len(t, channels, 0)
+	})
+
+	t.Run("Ignore messages from other users", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		// Add messages from bot and other users
+		mockAPI.AddMessageToHistory("CGENERAL", "Bot announcement: <#C1234567890>", "U0000000", "1234567890.123") // Bot message
+		mockAPI.AddMessageToHistory("CGENERAL", "User mention: <#C0987654321>", "U1111111", "1234567891.123")     // Other user message
+		
+		channels, err := client.GetPreviouslyAnnouncedChannels("#general")
+		
+		assert.NoError(t, err)
+		assert.True(t, channels["C1234567890"])  // From bot, should be included
+		assert.False(t, channels["C0987654321"]) // From other user, should be ignored
+	})
+
+	t.Run("API error", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		mockAPI.SetConversationHistoryError(true)
+		
+		_, err := client.GetPreviouslyAnnouncedChannels("#general")
+		assert.Error(t, err)
+	})
+}
+
+func TestFilterAlreadyAnnouncedChannels(t *testing.T) {
+	t.Run("Filter out previously announced", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		// Set up history with one announced channel (from bot)
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert!\n\n• <#C1234567890> - created June 22, 2025", "U0000000", "1234567890.123")
+		
+		channels := []Channel{
+			{ID: "C1234567890", Name: "already-announced"},
+			{ID: "C0987654321", Name: "new-channel"},
+		}
+		
+		filtered, err := client.FilterAlreadyAnnouncedChannels(channels, "#general")
+		
+		assert.NoError(t, err)
+		assert.Len(t, filtered, 1)
+		assert.Equal(t, "new-channel", filtered[0].Name)
+	})
+
+	t.Run("No announcement channel", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		channels := []Channel{
+			{ID: "C1234567890", Name: "channel1"},
+			{ID: "C0987654321", Name: "channel2"},
+		}
+		
+		filtered, err := client.FilterAlreadyAnnouncedChannels(channels, "")
+		
+		assert.NoError(t, err)
+		assert.Len(t, filtered, 2) // All channels returned
+	})
+
+	t.Run("All channels already announced", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+		client, _ := NewClientWithAPI(mockAPI)
+		
+		// Set up history with both channels announced (from bot)
+		mockAPI.AddMessageToHistory("CGENERAL", "• <#C1234567890> and <#C0987654321>", "U0000000", "1234567890.123")
+		
+		channels := []Channel{
+			{ID: "C1234567890", Name: "channel1"},
+			{ID: "C0987654321", Name: "channel2"},
+		}
+		
+		filtered, err := client.FilterAlreadyAnnouncedChannels(channels, "#general")
+		
+		assert.NoError(t, err)
+		assert.Len(t, filtered, 0) // No channels returned
 	})
 }

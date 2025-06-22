@@ -1,4 +1,4 @@
-package main
+package main_test
 
 import (
 	"os"
@@ -10,9 +10,11 @@ import (
 
 func TestMainFunction(t *testing.T) {
 	t.Run("Main function exists", func(t *testing.T) {
-		// Test that main function exists and can be called
-		// We can't directly test main() but we can test the binary
-		assert.NotNil(t, main)
+		// Test that main function exists by checking if we can build the binary
+		// Since we're now in a separate package, we test by building
+		cmd := exec.Command("go", "build", "-o", "/dev/null", "..")
+		err := cmd.Run()
+		assert.NoError(t, err, "Main package should build successfully")
 	})
 
 	t.Run("Main function integration", func(t *testing.T) {
@@ -21,7 +23,7 @@ func TestMainFunction(t *testing.T) {
 		}
 
 		// Build the binary
-		cmd := exec.Command("go", "build", "-o", "test-slack-buddy", ".")
+		cmd := exec.Command("go", "build", "-o", "test-slack-buddy", "..")
 		err := cmd.Run()
 		assert.NoError(t, err)
 

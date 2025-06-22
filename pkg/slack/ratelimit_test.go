@@ -130,130 +130,132 @@ func TestRateLimiter(t *testing.T) {
 	})
 }
 
-func TestClientRateLimitingIntegration(t *testing.T) {
-	t.Run("GetNewChannels applies rate limiting", func(t *testing.T) {
-		mockAPI := NewMockSlackAPI()
-		mockAPI.AddChannel("test-id", "test", time.Now(), "Test channel")
+func TestClientGetNewChannelsRateLimit(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	mockAPI.AddChannel("test-id", "test", time.Now(), "Test channel")
 
-		client, err := NewClientWithAPI(mockAPI)
-		if err != nil {
-			t.Fatalf("Failed to create client: %v", err)
-		}
+	client, err := NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
 
-		// Override with faster rate limiter for testing
-		client.rateLimiter = &RateLimiter{
-			minInterval: 50 * time.Millisecond,
-			maxBackoff:  time.Minute,
-		}
+	// Override with faster rate limiter for testing
+	client.rateLimiter = &RateLimiter{
+		minInterval: 50 * time.Millisecond,
+		maxBackoff:  time.Minute,
+	}
 
-		start := time.Now()
+	start := time.Now()
 
-		// First call
-		_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
-		if err != nil {
-			t.Fatalf("First GetNewChannels failed: %v", err)
-		}
+	// First call
+	_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("First GetNewChannels failed: %v", err)
+	}
 
-		// Second call should be rate limited
-		_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
-		if err != nil {
-			t.Fatalf("Second GetNewChannels failed: %v", err)
-		}
+	// Second call should be rate limited
+	_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("Second GetNewChannels failed: %v", err)
+	}
 
-		elapsed := time.Since(start)
-		if elapsed < 50*time.Millisecond {
-			t.Errorf("Expected rate limiting delay, but calls completed in %v", elapsed)
-		}
-	})
+	elapsed := time.Since(start)
+	if elapsed < 50*time.Millisecond {
+		t.Errorf("Expected rate limiting delay, but calls completed in %v", elapsed)
+	}
+}
 
-	t.Run("PostMessage applies rate limiting", func(t *testing.T) {
-		mockAPI := NewMockSlackAPI()
-		// Add the test channel that will be used for posting
-		mockAPI.AddChannel("CTEST", "test", time.Now().Add(-24*time.Hour), "Test channel")
-		client, err := NewClientWithAPI(mockAPI)
-		if err != nil {
-			t.Fatalf("Failed to create client: %v", err)
-		}
+func TestClientPostMessageRateLimit(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	// Add the test channel that will be used for posting
+	mockAPI.AddChannel("CTEST", "test", time.Now().Add(-24*time.Hour), "Test channel")
+	client, err := NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
 
-		// Override with faster rate limiter for testing
-		client.rateLimiter = &RateLimiter{
-			minInterval: 50 * time.Millisecond,
-			maxBackoff:  time.Minute,
-		}
+	// Override with faster rate limiter for testing
+	client.rateLimiter = &RateLimiter{
+		minInterval: 50 * time.Millisecond,
+		maxBackoff:  time.Minute,
+	}
 
-		start := time.Now()
+	start := time.Now()
 
-		// First call
-		err = client.PostMessage("#test", "message 1")
-		if err != nil {
-			t.Fatalf("First PostMessage failed: %v", err)
-		}
+	// First call
+	err = client.PostMessage("#test", "message 1")
+	if err != nil {
+		t.Fatalf("First PostMessage failed: %v", err)
+	}
 
-		// Second call should be rate limited
-		err = client.PostMessage("#test", "message 2")
-		if err != nil {
-			t.Fatalf("Second PostMessage failed: %v", err)
-		}
+	// Second call should be rate limited
+	err = client.PostMessage("#test", "message 2")
+	if err != nil {
+		t.Fatalf("Second PostMessage failed: %v", err)
+	}
 
-		elapsed := time.Since(start)
-		if elapsed < 50*time.Millisecond {
-			t.Errorf("Expected rate limiting delay, but calls completed in %v", elapsed)
-		}
-	})
+	elapsed := time.Since(start)
+	if elapsed < 50*time.Millisecond {
+		t.Errorf("Expected rate limiting delay, but calls completed in %v", elapsed)
+	}
+}
 
-	t.Run("Rate limit error triggers exponential backoff", func(t *testing.T) {
-		mockAPI := NewMockSlackAPI()
+func TestClientRateLimitErrorBackoff(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
 
-		// First call will succeed to establish client
-		client, err := NewClientWithAPI(mockAPI)
-		if err != nil {
-			t.Fatalf("Failed to create client: %v", err)
-		}
+	// First call will succeed to establish client
+	client, err := NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
 
-		// Configure mock to return rate limit error
-		mockAPI.SetGetConversationsErrorWithMessage(true, "rate_limited")
+	// Configure mock to return rate limit error
+	mockAPI.SetGetConversationsErrorWithMessage(true, "rate_limited")
 
-		// Override with faster rate limiter for testing
-		client.rateLimiter = &RateLimiter{
-			minInterval: 10 * time.Millisecond,
-			maxBackoff:  time.Minute,
-		}
+	// Override with faster rate limiter for testing
+	client.rateLimiter = &RateLimiter{
+		minInterval: 10 * time.Millisecond,
+		maxBackoff:  time.Minute,
+	}
 
-		// Call that triggers rate limit error
-		_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
-		if err == nil || !contains(err.Error(), "rate limited") {
-			t.Fatalf("Expected rate limit error, got: %v", err)
-		}
+	// Call that triggers rate limit error
+	_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
+	if err == nil || !contains(err.Error(), "rate limited") {
+		t.Fatalf("Expected rate limit error, got: %v", err)
+	}
 
-		// Verify backoff was increased
-		if client.rateLimiter.backoffCount != 1 {
-			t.Errorf("Expected backoffCount to be 1 after rate limit error, got %d", client.rateLimiter.backoffCount)
-		}
+	// Verify backoff was increased
+	if client.rateLimiter.backoffCount != 1 {
+		t.Errorf("Expected backoffCount to be 1 after rate limit error, got %d", client.rateLimiter.backoffCount)
+	}
 
-		// Reset mock to succeed
-		mockAPI.SetGetConversationsErrorWithMessage(false, "")
-		mockAPI.AddChannel("test-id", "test", time.Now(), "Test channel")
+	testExponentialBackoffRecovery(t, mockAPI, client)
+}
 
-		start := time.Now()
+func testExponentialBackoffRecovery(t *testing.T, mockAPI *MockSlackAPI, client *Client) {
+	// Reset mock to succeed
+	mockAPI.SetGetConversationsErrorWithMessage(false, "")
+	mockAPI.AddChannel("test-id", "test", time.Now(), "Test channel")
 
-		// Next call should have exponential backoff applied
-		_, err = client.GetNewChannels(time.Now().Add(-time.Hour))
-		if err != nil {
-			t.Fatalf("GetNewChannels after rate limit failed: %v", err)
-		}
+	start := time.Now()
 
-		elapsed := time.Since(start)
-		expectedMin := 20 * time.Millisecond // 10ms * 2^1
+	// Next call should have exponential backoff applied
+	_, err := client.GetNewChannels(time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatalf("GetNewChannels after rate limit failed: %v", err)
+	}
 
-		if elapsed < expectedMin {
-			t.Errorf("Expected exponential backoff delay of at least %v, but got %v", expectedMin, elapsed)
-		}
+	elapsed := time.Since(start)
+	expectedMin := 20 * time.Millisecond // 10ms * 2^1
 
-		// Verify backoff was reset on success
-		if client.rateLimiter.backoffCount != 0 {
-			t.Errorf("Expected backoffCount to be reset to 0 after success, got %d", client.rateLimiter.backoffCount)
-		}
-	})
+	if elapsed < expectedMin {
+		t.Errorf("Expected exponential backoff delay of at least %v, but got %v", expectedMin, elapsed)
+	}
+
+	// Verify backoff was reset on success
+	if client.rateLimiter.backoffCount != 0 {
+		t.Errorf("Expected backoffCount to be reset to 0 after success, got %d", client.rateLimiter.backoffCount)
+	}
 }
 
 // Helper function for string contains check

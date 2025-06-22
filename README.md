@@ -2,6 +2,8 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
+> **⚠️ Disclaimer**: This software is "vibe coded" and provided as-is without any warranties, guarantees, or official support. Use at your own risk in production environments.
+
 ## Features
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
@@ -193,6 +195,21 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security
 
 MIT License - see LICENSE file for details
 
+## Disclaimer & Warranty
+
+**This software is "vibe coded" and comes with no warranties or guarantees.**
+
+- ❌ **No official support** - Community-driven, best-effort maintenance
+- ❌ **No production guarantees** - Use at your own risk
+- ❌ **No liability** - Authors not responsible for any damages or issues
+- ❌ **No SLA or uptime commitments** - Volunteer-maintained project
+
+**Before using in production:**
+- Thoroughly test in your environment
+- Implement your own monitoring and error handling
+- Have backup plans for critical operations
+- Review all code and dependencies yourself
+
 ## Support
 
-For issues, feature requests, or questions, please open an issue on GitHub.
+This is a community project with **no official support**. For issues, feature requests, or questions, please open an issue on GitHub with the understanding that responses are provided on a best-effort basis by volunteers.

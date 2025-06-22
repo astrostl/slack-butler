@@ -142,6 +142,13 @@ security-full: security vuln-check
 	go mod verify
 	@echo "Security analysis complete!"
 
+# Install code quality tools
+.PHONY: install-quality
+install-quality:
+	@echo "Installing code quality tools..."
+	go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	@echo "Code quality tools installed!"
+
 # Install security tools
 .PHONY: install-security
 install-security:
@@ -202,9 +209,13 @@ release-check:
 .PHONY: dev
 dev: fmt vet test build
 
+# Quality checks: format and complexity
+.PHONY: quality
+quality: fmt-check complexity-check
+
 # Full CI-like checks
 .PHONY: ci
-ci: clean deps fmt vet lint security-full test-race coverage build
+ci: clean deps fmt vet lint complexity-check security-full test-race coverage build
 
 # Check code formatting
 .PHONY: fmt-check
@@ -216,6 +227,24 @@ fmt-check:
 		exit 1; \
 	else \
 		echo "Code is properly formatted"; \
+	fi
+
+# Check cyclomatic complexity
+.PHONY: complexity-check
+complexity-check:
+	@echo "Checking cyclomatic complexity..."
+	@GOCYCLO_PATH=$$(which gocyclo 2>/dev/null || echo "$$(go env GOPATH)/bin/gocyclo"); \
+	if [ -x "$$GOCYCLO_PATH" ]; then \
+		if $$GOCYCLO_PATH -over 15 . | grep -q .; then \
+			echo "Functions with high cyclomatic complexity (>15):"; \
+			$$GOCYCLO_PATH -over 15 .; \
+			exit 1; \
+		else \
+			echo "All functions have acceptable complexity"; \
+		fi; \
+	else \
+		echo "gocyclo not installed. Run: make install-quality"; \
+		exit 1; \
 	fi
 
 # Install the binary to $GOPATH/bin
@@ -255,12 +284,15 @@ help:
 	@echo "  deps         - Install dependencies"
 	@echo "  fmt          - Format code"
 	@echo "  fmt-check    - Check if code is properly formatted (CI-friendly)"
+	@echo "  complexity-check - Check cyclomatic complexity (requires gocyclo)"
 	@echo "  lint         - Lint code (requires golangci-lint)"
 	@echo "  vet          - Vet code"
 	@echo "  security     - Run security scan (requires gosec)"
 	@echo "  vuln-check   - Run vulnerability check (requires govulncheck)"
 	@echo "  security-full - Run comprehensive security analysis"
+	@echo "  install-quality - Install code quality tools"
 	@echo "  install-security - Install security tools"
+	@echo "  quality      - Run quality checks (fmt-check, complexity-check)"
 	@echo "  dev          - Quick development cycle (fmt, vet, test, build)"
 	@echo "  ci           - Full CI-like checks"
 	@echo "  install      - Install binary to GOPATH/bin"

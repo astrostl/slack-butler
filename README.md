@@ -51,13 +51,17 @@ go build -o slack-buddy
 ### 2. Configure Token
 Create a `.env` file in the project directory:
 ```bash
-SLACK_TOKEN=xoxb-your-bot-token-here
+cp .env.example .env
+# Edit .env and add your token, then:
+source .env
 ```
 
 Or set the environment variable directly:
 ```bash
 export SLACK_TOKEN=xoxb-your-bot-token-here
 ```
+
+**Note**: The `.env.example` file uses `export` statements to ensure environment variables are available to the slack-buddy binary when you `source .env`.
 
 **Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels - without it, the tool will only detect public channels.
 

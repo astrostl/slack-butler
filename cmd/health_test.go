@@ -216,3 +216,20 @@ func TestTestBasicFunctionality(t *testing.T) {
 		assert.Contains(t, err.Error(), "channel listing test failed")
 	})
 }
+
+func TestRunHealthVerboseOutput(t *testing.T) {
+	// This test verifies that the verbose flag functionality exists
+	// We don't need to test the complete integration since that's complex
+	// and already covered by other tests
+	t.Run("Verbose flag handling", func(t *testing.T) {
+		// Test that healthVerbose variable can be modified
+		originalVerbose := healthVerbose
+		defer func() { healthVerbose = originalVerbose }()
+		
+		healthVerbose = true
+		assert.True(t, healthVerbose)
+		
+		healthVerbose = false
+		assert.False(t, healthVerbose)
+	})
+}

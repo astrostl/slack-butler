@@ -12,7 +12,6 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
-- **🚫 Idempotency**: Automatically prevents re-announcing channels that have already been announced
 - **🩺 Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **⏰ Flexible Time Filtering**: Support for days-based filtering (1, 7, 30, etc.)
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
@@ -44,10 +43,9 @@ go build -o slack-buddy
 1. Go to [Slack API](https://api.slack.com/apps)
 2. Create a new app for your workspace
 3. Add the following OAuth scopes:
-   - `channels:read` - To list public channels
-   - `groups:read` - To list private channels
-   - `chat:write` - To post announcements
-   - `channels:history` - To prevent duplicate announcements (idempotency)
+   - `channels:read` - To list public channels (**required**)
+   - `chat:write` - To post announcements (**required**)
+   - `groups:read` - To list private channels (*optional*)
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
 ### 2. Configure Token
@@ -61,7 +59,7 @@ Or set the environment variable directly:
 export SLACK_TOKEN=xoxb-your-bot-token-here
 ```
 
-**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels.
+**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels - without it, the tool will only detect public channels.
 
 ## Usage
 

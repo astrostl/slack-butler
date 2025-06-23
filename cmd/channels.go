@@ -75,23 +75,6 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 		return fmt.Errorf("failed to get new channels: %v", err)
 	}
 
-	// Filter out channels that have already been announced (idempotency)
-	if announceChannel != "" {
-		filteredChannels, err := client.FilterAlreadyAnnouncedChannels(newChannels, announceChannel)
-		if err != nil {
-			return err // Return the clean error message directly
-		}
-
-		originalCount := len(newChannels)
-		newChannels = filteredChannels
-		if originalCount > len(newChannels) {
-			logger.WithFields(logger.LogFields{
-				"original_count": originalCount,
-				"filtered_count": len(newChannels),
-				"skipped_count":  originalCount - len(newChannels),
-			}).Info("Filtered out previously announced channels")
-		}
-	}
 
 	if len(newChannels) == 0 {
 		logger.WithFields(logger.LogFields{

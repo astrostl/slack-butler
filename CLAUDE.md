@@ -78,6 +78,9 @@ make dev
 # Complete quality validation (security + format + vet + lint + complexity)
 make quality
 
+# Monthly maintenance workflow (deps-update + quality + test) - RECOMMENDED
+make maintenance
+
 # Full CI pipeline (clean + deps + quality + coverage + build)
 make ci
 
@@ -113,6 +116,19 @@ make gosec           # Static security analysis with gosec
 make vuln-check      # Check for known vulnerabilities with govulncheck
 make mod-verify      # Verify module integrity
 make security        # Complete security analysis (all above)
+```
+
+### Security & Dependency Management
+```bash
+# Monthly security maintenance (RECOMMENDED)
+make maintenance     # Update deps + run quality checks + test
+
+# Dependency management
+make deps-update     # Update all dependencies to latest versions
+make deps-audit      # Audit dependencies for security vulnerabilities
+
+# Security workflows
+make security-update # Security checks with dependency updates
 ```
 
 ### Testing and Coverage

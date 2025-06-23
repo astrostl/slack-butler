@@ -132,14 +132,39 @@ define run-mod-verify
 	@go mod verify
 endef
 
+define run-deps-update
+	@echo "Updating dependencies..."
+	@go get -u ./...
+	@go mod tidy
+	@echo "✅ Dependencies updated. Run 'make test' to verify compatibility."
+endef
+
+define run-deps-audit
+	@echo "Auditing dependencies for security vulnerabilities..."
+	@echo "🔍 Checking for vulnerabilities..."
+	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@echo "🔍 Checking module integrity..."
+	@go mod verify
+	@echo "✅ Dependency audit completed!"
+endef
+
 define run-security
 	$(call run-gosec)
 	$(call run-vuln-check)
 	$(call run-mod-verify)
 endef
 
+define run-security-with-updates
+	@echo "🔒 Running security checks with dependency updates..."
+	$(call run-deps-audit)
+	@echo ""
+	@echo "🔍 Running full security analysis..."
+	$(call run-gosec)
+	@echo "✅ Security checks completed!"
+endef
+
 # Individual targets (use suites instead for normal workflow)
-.PHONY: fmt fmt-check vet lint complexity-check gosec vuln-check mod-verify security
+.PHONY: fmt fmt-check vet lint complexity-check gosec vuln-check mod-verify security deps-update deps-audit security-update
 
 # Format code (dev workflow includes this)
 fmt:
@@ -177,6 +202,18 @@ mod-verify:
 security:
 	$(call run-security)
 
+# Update all dependencies (standalone)
+deps-update:
+	$(call run-deps-update)
+
+# Audit dependencies for vulnerabilities (standalone)
+deps-audit:
+	$(call run-deps-audit)
+
+# Security checks with dependency updates (recommended for maintenance)
+security-update:
+	$(call run-security-with-updates)
+
 # Install development tools (versions pinned in tools.go/go.mod)
 .PHONY: install-tools
 install-tools:
@@ -199,7 +236,7 @@ release: clean
 	@ls -la dist/
 
 # Main workflow suites
-.PHONY: dev quality ci release-full
+.PHONY: dev quality maintenance ci release-full
 
 # Quick development cycle (format + vet + test + build)
 dev:
@@ -218,6 +255,17 @@ quality:
 	$(call run-complexity-check)
 	@echo "✅ Quality checks completed!"
 
+# Monthly maintenance workflow (update deps + run quality checks + test)
+maintenance: deps-update quality test
+	@echo "✅ Monthly maintenance completed!"
+	@echo "📋 Summary:"
+	@echo "  - Dependencies updated to latest versions"
+	@echo "  - Security vulnerabilities checked"
+	@echo "  - Code quality validated"
+	@echo "  - All tests passing"
+	@echo ""
+	@echo "💡 Consider running 'git status' to review dependency changes"
+
 # Full CI pipeline (clean + deps + quality + coverage + build)
 ci: clean deps quality coverage build
 	@echo "✅ CI pipeline completed!"
@@ -235,6 +283,7 @@ help:
 	@echo "🚀 Main workflows:"
 	@echo "  make dev         - Quick: format + vet + test + build"
 	@echo "  make quality     - Complete: security + format + vet + lint + complexity"
+	@echo "  make maintenance - Monthly: deps-update + quality + test (recommended)"
 	@echo "  make ci          - Full: clean + deps + quality + coverage + build"
 	@echo "  make release-full - Release: ci + create release with checksums"
 	@echo ""
@@ -245,8 +294,11 @@ help:
 	@echo "  clean        - Clean artifacts"
 	@echo "  deps         - Install dependencies"
 	@echo ""
-	@echo "🔒 Security suite:"
+	@echo "🔒 Security & Dependencies:"
 	@echo "  security     - Complete security analysis (gosec + vuln-check + mod-verify)"
+	@echo "  deps-audit   - Audit dependencies for vulnerabilities"
+	@echo "  deps-update  - Update all dependencies to latest versions"
+	@echo "  security-update - Security checks with dependency updates"
 	@echo ""
 	@echo "🔧 Individual targets:"
 	@echo "  fmt          - Format code (use 'dev' instead)"

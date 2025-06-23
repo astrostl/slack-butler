@@ -7,7 +7,7 @@ import (
 	"github.com/slack-go/slack"
 )
 
-// MockSlackAPI implements SlackAPI for testing
+// MockSlackAPI implements SlackAPI for testing.
 type MockSlackAPI struct {
 	AuthTestResponse            *slack.AuthTestResponse
 	AuthTestError               error
@@ -24,7 +24,7 @@ type MockMessage struct {
 	Text      string
 }
 
-// NewMockSlackAPI creates a new mock Slack API
+// NewMockSlackAPI creates a new mock Slack API.
 func NewMockSlackAPI() *MockSlackAPI {
 	return &MockSlackAPI{
 		AuthTestResponse: &slack.AuthTestResponse{
@@ -149,7 +149,7 @@ func (m *MockSlackAPI) SetPostMessageError(errorType string) {
 	}
 }
 
-// Additional helper methods for specific error types
+// Additional helper methods for specific error types.
 func (m *MockSlackAPI) SetMissingScopeError(hasError bool) {
 	if hasError {
 		m.GetConversationsError = fmt.Errorf("missing_scope")
@@ -199,7 +199,7 @@ func (m *MockSlackAPI) SetConversationHistoryError(hasError bool) {
 	}
 }
 
-// Simulate specific error types
+// Simulate specific error types.
 func (m *MockSlackAPI) SimulateMissingScopeError() {
 	m.SetMissingScopeError(true)
 }

@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"testing"
 	"time"
+
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"

@@ -3,20 +3,21 @@ package slack
 import (
 	"context"
 	"fmt"
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 
 	"github.com/slack-go/slack"
 )
 
 type RateLimiter struct {
-	mu           sync.Mutex
 	lastRequest  time.Time
 	minInterval  time.Duration
 	backoffCount int
 	maxBackoff   time.Duration
+	mu           sync.Mutex
 }
 
 type Client struct {
@@ -42,7 +43,7 @@ type AuthInfo struct {
 func NewClient(token string) (*Client, error) {
 	// Validate token format before using it
 	if err := ValidateSlackToken(token); err != nil {
-		return nil, fmt.Errorf("invalid token: %v", err)
+		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
 	api := NewRealSlackAPI(token)
@@ -66,7 +67,7 @@ func NewClient(token string) (*Client, error) {
 	}, nil
 }
 
-// NewClientWithAPI creates a client with a custom API implementation (for testing)
+// NewClientWithAPI creates a client with a custom API implementation (for testing).
 func NewClientWithAPI(api SlackAPI) (*Client, error) {
 	if api == nil {
 		return nil, fmt.Errorf("API cannot be nil")
@@ -74,7 +75,7 @@ func NewClientWithAPI(api SlackAPI) (*Client, error) {
 
 	auth, err := api.AuthTest()
 	if err != nil {
-		return nil, fmt.Errorf("authentication failed: %v", err)
+		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
 	logger.WithFields(logger.LogFields{
@@ -157,7 +158,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 	defer cancel()
 
 	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("rate limiter cancelled: %v", err)
+		return nil, fmt.Errorf("rate limiter cancelled: %w", err)
 	}
 
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
@@ -185,7 +186,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 			logger.Error("Invalid Slack authentication token")
 			return nil, fmt.Errorf("invalid token. Please check your SLACK_TOKEN")
 		}
-		return nil, fmt.Errorf("failed to get conversations: %v", err)
+		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
 	// Mark successful API call
@@ -270,13 +271,13 @@ func (c *Client) PostMessage(channel, message string) error {
 			"channel": channel,
 			"error":   err.Error(),
 		}).Error("Invalid channel name format")
-		return fmt.Errorf("invalid channel name '%s': %v", channel, err)
+		return fmt.Errorf("invalid channel name '%s': %w", channel, err)
 	}
 
 	// Resolve channel name to channel ID
 	channelID, err := c.resolveChannelNameToID(channel)
 	if err != nil {
-		return fmt.Errorf("failed to find channel %s: %v", channel, err)
+		return fmt.Errorf("failed to find channel %s: %w", channel, err)
 	}
 
 	// Rate limit before API call
@@ -284,7 +285,7 @@ func (c *Client) PostMessage(channel, message string) error {
 	defer cancel()
 
 	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limiter cancelled: %v", err)
+		return fmt.Errorf("rate limiter cancelled: %w", err)
 	}
 
 	_, _, err = c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
@@ -314,7 +315,7 @@ func (c *Client) PostMessage(channel, message string) error {
 			logger.WithField("channel", channel).Error("Bot not in channel")
 			return fmt.Errorf("bot is not a member of channel '%s'. Please add the bot to the channel", channel)
 		}
-		return fmt.Errorf("failed to post message to %s: %v", channel, err)
+		return fmt.Errorf("failed to post message to %s: %w", channel, err)
 	}
 
 	// Mark successful API call
@@ -344,7 +345,7 @@ func (c *Client) GetChannelInfo(channelID string) (*Channel, error) {
 	return nil, fmt.Errorf("channel_not_found")
 }
 
-// resolveChannelNameToID converts a channel name (like "#general" or "general") to its Slack channel ID
+// resolveChannelNameToID converts a channel name (like "#general" or "general") to its Slack channel ID.
 func (c *Client) resolveChannelNameToID(channelName string) (string, error) {
 	// Clean the channel name
 	cleanName := strings.TrimPrefix(channelName, "#")
@@ -354,7 +355,7 @@ func (c *Client) resolveChannelNameToID(channelName string) (string, error) {
 	defer cancel()
 
 	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return "", fmt.Errorf("rate limiter cancelled: %v", err)
+		return "", fmt.Errorf("rate limiter cancelled: %w", err)
 	}
 
 	// Get all channels to find the matching one
@@ -366,7 +367,7 @@ func (c *Client) resolveChannelNameToID(channelName string) (string, error) {
 	channels, _, err := c.api.GetConversations(params)
 	if err != nil {
 		c.rateLimiter.OnRateLimitError()
-		return "", fmt.Errorf("failed to get channels: %v", err)
+		return "", fmt.Errorf("failed to get channels: %w", err)
 	}
 
 	// Mark successful API call

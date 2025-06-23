@@ -28,7 +28,7 @@ func TestMainFunction(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Clean up
-		defer os.Remove("test-slack-buddy")
+		defer func() { _ = os.Remove("test-slack-buddy") }()
 
 		// Test help flag
 		cmd = exec.Command("./test-slack-buddy", "--help")

@@ -76,15 +76,19 @@ slack-buddy-ai/
 make dev
 
 # Complete quality validation (security + format + vet + lint + complexity)
+# NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
 make quality
 
 # Monthly maintenance workflow (deps-update + quality + test) - RECOMMENDED
+# NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
 make maintenance
 
 # Full CI pipeline (clean + deps + quality + coverage + build)
+# NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
 make ci
 
 # Full release workflow with quality checks
+# NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
 make release-full
 ```
 
@@ -98,6 +102,9 @@ make deps
 
 # Clean build artifacts and coverage files
 make clean
+
+# NOTE: If make targets fail with "tool not found", ensure Go tools are in PATH:
+export PATH=$PATH:~/go/bin
 ```
 
 ### Individual Quality Checks
@@ -112,6 +119,7 @@ make lint            # golangci-lint analysis
 make complexity-check # Check cyclomatic complexity (threshold: 15)
 
 # Security analysis
+# NOTE: Security targets require Go tools in PATH (export PATH=$PATH:~/go/bin)
 make gosec           # Static security analysis with gosec
 make vuln-check      # Check for known vulnerabilities with govulncheck
 make mod-verify      # Verify module integrity

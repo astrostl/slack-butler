@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 )
 
 func TestDetectCommandSetup(t *testing.T) {

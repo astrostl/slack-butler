@@ -7,7 +7,7 @@ import (
 	"github.com/astrostl/slack-buddy-ai/cmd"
 )
 
-// TestMainFunctionExists verifies that the main function integration works
+// TestMainFunctionExists verifies that the main function integration works.
 func TestMainFunctionExists(t *testing.T) {
 	tests := []struct {
 		name string

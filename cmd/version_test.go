@@ -22,11 +22,11 @@ func TestVersionCommand(t *testing.T) {
 	versionCmd.Run(versionCmd, []string{})
 
 	// Restore stdout and read output
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Check output contains expected information
@@ -58,11 +58,11 @@ func TestVersionCommandDefaults(t *testing.T) {
 	versionCmd.Run(versionCmd, []string{})
 
 	// Restore stdout and read output
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Check output contains version but not unknown values

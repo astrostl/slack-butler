@@ -6,7 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LogFields is an alias for logrus.Fields for convenience
+// LogFields is an alias for logrus.Fields for convenience.
 type LogFields = logrus.Fields
 
 var Log *logrus.Logger
@@ -45,42 +45,42 @@ func init() {
 	}
 }
 
-// GetLogger returns the configured logger instance
+// GetLogger returns the configured logger instance.
 func GetLogger() *logrus.Logger {
 	return Log
 }
 
-// WithFields creates a new logger entry with structured fields
+// WithFields creates a new logger entry with structured fields.
 func WithFields(fields logrus.Fields) *logrus.Entry {
 	return Log.WithFields(fields)
 }
 
-// WithField creates a new logger entry with a single structured field
+// WithField creates a new logger entry with a single structured field.
 func WithField(key string, value interface{}) *logrus.Entry {
 	return Log.WithField(key, value)
 }
 
-// Info logs an info message
+// Info logs an info message.
 func Info(msg string) {
 	Log.Info(msg)
 }
 
-// Debug logs a debug message
+// Debug logs a debug message.
 func Debug(msg string) {
 	Log.Debug(msg)
 }
 
-// Warn logs a warning message
+// Warn logs a warning message.
 func Warn(msg string) {
 	Log.Warn(msg)
 }
 
-// Error logs an error message
+// Error logs an error message.
 func Error(msg string) {
 	Log.Error(msg)
 }
 
-// Fatal logs a fatal message and exits
+// Fatal logs a fatal message and exits.
 func Fatal(msg string) {
 	Log.Fatal(msg)
 }

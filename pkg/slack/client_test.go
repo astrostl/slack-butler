@@ -322,10 +322,10 @@ func TestGetChannelInfo(t *testing.T) {
 
 func TestTestAuth(t *testing.T) {
 	tests := []struct {
-		name        string
 		setupMock   func(*MockSlackAPI)
-		expectError bool
 		checkResult func(*testing.T, *AuthInfo)
+		name        string
+		expectError bool
 	}{
 		{
 			name: "Successful auth test",

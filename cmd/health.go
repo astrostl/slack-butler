@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 	"github.com/astrostl/slack-buddy-ai/pkg/slack"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -68,7 +69,7 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		fmt.Println("❌ FAILED")
 		fmt.Printf("  Error: %v\n", err)
-		return fmt.Errorf("client initialization failed: %v", err)
+		return fmt.Errorf("client initialization failed: %w", err)
 	}
 	fmt.Println("✅ PASSED")
 
@@ -79,7 +80,7 @@ func runHealth(cmd *cobra.Command, args []string) error {
 		fmt.Println("❌ FAILED")
 		fmt.Printf("  Error: %v\n", err)
 		fmt.Println("  Fix: Verify your token is valid and has not been revoked")
-		return fmt.Errorf("API connectivity failed: %v", err)
+		return fmt.Errorf("API connectivity failed: %w", err)
 	}
 	fmt.Println("✅ PASSED")
 	if healthVerbose {
@@ -148,7 +149,7 @@ func testBasicFunctionality(client *slack.Client) error {
 	cutoffTime := time.Now().Add(-24 * time.Hour)
 	channels, err := client.GetNewChannels(cutoffTime)
 	if err != nil {
-		return fmt.Errorf("channel listing test failed: %v", err)
+		return fmt.Errorf("channel listing test failed: %w", err)
 	}
 
 	if healthVerbose {

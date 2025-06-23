@@ -25,7 +25,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 - Go 1.24.4
 - Slack Bot Token with appropriate permissions
 
-### Install via Go
+### Install via Go (when published)
 ```bash
 go install github.com/astrostl/slack-buddy-ai@latest
 ```

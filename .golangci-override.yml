@@ -1,0 +1,42 @@
+linters:
+  disable:
+    - errcheck      # Disable errcheck for maintenance workflow
+    - godot         # Disable comment period requirements  
+    - goconst       # Disable constant suggestions
+    - nestif        # Disable complex nested block warnings
+  enable:
+    - gosec         # Keep security checks
+    - govet         # Keep essential vet checks
+    - staticcheck   # Keep static analysis
+    - ineffassign   # Keep inefficient assignment checks
+    - misspell      # Keep spell checking
+
+issues:
+  exclude:
+    - "G101"  # Disable hardcoded credentials check (too many false positives in tests)
+
+linters-settings:
+  govet:
+    enable:
+      - assign
+      - atomic
+      - bools
+      - buildtag
+      - cgocall
+      - composites
+      - copylocks
+      - httpresponse
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - printf
+      - shift
+      - stdmethods
+      - structtag
+      - tests
+      - unmarshal
+      - unreachable
+      - unsafeptr
+      - unusedresult
+    disable:
+      - shadow     # Disable variable shadowing

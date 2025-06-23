@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 )
 
 func TestHealthCommandSetup(t *testing.T) {

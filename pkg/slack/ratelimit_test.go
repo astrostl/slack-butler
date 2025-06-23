@@ -260,7 +260,7 @@ func testExponentialBackoffRecovery(t *testing.T, mockAPI *MockSlackAPI, client 
 	}
 }
 
-// Helper function for string contains check
+// Helper function for string contains check.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > len(substr) && containsHelper(s, substr)))
 }

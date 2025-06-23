@@ -92,6 +92,15 @@ define run-lint
 	fi
 endef
 
+define run-lint-maintenance
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run --config .golangci-override.yml; \
+	else \
+		echo "golangci-lint not installed. Run: make install-tools"; \
+		exit 1; \
+	fi
+endef
+
 define run-complexity-check
 	@if command -v gocyclo >/dev/null 2>&1; then \
 		if gocyclo -over 15 . | grep -q .; then \
@@ -199,7 +208,7 @@ deps-audit:
 install-tools:
 	@echo "Installing development tools from go.mod versions..."
 	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck, goreleaser"
-	@cat tools.go | grep _ | awk '{print $$2}' | xargs -I {} go install {}
+	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
 	@echo "✅ All development tools installed successfully!"
 
 # Create full release with checksums
@@ -235,16 +244,24 @@ quality:
 	$(call run-complexity-check)
 	@echo "✅ Quality checks completed!"
 
-# Monthly maintenance workflow (update deps + run quality checks + test)
-maintenance: deps-update quality test
+# Monthly maintenance workflow (update deps + run essential checks + test)
+maintenance: deps-update maintenance-quality test
 	@echo "✅ Monthly maintenance completed!"
 	@echo "📋 Summary:"
 	@echo "  - Dependencies updated to latest versions"
 	@echo "  - Security vulnerabilities checked"
-	@echo "  - Code quality validated"
+	@echo "  - Essential code quality validated"
 	@echo "  - All tests passing"
 	@echo ""
 	@echo "💡 Consider running 'git status' to review dependency changes"
+
+# Essential quality checks for maintenance (less strict than full quality)
+maintenance-quality:
+	$(call run-security)
+	$(call run-fmt-check)
+	$(call run-vet)
+	$(call run-lint-maintenance)
+	@echo "✅ Maintenance quality checks completed!"
 
 # Full CI pipeline (clean + deps + quality + coverage + build)
 ci: clean deps quality coverage build

@@ -10,15 +10,15 @@ import (
 
 func TestLoggerInitialization(t *testing.T) {
 	tests := []struct {
-		name     string
 		setup    func()
 		cleanup  func()
+		name     string
 		expected logrus.Level
 	}{
 		{
 			name: "Default log level is Info",
 			setup: func() {
-				os.Unsetenv("SLACK_LOG_LEVEL")
+				_ = os.Unsetenv("SLACK_LOG_LEVEL")
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.InfoLevel)
@@ -29,26 +29,26 @@ func TestLoggerInitialization(t *testing.T) {
 		{
 			name: "Debug log level from environment",
 			setup: func() {
-				os.Setenv("SLACK_LOG_LEVEL", "debug")
+				_ = os.Setenv("SLACK_LOG_LEVEL", "debug")
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.DebugLevel)
 			},
 			cleanup: func() {
-				os.Unsetenv("SLACK_LOG_LEVEL")
+				_ = os.Unsetenv("SLACK_LOG_LEVEL")
 			},
 			expected: logrus.DebugLevel,
 		},
 		{
 			name: "Error log level from environment",
 			setup: func() {
-				os.Setenv("SLACK_LOG_LEVEL", "error")
+				_ = os.Setenv("SLACK_LOG_LEVEL", "error")
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.ErrorLevel)
 			},
 			cleanup: func() {
-				os.Unsetenv("SLACK_LOG_LEVEL")
+				_ = os.Unsetenv("SLACK_LOG_LEVEL")
 			},
 			expected: logrus.ErrorLevel,
 		},
@@ -128,9 +128,9 @@ func TestLoggerFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.formatEnv != "" {
-				os.Setenv("SLACK_LOG_FORMAT", tt.formatEnv)
+				_ = os.Setenv("SLACK_LOG_FORMAT", tt.formatEnv)
 			} else {
-				os.Unsetenv("SLACK_LOG_FORMAT")
+				_ = os.Unsetenv("SLACK_LOG_FORMAT")
 			}
 
 			// Reinitialize logger to pick up env changes
@@ -152,7 +152,7 @@ func TestLoggerFormatter(t *testing.T) {
 			assert.Contains(t, getFormatterTypeName(formatterType), tt.expectedType)
 
 			// Cleanup
-			os.Unsetenv("SLACK_LOG_FORMAT")
+			_ = os.Unsetenv("SLACK_LOG_FORMAT")
 		})
 	}
 }

@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 	"strconv"
 	"time"
+
+	"github.com/astrostl/slack-buddy-ai/pkg/logger"
+	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -63,7 +64,7 @@ func runDetect(cmd *cobra.Command, args []string) error {
 
 	client, err := slack.NewClient(token)
 	if err != nil {
-		return fmt.Errorf("failed to create Slack client: %v", err)
+		return fmt.Errorf("failed to create Slack client: %w", err)
 	}
 
 	return runDetectWithClient(client, cutoffTime, announceTo, dryRun)
@@ -72,7 +73,7 @@ func runDetect(cmd *cobra.Command, args []string) error {
 func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceChannel string, isDryRun bool) error {
 	newChannels, err := client.GetNewChannels(cutoffTime)
 	if err != nil {
-		return fmt.Errorf("failed to get new channels: %v", err)
+		return fmt.Errorf("failed to get new channels: %w", err)
 	}
 
 	if len(newChannels) == 0 {
@@ -119,7 +120,7 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 					"channel": announceChannel,
 					"error":   err.Error(),
 				}).Error("Failed to post announcement")
-				return fmt.Errorf("failed to post announcement to %s: %v", announceChannel, err)
+				return fmt.Errorf("failed to post announcement to %s: %w", announceChannel, err)
 			}
 			logger.WithField("channel", announceChannel).Info("Announcement posted successfully")
 			fmt.Printf("Announcement posted to %s\n", announceChannel)

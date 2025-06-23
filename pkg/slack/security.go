@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// ValidateSlackToken performs basic validation on Slack bot tokens
+// ValidateSlackToken performs basic validation on Slack bot tokens.
 func ValidateSlackToken(token string) error {
 	if token == "" {
 		return fmt.Errorf("token cannot be empty")
@@ -36,7 +36,7 @@ func ValidateSlackToken(token string) error {
 	return nil
 }
 
-// SanitizeForLogging removes sensitive information from strings for safe logging
+// SanitizeForLogging removes sensitive information from strings for safe logging.
 func SanitizeForLogging(input string) string {
 	// Replace any token-like patterns with [REDACTED]
 	tokenPattern := regexp.MustCompile(`xoxb-[a-zA-Z0-9-]+`)
@@ -49,7 +49,7 @@ func SanitizeForLogging(input string) string {
 	return result
 }
 
-// ValidateChannelName performs basic validation on channel names
+// ValidateChannelName performs basic validation on channel names.
 func ValidateChannelName(channelName string) error {
 	if channelName == "" {
 		return fmt.Errorf("channel name cannot be empty")

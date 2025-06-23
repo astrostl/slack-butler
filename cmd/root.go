@@ -2,15 +2,16 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 	"os"
+
+	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// Version information passed from main
+// Version information passed from main.
 var (
 	version   string
 	buildTime string

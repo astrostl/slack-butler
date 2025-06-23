@@ -202,6 +202,9 @@ make dev
 # Complete quality validation (security + format + vet + lint + complexity)
 make quality
 
+# Monthly maintenance (update dependencies + quality checks + test)
+make maintenance
+
 # Full CI pipeline (clean + deps + quality + coverage + build)
 make ci
 

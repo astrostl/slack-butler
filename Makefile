@@ -119,12 +119,7 @@ endef
 
 define run-vuln-check
 	@echo "Checking for known vulnerabilities..."
-	@if command -v govulncheck >/dev/null 2>&1; then \
-		govulncheck ./...; \
-	else \
-		echo "govulncheck not installed. Run: make install-tools"; \
-		exit 1; \
-	fi
+	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 endef
 
 define run-mod-verify
@@ -141,10 +136,8 @@ endef
 
 define run-deps-audit
 	@echo "Auditing dependencies for security vulnerabilities..."
-	@echo "🔍 Checking for vulnerabilities..."
-	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-	@echo "🔍 Checking module integrity..."
-	@go mod verify
+	$(call run-vuln-check)
+	$(call run-mod-verify)
 	@echo "✅ Dependency audit completed!"
 endef
 
@@ -154,17 +147,8 @@ define run-security
 	$(call run-mod-verify)
 endef
 
-define run-security-with-updates
-	@echo "🔒 Running security checks with dependency updates..."
-	$(call run-deps-audit)
-	@echo ""
-	@echo "🔍 Running full security analysis..."
-	$(call run-gosec)
-	@echo "✅ Security checks completed!"
-endef
-
 # Individual targets (use suites instead for normal workflow)
-.PHONY: fmt fmt-check vet lint complexity-check gosec vuln-check mod-verify security deps-update deps-audit security-update
+.PHONY: fmt fmt-check vet lint complexity-check gosec vuln-check mod-verify security deps-update deps-audit
 
 # Format code (dev workflow includes this)
 fmt:
@@ -209,10 +193,6 @@ deps-update:
 # Audit dependencies for vulnerabilities (standalone)
 deps-audit:
 	$(call run-deps-audit)
-
-# Security checks with dependency updates (recommended for maintenance)
-security-update:
-	$(call run-security-with-updates)
 
 # Install development tools (versions pinned in tools.go/go.mod)
 .PHONY: install-tools
@@ -298,7 +278,6 @@ help:
 	@echo "  security     - Complete security analysis (gosec + vuln-check + mod-verify)"
 	@echo "  deps-audit   - Audit dependencies for vulnerabilities"
 	@echo "  deps-update  - Update all dependencies to latest versions"
-	@echo "  security-update - Security checks with dependency updates"
 	@echo ""
 	@echo "🔧 Individual targets:"
 	@echo "  fmt          - Format code (use 'dev' instead)"

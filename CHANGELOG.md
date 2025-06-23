@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Planned
 - Channel cleanup detection for inactive channels
 
+## [1.0.4] - 2025-06-23
+
+### Fixed
+- **OAuth Scope Documentation**: Removed incorrect `channels:history` requirement from .env.example 
+- **Dependabot Configuration**: Fixed empty package-ecosystem field in .github/dependabot.yml
+- **Installation Documentation**: Clarified go install method availability in README.md
+- **Development Tools**: Improved Makefile install-tools reliability using go list instead of awk
+
+### Improved
+- **Documentation Accuracy**: All configuration examples now reflect actual requirements
+- **Development Workflow**: More reliable tool installation for consistent development environment
+
 ## [1.0.3] - 2025-06-22
 
 ### Fixed

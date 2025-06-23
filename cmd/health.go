@@ -21,7 +21,8 @@ This command verifies:
 - Required OAuth scopes and permissions
 - Bot user information
 - Basic API functionality`,
-	RunE: runHealth,
+	SilenceUsage: true, // Don't show usage on errors
+	RunE:         runHealth,
 }
 
 var (

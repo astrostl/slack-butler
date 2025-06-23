@@ -75,7 +75,6 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 		return fmt.Errorf("failed to get new channels: %v", err)
 	}
 
-
 	if len(newChannels) == 0 {
 		logger.WithFields(logger.LogFields{
 			"since": cutoffTime.Format("2006-01-02 15:04:05"),
@@ -125,6 +124,13 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 			logger.WithField("channel", announceChannel).Info("Announcement posted successfully")
 			fmt.Printf("Announcement posted to %s\n", announceChannel)
 		}
+	} else if isDryRun {
+		// Show what announcement message would look like even without a target channel
+		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
+		fmt.Printf("\n--- DRY RUN ---\n")
+		fmt.Printf("Announcement message preview (use --announce-to to specify target):\n%s\n", message)
+		fmt.Printf("--- END DRY RUN ---\n")
+		logger.Info("Dry run: message preview shown without target channel")
 	}
 
 	return nil

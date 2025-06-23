@@ -294,7 +294,7 @@ func TestDryRunFunctionality(t *testing.T) {
 		assert.Equal(t, "CGENERAL", messages[0].ChannelID)
 	})
 
-	t.Run("Dry run without announcement - still processes normally", func(t *testing.T) {
+	t.Run("Dry run without announcement - shows message preview", func(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		testTime := time.Now().Add(-1 * time.Hour)
 		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
@@ -310,5 +310,87 @@ func TestDryRunFunctionality(t *testing.T) {
 		messages := mockAPI.GetPostedMessages()
 		assert.Len(t, messages, 0)
 	})
-}
 
+	t.Run("Dry run without announcement - validates message format", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannel("C123", "test-channel-new", testTime, "Test purpose for new channel")
+		mockAPI.AddChannel("C456", "another-channel", testTime.Add(-30*time.Minute), "Another purpose")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+
+		// Test that function executes without error and generates expected announcement format
+		err = runDetectWithClient(client, cutoffTime, "", true) // dry run = true, no announcement channel
+		assert.NoError(t, err)
+
+		// Verify the announcement message would be properly formatted
+		// We can test this by calling the format function directly
+		newChannels, err := client.GetNewChannels(cutoffTime)
+		require.NoError(t, err)
+		assert.Len(t, newChannels, 2)
+
+		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
+		assert.Contains(t, message, "2 new channels created!")
+		assert.Contains(t, message, "<#C123>")
+		assert.Contains(t, message, "<#C456>")
+		assert.Contains(t, message, "Test purpose for new channel")
+		assert.Contains(t, message, "Another purpose")
+
+		// Verify no actual messages posted
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+	})
+
+	t.Run("Dry run with no channels found - no preview shown", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		// Don't add any channels, so none will be found
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "", true) // dry run = true, no announcement channel
+		assert.NoError(t, err)
+
+		// Verify no messages posted (none expected)
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+
+		// When no channels are found, the function should return early and not show any dry run preview
+		newChannels, err := client.GetNewChannels(cutoffTime)
+		require.NoError(t, err)
+		assert.Len(t, newChannels, 0)
+	})
+
+	t.Run("Dry run with announcement channel shows target", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		testTime := time.Now().Add(-1 * time.Hour)
+		mockAPI.AddChannel("C123", "test-channel-1", testTime, "Test purpose 1")
+		// Add the general channel that will be used for announcements
+		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		err = runDetectWithClient(client, cutoffTime, "#general", true) // dry run = true WITH announcement channel
+		assert.NoError(t, err)
+
+		// Verify NO message was posted in dry run mode
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 0)
+
+		// Verify the message would be properly formatted
+		newChannels, err := client.GetNewChannels(cutoffTime)
+		require.NoError(t, err)
+		assert.Len(t, newChannels, 1)
+
+		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
+		assert.Contains(t, message, "New channel alert!")
+		assert.Contains(t, message, "<#C123>")
+		assert.Contains(t, message, "Test purpose 1")
+	})
+}

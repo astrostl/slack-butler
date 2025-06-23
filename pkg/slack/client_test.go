@@ -306,9 +306,6 @@ func TestPostMessage(t *testing.T) {
 	})
 }
 
-
-
-
 func TestGetChannelInfo(t *testing.T) {
 	t.Run("GetChannelInfo returns expected error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
@@ -359,20 +356,20 @@ func TestTestAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockAPI := NewMockSlackAPI()
 			tt.setupMock(mockAPI)
-			
+
 			// For auth failure test, we expect client creation to fail
 			// since it calls auth test during construction
 			client, err := NewClientWithAPI(mockAPI)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				tt.checkResult(t, nil)
 				return
 			}
-			
+
 			assert.NoError(t, err)
 			assert.NotNil(t, client)
-			
+
 			auth, err := client.TestAuth()
 			assert.NoError(t, err)
 			tt.checkResult(t, auth)

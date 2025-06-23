@@ -344,9 +344,6 @@ func (c *Client) GetChannelInfo(channelID string) (*Channel, error) {
 	return nil, fmt.Errorf("channel_not_found")
 }
 
-
-
-
 // resolveChannelNameToID converts a channel name (like "#general" or "general") to its Slack channel ID
 func (c *Client) resolveChannelNameToID(channelName string) (string, error) {
 	// Clean the channel name

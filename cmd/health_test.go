@@ -225,10 +225,10 @@ func TestRunHealthVerboseOutput(t *testing.T) {
 		// Test that healthVerbose variable can be modified
 		originalVerbose := healthVerbose
 		defer func() { healthVerbose = originalVerbose }()
-		
+
 		healthVerbose = true
 		assert.True(t, healthVerbose)
-		
+
 		healthVerbose = false
 		assert.False(t, healthVerbose)
 	})

@@ -1,6 +1,7 @@
 # Binaries
 slack-buddy
 slack-buddy.exe
+slack-buddy-ai
 
 # Build artifacts and reports
 build/
@@ -34,9 +35,16 @@ Thumbs.db
 # Logs
 *.log
 
-# Test coverage files (now in build/coverage/)
+# Test coverage files
 coverage*.out
 coverage*.html
+*_coverage.out
+*_coverage.html
+analysis_coverage.*
+comprehensive_coverage.*
+final_coverage.*
+health_coverage.*
+temp_coverage.*
 
 # Security reports
 security-report.json

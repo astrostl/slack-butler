@@ -911,7 +911,7 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 			prefix := token[:8]
 			suffix := token[len(token)-8:]
 
-			assert.Equal(t, "test-123", prefix)
+			assert.Equal(t, "test-fak", prefix)
 			assert.Equal(t, "lay-test", suffix)
 		}
 	})

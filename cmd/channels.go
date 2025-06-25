@@ -273,6 +273,46 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 	fmt.Printf("🔍 Analyzing inactive channels...\n\n")
 
 	// Get user map for name resolution
+	userMap, err := getUserMapWithErrorHandling(client, isDebug)
+	if err != nil {
+		return err
+	}
+
+	// Parse and display exclusion lists
+	excludeChannelsList, excludePrefixesList := parseExclusionLists(excludeChannels, excludePrefixes)
+	displayExclusionInfo(excludeChannelsList, excludePrefixesList)
+
+	// Analyze inactive channels
+	toWarn, toArchive, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
+	if err != nil {
+		return err
+	}
+
+	// Report findings
+	fmt.Printf("Inactive Channel Analysis Results:\n")
+	fmt.Printf("  Channels to warn: %d\n", len(toWarn))
+	fmt.Printf("  Channels to archive: %d\n", len(toArchive))
+	fmt.Println()
+
+	// Process warnings
+	if len(toWarn) > 0 {
+		processWarnings(client, toWarn, warnSeconds, archiveSeconds, isDryRun)
+	}
+
+	// Process archival
+	if len(toArchive) > 0 {
+		processArchival(client, toArchive, warnSeconds, archiveSeconds, isDryRun)
+	}
+
+	if len(toWarn) == 0 && len(toArchive) == 0 {
+		fmt.Printf("No inactive channels found. All channels are active or already processed.\n")
+	}
+
+	return nil
+}
+
+// getUserMapWithErrorHandling gets user map with proper error handling and logging
+func getUserMapWithErrorHandling(client *slack.Client, isDebug bool) (map[string]string, error) {
 	if isDebug {
 		fmt.Printf("📞 API Call 1: Getting user list for name resolution...\n")
 	}
@@ -281,21 +321,24 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 		if strings.Contains(err.Error(), "rate_limited") || strings.Contains(err.Error(), "rate limit") {
 			fmt.Printf("⚠️  Slack API rate limit exceeded on user list.\n")
 			fmt.Printf("   The system should have done backoff.\n")
-			return fmt.Errorf("rate limited by Slack API")
+			return nil, fmt.Errorf("rate limited by Slack API")
 		}
 		if strings.Contains(err.Error(), "missing_scope") || strings.Contains(err.Error(), "users:read") {
 			fmt.Printf("❌ Missing required OAuth scope 'users:read'\n")
 			fmt.Printf("   This scope is needed to resolve user names for message authors.\n")
 			fmt.Printf("   Add 'users:read' scope in your Slack app settings at https://api.slack.com/apps\n")
-			return fmt.Errorf("missing required OAuth scope 'users:read'")
+			return nil, fmt.Errorf("missing required OAuth scope 'users:read'")
 		}
-		return fmt.Errorf("failed to get users: %w", err)
+		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
 	if isDebug {
 		fmt.Printf("✅ Got %d users from API\n\n", len(userMap))
 	}
+	return userMap, nil
+}
 
-	// Parse exclusion lists
+// parseExclusionLists parses comma-separated exclusion lists and removes # prefixes
+func parseExclusionLists(excludeChannels, excludePrefixes string) ([]string, []string) {
 	var excludeChannelsList []string
 	var excludePrefixesList []string
 
@@ -325,7 +368,11 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 		}
 	}
 
-	// Show exclusion info if any are specified
+	return excludeChannelsList, excludePrefixesList
+}
+
+// displayExclusionInfo shows configured exclusions to the user
+func displayExclusionInfo(excludeChannelsList, excludePrefixesList []string) {
 	if len(excludeChannelsList) > 0 || len(excludePrefixesList) > 0 {
 		fmt.Printf("📋 Channel exclusions configured:\n")
 		if len(excludeChannelsList) > 0 {
@@ -336,7 +383,10 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 		}
 		fmt.Println()
 	}
+}
 
+// getInactiveChannelsWithErrorHandling analyzes inactive channels with proper error handling
+func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, archiveSeconds int, userMap map[string]string, excludeChannelsList, excludePrefixesList []string, isDebug bool) ([]slack.Channel, []slack.Channel, error) {
 	toWarn, toArchive, err := client.GetInactiveChannelsWithDetailsAndExclusions(warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
 	if err != nil {
 		// Check if this is a rate limit error and provide helpful guidance
@@ -346,142 +396,108 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 			fmt.Printf("   Please wait a few minutes before running the command again.\n")
 			fmt.Printf("   \n")
 			fmt.Printf("   Tip: Consider running with longer time periods (e.g. --warn-seconds=3600) to reduce API calls.\n")
-			return fmt.Errorf("rate limited by Slack API")
+			return nil, nil, fmt.Errorf("rate limited by Slack API")
 		}
-		return fmt.Errorf("failed to analyze inactive channels: %w", err)
+		return nil, nil, fmt.Errorf("failed to analyze inactive channels: %w", err)
 	}
+	return toWarn, toArchive, nil
+}
 
-	// Report findings
-	fmt.Printf("Inactive Channel Analysis Results:\n")
-	fmt.Printf("  Channels to warn: %d\n", len(toWarn))
-	fmt.Printf("  Channels to archive: %d\n", len(toArchive))
+// displayChannelDetails shows channel information with last message details
+func displayChannelDetails(channels []slack.Channel, title string) {
+	fmt.Printf("%s:\n", title)
+	for _, channel := range channels {
+		fmt.Printf("  #%s (inactive since: %s, members: %d)\n",
+			channel.Name,
+			channel.LastActivity.Format("2006-01-02 15:04:05"),
+			channel.MemberCount)
+
+		// Show last message details if available
+		if channel.LastMessage != nil {
+			messageText := channel.LastMessage.Text
+			if len(messageText) > 60 {
+				messageText = messageText[:57] + "..."
+			}
+			messageText = strings.ReplaceAll(messageText, "\n", " ")
+
+			authorName := channel.LastMessage.UserName
+			if authorName == "" {
+				authorName = channel.LastMessage.User
+			}
+
+			botIndicator := ""
+			if channel.LastMessage.IsBot {
+				botIndicator = " (bot)"
+			}
+
+			fmt.Printf("    └─ Last message by: %s%s | \"%s\"\n", authorName, botIndicator, messageText)
+		}
+	}
 	fmt.Println()
+}
 
-	// Process warnings
-	if len(toWarn) > 0 {
-		fmt.Printf("Channels to warn about inactivity:\n")
+// processWarnings handles warning channels in both dry-run and real modes
+func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool) {
+	displayChannelDetails(toWarn, "Channels to warn about inactivity")
+
+	if isDryRun {
+		fmt.Printf("--- DRY RUN ---\n")
+		fmt.Printf("Would warn %d channels about upcoming archival\n", len(toWarn))
+		if len(toWarn) > 0 {
+			fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
+			exampleMessage := client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds)
+			fmt.Printf("%s\n", exampleMessage)
+		}
+		fmt.Printf("--- END DRY RUN ---\n\n")
+	} else {
+		fmt.Printf("Sending warnings to %d channels (joining channels as needed)...\n", len(toWarn))
+		warningsSent := 0
 		for _, channel := range toWarn {
-			fmt.Printf("  #%s (inactive since: %s, members: %d)\n",
-				channel.Name,
-				channel.LastActivity.Format("2006-01-02 15:04:05"),
-				channel.MemberCount)
-
-			// Show last message details if available
-			if channel.LastMessage != nil {
-				messageText := channel.LastMessage.Text
-				if len(messageText) > 60 {
-					messageText = messageText[:57] + "..."
-				}
-				messageText = strings.ReplaceAll(messageText, "\n", " ")
-
-				authorName := channel.LastMessage.UserName
-				if authorName == "" {
-					authorName = channel.LastMessage.User
-				}
-
-				botIndicator := ""
-				if channel.LastMessage.IsBot {
-					botIndicator = " (bot)"
-				}
-
-				fmt.Printf("    └─ Last message by: %s%s | \"%s\"\n", authorName, botIndicator, messageText)
+			if err := client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds); err != nil {
+				logger.WithFields(logger.LogFields{
+					"channel": channel.Name,
+					"error":   err.Error(),
+				}).Error("Failed to send warning")
+				fmt.Printf("  Failed to warn #%s: %s\n", channel.Name, err.Error())
+			} else {
+				warningsSent++
+				logger.WithField("channel", channel.Name).Info("Warning sent successfully")
+				fmt.Printf("  ✓ Warned #%s\n", channel.Name)
 			}
 		}
-		fmt.Println()
-
-		if isDryRun {
-			fmt.Printf("--- DRY RUN ---\n")
-			fmt.Printf("Would warn %d channels about upcoming archival\n", len(toWarn))
-			if len(toWarn) > 0 {
-				fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
-				exampleMessage := client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds)
-				fmt.Printf("%s\n", exampleMessage)
-			}
-			fmt.Printf("--- END DRY RUN ---\n\n")
-		} else {
-			fmt.Printf("Sending warnings to %d channels (joining channels as needed)...\n", len(toWarn))
-			warningsSent := 0
-			for _, channel := range toWarn {
-				if err := client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds); err != nil {
-					logger.WithFields(logger.LogFields{
-						"channel": channel.Name,
-						"error":   err.Error(),
-					}).Error("Failed to send warning")
-					fmt.Printf("  Failed to warn #%s: %s\n", channel.Name, err.Error())
-				} else {
-					warningsSent++
-					logger.WithField("channel", channel.Name).Info("Warning sent successfully")
-					fmt.Printf("  ✓ Warned #%s\n", channel.Name)
-				}
-			}
-			fmt.Printf("Warnings sent: %d/%d\n\n", warningsSent, len(toWarn))
-		}
+		fmt.Printf("Warnings sent: %d/%d\n\n", warningsSent, len(toWarn))
 	}
+}
 
-	// Process archival
-	if len(toArchive) > 0 {
-		fmt.Printf("Channels to archive (grace period expired):\n")
+// processArchival handles archiving channels in both dry-run and real modes
+func processArchival(client *slack.Client, toArchive []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool) {
+	displayChannelDetails(toArchive, "Channels to archive (grace period expired)")
+
+	if isDryRun {
+		fmt.Printf("--- DRY RUN ---\n")
+		fmt.Printf("Would archive %d channels\n", len(toArchive))
+		if len(toArchive) > 0 {
+			fmt.Printf("Example archival message for #%s:\n", toArchive[0].Name)
+			exampleArchivalMessage := client.FormatChannelArchivalMessage(toArchive[0], warnSeconds, archiveSeconds)
+			fmt.Printf("%s\n", exampleArchivalMessage)
+		}
+		fmt.Printf("--- END DRY RUN ---\n\n")
+	} else {
+		fmt.Printf("Archiving %d channels...\n", len(toArchive))
+		archived := 0
 		for _, channel := range toArchive {
-			fmt.Printf("  #%s (inactive since: %s, members: %d)\n",
-				channel.Name,
-				channel.LastActivity.Format("2006-01-02 15:04:05"),
-				channel.MemberCount)
-
-			// Show last message details if available
-			if channel.LastMessage != nil {
-				messageText := channel.LastMessage.Text
-				if len(messageText) > 60 {
-					messageText = messageText[:57] + "..."
-				}
-				messageText = strings.ReplaceAll(messageText, "\n", " ")
-
-				authorName := channel.LastMessage.UserName
-				if authorName == "" {
-					authorName = channel.LastMessage.User
-				}
-
-				botIndicator := ""
-				if channel.LastMessage.IsBot {
-					botIndicator = " (bot)"
-				}
-
-				fmt.Printf("    └─ Last message by: %s%s | \"%s\"\n", authorName, botIndicator, messageText)
+			if err := client.ArchiveChannelWithThresholds(channel, warnSeconds, archiveSeconds); err != nil {
+				logger.WithFields(logger.LogFields{
+					"channel": channel.Name,
+					"error":   err.Error(),
+				}).Error("Failed to archive channel")
+				fmt.Printf("  Failed to archive #%s: %s\n", channel.Name, err.Error())
+			} else {
+				archived++
+				logger.WithField("channel", channel.Name).Info("Channel archived successfully")
+				fmt.Printf("  ✓ Archived #%s\n", channel.Name)
 			}
 		}
-		fmt.Println()
-
-		if isDryRun {
-			fmt.Printf("--- DRY RUN ---\n")
-			fmt.Printf("Would archive %d channels\n", len(toArchive))
-			if len(toArchive) > 0 {
-				fmt.Printf("Example archival message for #%s:\n", toArchive[0].Name)
-				exampleArchivalMessage := client.FormatChannelArchivalMessage(toArchive[0], warnSeconds, archiveSeconds)
-				fmt.Printf("%s\n", exampleArchivalMessage)
-			}
-			fmt.Printf("--- END DRY RUN ---\n\n")
-		} else {
-			fmt.Printf("Archiving %d channels...\n", len(toArchive))
-			archived := 0
-			for _, channel := range toArchive {
-				if err := client.ArchiveChannelWithThresholds(channel, warnSeconds, archiveSeconds); err != nil {
-					logger.WithFields(logger.LogFields{
-						"channel": channel.Name,
-						"error":   err.Error(),
-					}).Error("Failed to archive channel")
-					fmt.Printf("  Failed to archive #%s: %s\n", channel.Name, err.Error())
-				} else {
-					archived++
-					logger.WithField("channel", channel.Name).Info("Channel archived successfully")
-					fmt.Printf("  ✓ Archived #%s\n", channel.Name)
-				}
-			}
-			fmt.Printf("Channels archived: %d/%d\n\n", archived, len(toArchive))
-		}
+		fmt.Printf("Channels archived: %d/%d\n\n", archived, len(toArchive))
 	}
-
-	if len(toWarn) == 0 && len(toArchive) == 0 {
-		fmt.Printf("No inactive channels found. All channels are active or already processed.\n")
-	}
-
-	return nil
 }

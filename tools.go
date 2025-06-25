@@ -7,7 +7,7 @@ package tools
 // but not compiled into the main binary due to the build constraint.
 
 import (
-	_ "github.com/fzipp/gocyclo/cmd/gocyclo"
+	_ "github.com/fzipp/gocyclo"
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/goreleaser/goreleaser/v2"
 	_ "github.com/securego/gosec/v2/cmd/gosec"

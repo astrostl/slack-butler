@@ -10,6 +10,9 @@ type SlackAPI interface {
 	GetConversations(params *slack.GetConversationsParameters) ([]slack.Channel, string, error)
 	GetConversationHistory(params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error)
 	PostMessage(channelID string, options ...slack.MsgOption) (string, string, error)
+	ArchiveConversation(channelID string) error
+	JoinConversation(channelID string) (*slack.Channel, string, []string, error)
+	GetUsers() ([]slack.User, error)
 }
 
 // RealSlackAPI wraps the actual Slack API client.
@@ -38,4 +41,16 @@ func (r *RealSlackAPI) GetConversationHistory(params *slack.GetConversationHisto
 
 func (r *RealSlackAPI) PostMessage(channelID string, options ...slack.MsgOption) (string, string, error) {
 	return r.client.PostMessage(channelID, options...)
+}
+
+func (r *RealSlackAPI) ArchiveConversation(channelID string) error {
+	return r.client.ArchiveConversation(channelID)
+}
+
+func (r *RealSlackAPI) JoinConversation(channelID string) (*slack.Channel, string, []string, error) {
+	return r.client.JoinConversation(channelID)
+}
+
+func (r *RealSlackAPI) GetUsers() ([]slack.User, error) {
+	return r.client.GetUsers()
 }

@@ -245,7 +245,10 @@ quality:
 	@echo "✅ Quality checks completed!"
 
 # Monthly maintenance workflow (update deps + run essential checks + test)
-maintenance: deps-update maintenance-quality test
+maintenance:
+	$(call run-deps-update)
+	@$(MAKE) maintenance-quality
+	@$(MAKE) test
 	@echo "✅ Monthly maintenance completed!"
 	@echo "📋 Summary:"
 	@echo "  - Dependencies updated to latest versions"
@@ -280,7 +283,7 @@ help:
 	@echo "🚀 Main workflows:"
 	@echo "  make dev         - Quick: format + vet + test + build"
 	@echo "  make quality     - Complete: security + format + vet + lint + complexity"
-	@echo "  make maintenance - Monthly: deps-update + quality + test (recommended)"
+	@echo "  make maintenance - Monthly: deps-update + essential quality + test (recommended)"
 	@echo "  make ci          - Full: clean + deps + quality + coverage + build"
 	@echo "  make release-full - Release: ci + create release with checksums"
 	@echo ""

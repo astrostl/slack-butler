@@ -1,11 +1,9 @@
 package slack
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/astrostl/slack-buddy-ai/pkg/logger"
@@ -20,17 +18,8 @@ const (
 	oneDayText    = "1 day"
 )
 
-type RateLimiter struct {
-	lastRequest  time.Time
-	minInterval  time.Duration
-	backoffCount int
-	maxBackoff   time.Duration
-	mu           sync.Mutex
-}
-
 type Client struct {
-	api         SlackAPI
-	rateLimiter *RateLimiter
+	api SlackAPI
 }
 
 type Channel struct {
@@ -73,10 +62,6 @@ func NewClient(token string) (*Client, error) {
 	// Connection info logged but not printed to reduce output noise
 	return &Client{
 		api: api,
-		rateLimiter: &RateLimiter{
-			minInterval: time.Second,      // 1 request per second baseline
-			maxBackoff:  time.Second * 30, // Max 30 second backoff (test-friendly)
-		},
 	}, nil
 }
 
@@ -98,80 +83,12 @@ func NewClientWithAPI(api SlackAPI) (*Client, error) {
 	// Connection info logged but not printed to reduce output noise
 	return &Client{
 		api: api,
-		rateLimiter: &RateLimiter{
-			minInterval: time.Second,      // 1 request per second baseline
-			maxBackoff:  time.Second * 30, // Max 30 second backoff (test-friendly)
-		},
 	}, nil
 }
 
-func (rl *RateLimiter) Wait(ctx context.Context) error {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	timeSinceLastRequest := now.Sub(rl.lastRequest)
-
-	// Calculate wait time with exponential backoff
-	waitTime := rl.minInterval
-	if rl.backoffCount > 0 {
-		backoffMultiplier := time.Duration(1 << rl.backoffCount) // 2^backoffCount
-		waitTime = rl.minInterval * backoffMultiplier
-		if waitTime > rl.maxBackoff {
-			waitTime = rl.maxBackoff
-		}
-	}
-
-	if timeSinceLastRequest < waitTime {
-		sleepTime := waitTime - timeSinceLastRequest
-		logger.WithFields(logger.LogFields{
-			"sleep_duration": sleepTime.String(),
-			"backoff_count":  rl.backoffCount,
-		}).Debug("Rate limiting: sleeping before API request")
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(sleepTime):
-		}
-	}
-
-	rl.lastRequest = time.Now()
-	return nil
-}
-
-func (rl *RateLimiter) OnSuccess() {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	// Reset backoff on successful request
-	if rl.backoffCount > 0 {
-		logger.WithField("previous_backoff", rl.backoffCount).Debug("Rate limiting: resetting backoff after success")
-		rl.backoffCount = 0
-	}
-}
-
-func (rl *RateLimiter) OnRateLimitError() {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	rl.backoffCount++
-	if rl.backoffCount > 6 { // Cap at 2^6 = 64 seconds
-		rl.backoffCount = 6
-	}
-
-	logger.WithField("backoff_count", rl.backoffCount).Warn("Rate limiting: increasing backoff due to rate limit error")
-}
 
 func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 	logger.WithField("since", since.Format("2006-01-02 15:04:05")).Debug("Fetching channels from Slack API")
-
-	// Apply rate limiting
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
@@ -186,8 +103,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-			c.rateLimiter.OnRateLimitError()
-			return nil, fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+			return nil, fmt.Errorf("rate limited by Slack API. Please wait before retrying")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -201,8 +117,6 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	// Mark successful API call
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("total_channels", len(channels)).Debug("Retrieved channels from Slack API")
 
@@ -522,13 +436,6 @@ func (c *Client) findDuplicateChannelsInMessageWithIDs(messageText string, chann
 }
 
 func (c *Client) getAllChannelNameToIDMap() (map[string]string, error) {
-	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-	defer cancel()
-
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	// Get all channels in one API call
 	params := &slack.GetConversationsParameters{
@@ -538,11 +445,9 @@ func (c *Client) getAllChannelNameToIDMap() (map[string]string, error) {
 
 	channels, _, err := c.api.GetConversations(params)
 	if err != nil {
-		c.rateLimiter.OnRateLimitError()
 		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	// Create name-to-ID mapping
 	nameToID := make(map[string]string)
@@ -574,13 +479,6 @@ func (c *Client) PostMessage(channel, message string) error {
 		return fmt.Errorf("failed to find channel %s: %w", channel, err)
 	}
 
-	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	_, _, err = c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
 	if err != nil {
@@ -593,8 +491,7 @@ func (c *Client) PostMessage(channel, message string) error {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-			c.rateLimiter.OnRateLimitError()
-			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -612,8 +509,6 @@ func (c *Client) PostMessage(channel, message string) error {
 		return fmt.Errorf("failed to post message to %s: %w", channel, err)
 	}
 
-	// Mark successful API call
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("channel", channel).Debug("Message posted successfully")
 	return nil
@@ -721,13 +616,6 @@ func (c *Client) ResolveChannelNameToID(channelName string) (string, error) {
 	// Clean the channel name
 	cleanName := strings.TrimPrefix(channelName, "#")
 
-	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-	defer cancel()
-
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return "", fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	// Get all channels to find the matching one
 	params := &slack.GetConversationsParameters{
@@ -737,12 +625,9 @@ func (c *Client) ResolveChannelNameToID(channelName string) (string, error) {
 
 	channels, _, err := c.api.GetConversations(params)
 	if err != nil {
-		c.rateLimiter.OnRateLimitError()
 		return "", fmt.Errorf("failed to get channels: %w", err)
 	}
 
-	// Mark successful API call
-	c.rateLimiter.OnSuccess()
 
 	// Find channel by name
 	for _, channel := range channels {
@@ -764,12 +649,7 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
 
 	// Get all channels
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
@@ -780,7 +660,6 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for activity analysis")
 
@@ -937,12 +816,7 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
 
 	// Get all channels
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
@@ -953,7 +827,6 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for detailed activity analysis")
 
@@ -1144,12 +1017,7 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
 
 	// Get all channels
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
@@ -1160,7 +1028,6 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for detailed activity analysis")
 
@@ -1424,14 +1291,6 @@ func (c *Client) getChannelActivity(channelID string) (lastActivity time.Time, h
 	var history *slack.GetConversationHistoryResponse
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// Rate limit before API call
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-
-		if err := c.rateLimiter.Wait(ctx); err != nil {
-			cancel()
-			return time.Time{}, false, time.Time{}, fmt.Errorf("rate limiter cancelled: %w", err)
-		}
-		cancel()
 
 		// Optimized two-stage approach:
 		// 1. Get just the last message to check if channel is obviously active
@@ -1460,8 +1319,7 @@ func (c *Client) getChannelActivity(channelID string) (lastActivity time.Time, h
 						showProgressBar(waitDuration)
 					} else {
 						// Fallback to our rate limiter if we can't parse Slack's directive
-						c.rateLimiter.OnRateLimitError()
-						// Use fallback backoff quietly without verbose output
+										// Use fallback backoff quietly without verbose output
 					}
 					continue
 				}
@@ -1478,7 +1336,6 @@ func (c *Client) getChannelActivity(channelID string) (lastActivity time.Time, h
 		break
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	if len(history.Messages) == 0 {
 		// No messages
@@ -1526,14 +1383,6 @@ func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastAc
 	var history *slack.GetConversationHistoryResponse
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// Rate limit before API call
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-
-		if err := c.rateLimiter.Wait(ctx); err != nil {
-			cancel()
-			return time.Time{}, false, time.Time{}, fmt.Errorf("rate limiter cancelled: %w", err)
-		}
-		cancel()
 
 		// Get more messages to analyze warning history and find user activity
 		params := &slack.GetConversationHistoryParameters{
@@ -1566,8 +1415,7 @@ func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastAc
 						time.Sleep(waitDuration)
 					} else {
 						// Fallback to our rate limiter if we can't parse Slack's directive
-						c.rateLimiter.OnRateLimitError()
-						fmt.Printf("   ⏳ Using fallback backoff before detailed retry...\n")
+										fmt.Printf("   ⏳ Using fallback backoff before detailed retry...\n")
 					}
 					continue
 				}
@@ -1584,7 +1432,6 @@ func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastAc
 		break
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	if len(history.Messages) == 0 {
 		return time.Unix(0, 0), false, time.Time{}, nil
@@ -1639,12 +1486,6 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 		}
 
 		// Rate limit before joining
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		if err := c.rateLimiter.Wait(ctx); err != nil {
-			cancel()
-			return joinedCount, fmt.Errorf("rate limiter cancelled during auto-join: %w", err)
-		}
-		cancel()
 
 		// Try to join the channel
 		_, _, _, err := c.api.JoinConversation(ch.ID)
@@ -1653,30 +1494,26 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 
 			// Handle rate limiting - this is fatal
 			if strings.Contains(errStr, "rate_limited") {
-				c.rateLimiter.OnRateLimitError()
-				return joinedCount, fmt.Errorf("rate limited during auto-join: %w", err)
+						return joinedCount, fmt.Errorf("rate limited during auto-join: %w", err)
 			}
 
 			// Already in channel is success
 			if strings.Contains(errStr, "already_in_channel") {
 				logger.WithField("channel", ch.Name).Debug("Already in channel")
-				c.rateLimiter.OnSuccess()
-				joinedCount++
+							joinedCount++
 				continue
 			}
 
 			// These indicate the channel can't be joined, but that's OK to skip
 			if strings.Contains(errStr, "is_archived") {
 				logger.WithField("channel", ch.Name).Debug("Channel is archived, skipping")
-				c.rateLimiter.OnSuccess()
-				skippedCount++
+							skippedCount++
 				continue
 			}
 
 			if strings.Contains(errStr, "invite_only") {
 				logger.WithField("channel", ch.Name).Debug("Channel is invite-only, skipping")
-				c.rateLimiter.OnSuccess()
-				skippedCount++
+							skippedCount++
 				continue
 			}
 
@@ -1694,8 +1531,7 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 			continue
 		}
 
-		c.rateLimiter.OnSuccess()
-		joinedCount++
+			joinedCount++
 		logger.WithField("channel", ch.Name).Debug("Successfully joined channel")
 	}
 
@@ -1825,12 +1661,7 @@ func (c *Client) ensureBotInChannel(channel Channel) error {
 	logger.WithField("channel", channel.Name).Debug("Ensuring bot is in channel")
 
 	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-	defer cancel()
 
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	_, _, _, err := c.api.JoinConversation(channel.ID)
 	if err != nil {
@@ -1843,15 +1674,13 @@ func (c *Client) ensureBotInChannel(channel Channel) error {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-			c.rateLimiter.OnRateLimitError()
-			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		// Handle expected errors that we can ignore
 		if strings.Contains(errStr, "already_in_channel") {
 			logger.WithField("channel", channel.Name).Debug("Bot already in channel")
-			c.rateLimiter.OnSuccess()
-			return nil
+					return nil
 		}
 
 		// Handle permission errors
@@ -1880,7 +1709,6 @@ func (c *Client) ensureBotInChannel(channel Channel) error {
 		return fmt.Errorf("failed to join channel %s: %w", channel.Name, err)
 	}
 
-	c.rateLimiter.OnSuccess()
 	logger.WithField("channel", channel.Name).Info("Successfully joined channel")
 	return nil
 }
@@ -1891,13 +1719,6 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 		"message_length": len(message),
 	}).Debug("Posting message to channel by ID")
 
-	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
-
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	_, _, err := c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
 	if err != nil {
@@ -1910,8 +1731,7 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-			c.rateLimiter.OnRateLimitError()
-			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -1929,8 +1749,6 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 		return fmt.Errorf("failed to post message to channel %s: %w", channelID, err)
 	}
 
-	// Mark successful API call
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("channel_id", channelID).Debug("Message posted successfully")
 	return nil
@@ -2091,12 +1909,7 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 	}
 
 	// Rate limit before archival API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-	defer cancel()
 
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	err := c.api.ArchiveConversation(channel.ID)
 	if err != nil {
@@ -2109,8 +1922,7 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-			c.rateLimiter.OnRateLimitError()
-			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -2129,7 +1941,6 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 		return fmt.Errorf("failed to archive channel %s: %w", channel.Name, err)
 	}
 
-	c.rateLimiter.OnSuccess()
 	logger.WithField("channel", channel.Name).Info("Channel archived successfully")
 	return nil
 }
@@ -2138,12 +1949,7 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 	logger.Debug("Fetching channels with metadata from Slack API")
 
 	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer cancel()
 
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
@@ -2158,8 +1964,7 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-			c.rateLimiter.OnRateLimitError()
-			return nil, fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+			return nil, fmt.Errorf("rate limited by Slack API. Please wait before retrying")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -2173,8 +1978,6 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	// Mark successful API call
-	c.rateLimiter.OnSuccess()
 
 	logger.WithField("total_channels", len(channels)).Debug("Retrieved channels from Slack API")
 
@@ -2251,14 +2054,6 @@ func (c *Client) GetChannelActivityWithMessage(channelID string) (lastActivity t
 	var history *slack.GetConversationHistoryResponse
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		// Rate limit before API call
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-
-		if err := c.rateLimiter.Wait(ctx); err != nil {
-			cancel()
-			return time.Time{}, false, time.Time{}, nil, fmt.Errorf("rate limiter cancelled: %w", err)
-		}
-		cancel()
 
 		// Get recent messages to find the most recent real one
 		params := &slack.GetConversationHistoryParameters{
@@ -2283,8 +2078,7 @@ func (c *Client) GetChannelActivityWithMessage(channelID string) (lastActivity t
 						showProgressBar(waitDuration)
 					} else {
 						// Fallback to our rate limiter if we can't parse Slack's directive
-						c.rateLimiter.OnRateLimitError()
-						// Use fallback backoff quietly without verbose output
+										// Use fallback backoff quietly without verbose output
 					}
 					continue
 				}
@@ -2301,7 +2095,6 @@ func (c *Client) GetChannelActivityWithMessage(channelID string) (lastActivity t
 		break
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	if len(history.Messages) == 0 {
 		// No messages
@@ -2503,13 +2296,6 @@ func isRealMessage(msg slack.Message, botUserID string) bool {
 
 // getUserMap fetches all users and builds a map from user ID to display name
 func (c *Client) getUserMap() (map[string]string, error) {
-	// Rate limit before API call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
-	defer cancel()
-
-	if err := c.rateLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("rate limiter cancelled: %w", err)
-	}
 
 	users, err := c.api.GetUsers()
 	if err != nil {
@@ -2522,8 +2308,7 @@ func (c *Client) getUserMap() (map[string]string, error) {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-			c.rateLimiter.OnRateLimitError()
-			return nil, fmt.Errorf("rate limited getting users: %w", err)
+				return nil, fmt.Errorf("rate limited getting users: %w", err)
 		}
 
 		// Handle missing scope with clearer message
@@ -2534,7 +2319,6 @@ func (c *Client) getUserMap() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
 
-	c.rateLimiter.OnSuccess()
 
 	// Build the map
 	userMap := make(map[string]string)

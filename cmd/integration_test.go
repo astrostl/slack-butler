@@ -40,11 +40,15 @@ func TestRunDetectErrors(t *testing.T) {
 		// Set an invalid token that will fail validation
 		t.Setenv("SLACK_TOKEN", "invalid-token")
 		initConfig()
+		announceTo = "test-channel"
 
 		cmd := &cobra.Command{}
 		err := runDetect(cmd, []string{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create Slack client")
+
+		// Reset
+		announceTo = ""
 	})
 }
 

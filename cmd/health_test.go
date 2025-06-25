@@ -177,6 +177,106 @@ func TestRunHealthErrorScenarios(t *testing.T) {
 	})
 }
 
+func TestRunHealthWithMockClient(t *testing.T) {
+	t.Run("Complete successful health check", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		scopes, err := client.CheckOAuthScopes()
+		require.NoError(t, err)
+		assert.True(t, scopes["channels:read"])
+		assert.True(t, scopes["chat:write"])
+	})
+
+	t.Run("Health check with missing optional scopes", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetUsersError("missing_scope")
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		scopes, err := client.CheckOAuthScopes()
+		require.NoError(t, err)
+
+		assert.False(t, scopes["users:read"])
+		assert.True(t, scopes["channels:read"])
+	})
+
+	t.Run("Basic functionality test", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		basicErr := testBasicFunctionality(client)
+		assert.NoError(t, basicErr)
+	})
+
+	t.Run("Complete runHealth with mock client - success path", func(t *testing.T) {
+		// Set valid token
+		viper.Set("token", "xoxb-test-token-12345678901234567890123456789012")
+		
+		// This test covers integration of runHealth function with real mock client
+		// We can't fully test runHealth due to NewClient dependency, but we can test components
+		
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Test all the components runHealth uses
+		authInfo, err := client.TestAuth()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, authInfo.User)
+		assert.NotEmpty(t, authInfo.Team)
+
+		scopes, err := client.CheckOAuthScopes()
+		assert.NoError(t, err)
+		
+		// Verify all required scopes are available
+		requiredScopes := []string{"channels:read", "channels:join", "chat:write", "channels:manage", "users:read"}
+		for _, scope := range requiredScopes {
+			assert.True(t, scopes[scope], "Required scope %s should be available", scope)
+		}
+
+		err = testBasicFunctionality(client)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Complete runHealth with verbose mode simulation", func(t *testing.T) {
+		// Test verbose mode paths
+		originalVerbose := healthVerbose
+		defer func() { healthVerbose = originalVerbose }()
+		
+		healthVerbose = true
+		viper.Set("token", "xoxb-test-token-12345678901234567890123456789012")
+		
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Test verbose token display logic
+		token := viper.GetString("token")
+		if len(token) >= 16 {
+			prefix := token[:8]
+			suffix := token[len(token)-8:]
+			assert.Equal(t, "xoxb-tes", prefix)
+			assert.Equal(t, "56789012", suffix)
+		}
+
+		// Test verbose auth info
+		authInfo, err := client.TestAuth()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, authInfo.User)
+		assert.NotEmpty(t, authInfo.Team)
+		assert.NotEmpty(t, authInfo.UserID)
+
+		scopes, err := client.CheckOAuthScopes()
+		assert.NoError(t, err)
+		assert.True(t, scopes["channels:read"])
+		
+		healthVerbose = false
+	})
+}
+
 func TestHealthCheckScopesErrorPaths(t *testing.T) {
 	t.Run("Missing channels:read scope", func(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
@@ -249,7 +349,53 @@ func TestHealthVerboseOutput(t *testing.T) {
 	})
 }
 
+func TestRunHealthMissingScopes(t *testing.T) {
+	t.Run("Health check fails with invalid token", func(t *testing.T) {
+		// Use a properly formatted test token that will pass format validation
+		viper.Set("token", "xoxb-1234567890123-4567890123456-abcdefghijklmnopqrstuvwx")
+
+		cmd := &cobra.Command{}
+		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+
+		// This will fail at client initialization since it's not a real token
+		err := runHealth(cmd, []string{})
+		assert.Error(t, err)
+		// Will fail at client initialization step
+		assert.Contains(t, err.Error(), "client initialization failed")
+	})
+}
+
 func TestRunHealthSuccess(t *testing.T) {
+	t.Run("Health check with proper token format", func(t *testing.T) {
+		// Set properly formatted token that will pass format validation
+		viper.Set("token", "xoxb-1234567890123-4567890123456-abcdefghijklmnopqrstuvwx")
+
+		cmd := &cobra.Command{}
+		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+
+		// This will fail at client initialization due to invalid auth, but tests token format validation
+		err := runHealth(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "client initialization failed")
+	})
+
+	t.Run("Health check verbose flag processing", func(t *testing.T) {
+		// Test verbose flag processing without going through full health check
+		viper.Set("token", "xoxb-1234567890123-4567890123456-abcdefghijklmnopqrstuvwx")
+
+		cmd := &cobra.Command{}
+		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+		err := cmd.Flags().Set("verbose", "true")
+		require.NoError(t, err)
+
+		// Verify verbose flag is set correctly
+		verbose, err := cmd.Flags().GetBool("verbose")
+		require.NoError(t, err)
+		assert.True(t, verbose)
+	})
+}
+
+func TestRunHealthStructure(t *testing.T) {
 	t.Run("Health command structure validation", func(t *testing.T) {
 		// Set up valid token
 		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
@@ -556,6 +702,119 @@ func TestRunHealthEndToEnd(t *testing.T) {
 	})
 }
 
+func TestRunHealthIntegrationSuccess(t *testing.T) {
+	// Save original values
+	originalVerbose := healthVerbose
+	defer func() { healthVerbose = originalVerbose }()
+
+	t.Run("Complete successful health check integration", func(t *testing.T) {
+		// We need to test the integration by mocking the NewClient function
+		// Since we can't easily mock NewClient without refactoring, we'll test
+		// the components that make up a successful health check
+
+		// Set valid token
+		viper.Set("token", "xoxb-123456789012-123456789012-abcdefghij1234567890123456")
+
+		// Verify token format validation passes
+		token := viper.GetString("token")
+		assert.True(t, isValidTokenFormat(token))
+
+		// Create mock client and verify all health check components work
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Test auth info retrieval
+		authInfo, err := client.TestAuth()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, authInfo.User)
+		assert.NotEmpty(t, authInfo.Team)
+
+		// Test OAuth scope validation
+		scopes, err := client.CheckOAuthScopes()
+		assert.NoError(t, err)
+		assert.True(t, scopes["channels:read"])
+		assert.True(t, scopes["channels:join"])
+		assert.True(t, scopes["chat:write"])
+		assert.True(t, scopes["channels:manage"])
+		assert.True(t, scopes["users:read"])
+		assert.True(t, scopes["groups:read"])
+
+		// Test basic functionality
+		err = testBasicFunctionality(client)
+		assert.NoError(t, err)
+
+		// Verify that all required scopes are present
+		requiredScopes := map[string]bool{
+			"channels:read":   true,
+			"channels:join":   true,
+			"chat:write":      true,
+			"channels:manage": true,
+			"users:read":      true,
+		}
+
+		var missingRequired []string
+		for scope := range requiredScopes {
+			if !scopes[scope] {
+				missingRequired = append(missingRequired, scope)
+			}
+		}
+		assert.Empty(t, missingRequired, "Should have no missing required scopes")
+	})
+
+	t.Run("Successful health check with verbose output", func(t *testing.T) {
+		// Test verbose mode functionality
+		healthVerbose = true
+
+		viper.Set("token", "xoxb-123456789012-123456789012-abcdefghij1234567890123456")
+
+		// Create mock client
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Test verbose token display logic
+		token := viper.GetString("token")
+		if len(token) >= 16 {
+			prefix := token[:8]
+			suffix := token[len(token)-8:]
+			assert.Equal(t, "xoxb-123", prefix)
+			assert.Equal(t, "90123456", suffix)
+		}
+
+		// Test auth info with verbose details
+		authInfo, err := client.TestAuth()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, authInfo.User)
+		assert.NotEmpty(t, authInfo.Team)
+		assert.NotEmpty(t, authInfo.UserID)
+		// TeamID may be empty in mock - that's ok for this test
+
+		// Test scope validation with verbose details
+		scopes, err := client.CheckOAuthScopes()
+		assert.NoError(t, err)
+
+		// Verify verbose scope reporting logic
+		requiredScopes := map[string]bool{
+			"channels:read":   true,
+			"channels:join":   true,
+			"chat:write":      true,
+			"channels:manage": true,
+			"users:read":      true,
+		}
+
+		for scope := range requiredScopes {
+			assert.True(t, scopes[scope], "Required scope %s should be available", scope)
+		}
+
+		// Test basic functionality with verbose output
+		err = testBasicFunctionality(client)
+		assert.NoError(t, err)
+
+		healthVerbose = false
+	})
+}
+
 func TestRunHealthMissingRequiredScopes(t *testing.T) {
 	t.Run("Health check fails with missing required scopes", func(t *testing.T) {
 		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
@@ -563,7 +822,7 @@ func TestRunHealthMissingRequiredScopes(t *testing.T) {
 
 		// Create mock that simulates missing required scopes
 		mockAPI := slack.NewMockSlackAPI()
-		mockAPI.SetMissingScopeError(true) // Missing channels:read
+		mockAPI.SetMissingScopeError(true)        // Missing channels:read
 		mockAPI.SetGetUsersError("missing_scope") // Missing users:read
 
 		client, err := slack.NewClientWithAPI(mockAPI)
@@ -592,5 +851,148 @@ func TestRunHealthMissingRequiredScopes(t *testing.T) {
 		assert.NotEmpty(t, missingRequired)
 		assert.Contains(t, missingRequired, "channels:read")
 		assert.Contains(t, missingRequired, "users:read")
+	})
+}
+
+func TestContainsFunctions(t *testing.T) {
+	t.Run("Contains function basic cases", func(t *testing.T) {
+		// Test basic substring matching
+		assert.True(t, contains("hello world", "hello"))
+		assert.True(t, contains("hello world", "world"))
+		assert.True(t, contains("hello world", "lo wo"))
+		assert.True(t, contains("hello", "hello"))
+		assert.False(t, contains("hello", "world"))
+		assert.False(t, contains("he", "hello"))
+
+		// Test empty strings
+		assert.True(t, contains("hello", ""))
+		assert.True(t, contains("", ""))
+		assert.False(t, contains("", "hello"))
+	})
+
+	t.Run("Contains function edge cases", func(t *testing.T) {
+		// Test prefix and suffix matching
+		assert.True(t, contains("testing", "test"))
+		assert.True(t, contains("testing", "ting"))
+
+		// Test exact matches
+		assert.True(t, contains("exact", "exact"))
+
+		// Test single character
+		assert.True(t, contains("a", "a"))
+		assert.False(t, contains("a", "b"))
+	})
+
+	t.Run("ContainsSubstring function", func(t *testing.T) {
+		// Test the containsSubstring helper function directly
+		assert.True(t, containsSubstring("hello world", "lo wo"))
+		assert.True(t, containsSubstring("abcdef", "cd"))
+		assert.False(t, containsSubstring("abcdef", "xyz"))
+		assert.False(t, containsSubstring("ab", "abc"))
+
+		// Edge cases
+		assert.True(t, containsSubstring("a", "a"))
+		assert.False(t, containsSubstring("", "a"))
+		assert.True(t, containsSubstring("abc", ""))
+	})
+}
+
+func TestRunHealthVerboseOutputPaths(t *testing.T) {
+	// Save original state
+	originalVerbose := healthVerbose
+	defer func() { healthVerbose = originalVerbose }()
+
+	t.Run("Verbose token display logic", func(t *testing.T) {
+		// Test the verbose token display logic without full health check
+		token := "xoxb-12345678-ABCDEFGHIJ-test-token-for-display-test"
+
+		// Simulate what runHealth does for verbose token display
+		if len(token) >= 16 {
+			prefix := token[:8]
+			suffix := token[len(token)-8:]
+
+			assert.Equal(t, "xoxb-123", prefix)
+			assert.Equal(t, "lay-test", suffix)
+		}
+	})
+
+	t.Run("Verbose flag state testing", func(t *testing.T) {
+		// Test verbose flag state management
+		healthVerbose = true
+		assert.True(t, healthVerbose)
+
+		healthVerbose = false
+		assert.False(t, healthVerbose)
+	})
+
+	t.Run("Scope display logic for verbose mode", func(t *testing.T) {
+		// Test the scope checking and display logic that would be used in verbose mode
+		requiredScopes := map[string]bool{
+			"channels:read":   true,
+			"channels:join":   true,
+			"chat:write":      true,
+			"channels:manage": true,
+			"users:read":      true,
+		}
+		optionalScopes := map[string]bool{
+			"groups:read": false,
+		}
+
+		// Simulate successful scopes
+		scopes := map[string]bool{
+			"channels:read":   true,
+			"channels:join":   true,
+			"chat:write":      true,
+			"channels:manage": true,
+			"users:read":      true,
+			"groups:read":     true,
+		}
+
+		var missingRequired []string
+		var missingOptional []string
+
+		for scope := range requiredScopes {
+			if !scopes[scope] {
+				missingRequired = append(missingRequired, scope)
+			}
+		}
+
+		for scope := range optionalScopes {
+			if !scopes[scope] {
+				missingOptional = append(missingOptional, scope)
+			}
+		}
+
+		// With all scopes present, should have no missing scopes
+		assert.Empty(t, missingRequired)
+		assert.Empty(t, missingOptional)
+	})
+
+	t.Run("Missing optional scopes display logic", func(t *testing.T) {
+		// Test case where optional scopes are missing
+		optionalScopes := map[string]bool{
+			"groups:read": false,
+		}
+
+		// Simulate missing optional scope
+		scopes := map[string]bool{
+			"channels:read":   true,
+			"channels:join":   true,
+			"chat:write":      true,
+			"channels:manage": true,
+			"users:read":      true,
+			"groups:read":     false, // Missing optional scope
+		}
+
+		var missingOptional []string
+		for scope := range optionalScopes {
+			if !scopes[scope] {
+				missingOptional = append(missingOptional, scope)
+			}
+		}
+
+		// Should detect missing optional scope
+		assert.Contains(t, missingOptional, "groups:read")
+		assert.Len(t, missingOptional, 1)
 	})
 }

@@ -18,7 +18,9 @@ func TestLoggerInitialization(t *testing.T) {
 		{
 			name: "Default log level is Info",
 			setup: func() {
-				_ = os.Unsetenv("SLACK_LOG_LEVEL")
+				if err := os.Unsetenv("SLACK_LOG_LEVEL"); err != nil {
+					// Not critical if unset fails in test
+				}
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.InfoLevel)
@@ -29,7 +31,9 @@ func TestLoggerInitialization(t *testing.T) {
 		{
 			name: "Debug log level from environment",
 			setup: func() {
-				_ = os.Setenv("SLACK_LOG_LEVEL", "debug")
+				if err := os.Setenv("SLACK_LOG_LEVEL", "debug"); err != nil {
+					// Not critical if setenv fails in test
+				}
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.DebugLevel)

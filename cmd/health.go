@@ -19,7 +19,7 @@ var healthCmd = &cobra.Command{
 This command verifies:
 - Token validity and format
 - Slack API connectivity  
-- Required OAuth scopes and permissions
+- Required OAuth scopes and permissions (channels:read, channels:join, chat:write, channels:manage, users:read)
 - Bot user information
 - Basic API functionality`,
 	SilenceUsage: true, // Don't show usage on errors
@@ -88,18 +88,108 @@ func runHealth(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  User ID: %s, Team ID: %s\n", authInfo.UserID, authInfo.TeamID)
 	}
 
-	// Check 5: Required permissions
-	fmt.Print("✓ Required permissions... ")
-	permissionErrors := checkRequiredPermissions(client)
-	if len(permissionErrors) > 0 {
-		fmt.Println("❌ FAILED")
-		for _, err := range permissionErrors {
-			fmt.Printf("  %s\n", err)
-		}
-		fmt.Println("  Fix: Add missing OAuth scopes in your Slack app settings")
-		return fmt.Errorf("permission validation failed")
+	// Check 5: OAuth scope validation
+	fmt.Print("✓ OAuth scope validation (channels:read, channels:join, chat:write, channels:manage, users:read)... ")
+	if healthVerbose {
+		fmt.Printf("\n  Testing required scopes: channels:read, channels:join, chat:write, channels:manage, users:read\n")
+		fmt.Printf("  Testing optional scopes: groups:read\n")
+		fmt.Print("  Validation result: ")
 	}
+	scopes, err := client.CheckOAuthScopes()
+	if err != nil {
+		fmt.Println("❌ FAILED")
+		fmt.Printf("  Error: %v\n", err)
+		return fmt.Errorf("scope validation failed: %w", err)
+	}
+
+	requiredScopes := map[string]bool{
+		"channels:read":   true, // Required - list channels
+		"channels:join":   true, // Required - join channels for warnings
+		"chat:write":      true, // Required - post warning messages
+		"channels:manage": true, // Required - archive channels
+		"users:read":      true, // Required - resolve user names for message authors
+	}
+	optionalScopes := map[string]bool{
+		"groups:read": false, // Optional - access private channels
+	}
+
+	var missingRequired []string
+	var missingOptional []string
+
+	for scope := range requiredScopes {
+		if !scopes[scope] {
+			missingRequired = append(missingRequired, scope)
+		}
+	}
+
+	for scope := range optionalScopes {
+		if !scopes[scope] {
+			missingOptional = append(missingOptional, scope)
+		}
+	}
+
+	if len(missingRequired) > 0 {
+		fmt.Println("❌ FAILED")
+		fmt.Println("  Missing REQUIRED OAuth scopes:")
+		for _, scope := range missingRequired {
+			fmt.Printf("    - %s\n", scope)
+		}
+		if len(missingOptional) > 0 {
+			fmt.Println("  Missing OPTIONAL OAuth scopes:")
+			for _, scope := range missingOptional {
+				fmt.Printf("    - %s (private channels won't be accessible)\n", scope)
+			}
+		}
+		fmt.Println("  Fix: Add missing OAuth scopes in your Slack app settings at https://api.slack.com/apps")
+		return fmt.Errorf("missing required OAuth scopes")
+	}
+
 	fmt.Println("✅ PASSED")
+	if healthVerbose {
+		fmt.Println("  OAuth scope test results:")
+
+		// Show required scopes first
+		fmt.Println("    Required scopes:")
+		for scope := range requiredScopes {
+			status := "❌"
+			if scopes[scope] {
+				status = "✅"
+			}
+			var testMethod string
+			switch scope {
+			case "channels:read":
+				testMethod = "tested with GetConversations()"
+			case "channels:join":
+				testMethod = "tested with JoinConversation()"
+			case "chat:write":
+				testMethod = "tested with PostMessage()"
+			case "channels:manage":
+				testMethod = "tested with ArchiveConversation()"
+			case "users:read":
+				testMethod = "tested with GetUsers()"
+			}
+			fmt.Printf("      %s %s - %s\n", status, scope, testMethod)
+		}
+
+		// Show optional scopes
+		fmt.Println("    Optional scopes:")
+		for scope := range optionalScopes {
+			status := "❌"
+			if scopes[scope] {
+				status = "✅"
+			}
+			var testMethod string
+			switch scope {
+			case "groups:read":
+				testMethod = "tested with GetConversations(private_channel)"
+			}
+			fmt.Printf("      %s %s - %s\n", status, scope, testMethod)
+		}
+	}
+
+	if len(missingOptional) > 0 {
+		fmt.Println("  ⚠️  Note: Some optional scopes are missing - private channels won't be accessible")
+	}
 
 	// Check 6: Basic functionality test
 	fmt.Print("✓ Basic functionality test... ")
@@ -121,25 +211,6 @@ func runHealth(cmd *cobra.Command, args []string) error {
 
 func isValidTokenFormat(token string) bool {
 	return len(token) > 8 && (token[:5] == "xoxb-" || token[:5] == "xoxp-")
-}
-
-func checkRequiredPermissions(client *slack.Client) []string {
-	var errors []string
-
-	// Test channels:read permission
-	if _, err := client.GetChannelInfo("C0000000000"); err != nil {
-		if contains(err.Error(), "missing_scope") && contains(err.Error(), "channels:read") {
-			errors = append(errors, "Missing scope: channels:read (required to list public channels)")
-		}
-	}
-
-	// Test groups:read permission (for private channels)
-	// Note: This is optional and won't cause a failure
-
-	// Test chat:write permission (for announcements)
-	// We can't easily test this without actually posting, so we'll check it during actual use
-
-	return errors
 }
 
 func testBasicFunctionality(client *slack.Client) error {

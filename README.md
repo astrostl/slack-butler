@@ -4,13 +4,14 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.0.4 - Stable Release** ✅
+**Version 1.0.5-dev - Post-Release Development** ✅
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk in production environments.
 
 ## Features
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
+- **📁 Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
 - **🩺 Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **⏰ Flexible Time Filtering**: Support for days-based filtering (1, 7, 30, etc.)
@@ -25,9 +26,15 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 - Go 1.24.4
 - Slack Bot Token with appropriate permissions
 
-### Install via Go (when published)
+### Install via Go
 ```bash
 go install github.com/astrostl/slack-buddy-ai@latest
+```
+
+**Note:** This will install the binary as `slack-buddy-ai`. You may want to create an alias:
+```bash
+# Add to your shell profile (.bashrc, .zshrc, etc.)
+alias slack-buddy='slack-buddy-ai'
 ```
 
 ### Build from Source
@@ -44,8 +51,11 @@ go build -o slack-buddy
 2. Create a new app for your workspace
 3. Add the following OAuth scopes:
    - `channels:read` - To list public channels (**required**)
-   - `chat:write` - To post announcements (**required**)
+   - `channels:join` - To join public channels for warnings (**required for archive**)
+   - `channels:manage` - To archive channels (**required for archive**)
+   - `chat:write` - To post announcements and warnings (**required**)
    - `groups:read` - To list private channels (*optional*)
+   - `users:read` - To resolve user names in messages (*optional*)
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
 ### 2. Configure Token
@@ -65,15 +75,25 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 
 **Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels - without it, the tool will only detect public channels.
 
+## Important Limitations
+
+### Slack API Rate Limits
+**Duplicate Detection Limitations**: Due to Slack API restrictions for non-Marketplace apps:
+- `GetConversationHistory` is limited to **1 request per minute**
+- Maximum **15 messages** returned per request
+- The duplicate detection feature only checks the **last 15 messages** in the announcement channel
+
+**Impact**: If more than 15 messages are posted to your announcement channel between runs, some duplicate announcements may not be detected. For high-traffic channels, consider running the tool more frequently or using a dedicated low-traffic channel for announcements.
+
 ## Usage
 
 ### Health Check
 ```bash
 # Basic health check
-./slack-buddy health
+./bin/slack-buddy health
 
 # Detailed health check with verbose output
-./slack-buddy health --verbose
+./bin/slack-buddy health --verbose
 ```
 
 ### Basic Channel Detection
@@ -81,35 +101,49 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 # Load environment variables
 source .env
 
-# Detect new channels from the last day
-./slack-buddy channels detect
+# Detect new channels from the last 8 days (default)
+./bin/slack-buddy channels detect
 
 # Detect from last week
-./slack-buddy channels detect --since=7
+./bin/slack-buddy channels detect --since=7
+```
+
+### Channel Archival Management
+```bash
+# Dry run what channels would be warned/archived (default mode)
+./bin/slack-buddy channels archive
+
+# Actually warn channels inactive for 5 minutes, archive after 1 minute grace period
+./bin/slack-buddy channels archive --warn-seconds=300 --archive-seconds=60 --commit
+
+# Exclude important channels from archival
+./bin/slack-buddy channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
 ```
 
 ### With Announcements
 ```bash
 # Detect and announce to #general
-./slack-buddy channels detect --since=1 --announce-to=#general
+./bin/slack-buddy channels detect --since=1 --announce-to=#general
 
 # Detect from last 3 days and announce to #announcements
-./slack-buddy channels detect --since=3 --announce-to=#announcements
+./bin/slack-buddy channels detect --since=3 --announce-to=#announcements
 ```
 
-### Dry Run Mode
+### Dry Run vs Commit Mode
 ```bash
-# Preview what would be announced without posting
-./slack-buddy channels detect --since=1 --announce-to=#general --dry-run
+# Dry run what would be announced without posting (default)
+./bin/slack-buddy channels detect --since=7 --announce-to=#general
 
-# Test announcement formatting and channel detection safely
-./slack-buddy channels detect --since=7 --announce-to=#announcements --dry-run
+# Actually post announcements
+./bin/slack-buddy channels detect --since=7 --announce-to=#general --commit
+
+# The default behavior is safe dry run mode
 ```
 
 ### Using Token Flag
 ```bash
 # Use token directly without .env file
-./slack-buddy channels detect --token=xoxb-your-token --since=7
+./bin/slack-buddy channels detect --token=xoxb-your-token --since=7
 ```
 
 ### Time Format Examples
@@ -136,24 +170,51 @@ Check Slack connectivity and validate configuration.
 
 **Examples:**
 ```bash
-./slack-buddy health
-./slack-buddy health --verbose
+./bin/slack-buddy health
+./bin/slack-buddy health --verbose
 ```
 
 ### `channels detect`
 Detect new channels created within a specified time period.
 
 **Flags:**
-- `--since` - Number of days to look back (default: "1")
+- `--since` - Number of days to look back (default: "8")
 - `--announce-to` - Channel to announce new channels to
-- `--dry-run` - Preview what would be announced without posting messages
+- `--commit` - Actually post messages (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
 **Examples:**
 ```bash
-./slack-buddy channels detect --since=7 --announce-to=#general
-./slack-buddy channels detect --since=1 --announce-to=#general --dry-run
+./bin/slack-buddy channels detect --since=7 --announce-to=#general
+./bin/slack-buddy channels detect --since=1 --announce-to=#general --commit
 ```
+
+### `channels archive`
+Manage inactive channel archival with automated warnings and grace periods.
+
+**Flags:**
+- `--warn-seconds` - Seconds of inactivity before warning (default: 300)
+- `--archive-seconds` - Seconds after warning before archiving (default: 60)
+- `--exclude-channels` - Comma-separated list of channels to exclude
+- `--exclude-prefixes` - Comma-separated list of prefixes to exclude
+- `--commit` - Actually warn and archive channels (default is dry run mode)
+- `--token` - Slack bot token (can also use SLACK_TOKEN env var)
+
+**Note:** Currently using seconds for testing purposes.
+
+**Examples:**
+```bash
+./bin/slack-buddy channels archive
+./bin/slack-buddy channels archive --warn-seconds=1800 --archive-seconds=300 --commit
+./bin/slack-buddy channels archive --exclude-channels="general,random" --commit
+```
+
+**Required OAuth Scopes for Archive:**
+- `channels:read` (to list channels)
+- `channels:join` (to join public channels)
+- `chat:write` (to post warnings)
+- `channels:manage` (to archive channels)
+- `users:read` (optional, for user name resolution)
 
 ## Development
 
@@ -280,7 +341,7 @@ make release
 
 ### Built-in Security Features
 - **Token Validation**: All Slack tokens are validated and sanitized
-- **Rate Limiting**: Exponential backoff prevents API abuse
+- **Rate Limiting**: Respects Slack's native rate limiting responses
 - **Input Sanitization**: All user inputs are validated
 - **No Token Logging**: Tokens never appear in logs or error messages
 
@@ -300,7 +361,10 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security
 
 ## Roadmap
 
-- [ ] Channel cleanup detection (inactive channels)
+- [x] Channel cleanup detection (inactive channels) - **Implemented**
+- [ ] Bulk channel operations
+- [ ] Multi-workspace support
+- [ ] Configurable warning message templates
 
 ## License
 

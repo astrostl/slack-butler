@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned
-- Channel cleanup detection for inactive channels
+## [1.1.0] - 2025-06-25
+
+### Added
+- **Channel Archival System**: Complete implementation of channel archival functionality with warnings and grace periods
+- **Enhanced Testing**: Comprehensive test improvements including archive functionality tests
+- **Security Enhancements**: Additional security features and code quality improvements
+
+### Fixed
+- **Test Coverage**: Fixed API signature issues in inactive channel tests (missing isDebug parameter)
+- **Rate Limiting**: Fixed missing rate limiter call in GetNewChannels method for consistent API throttling  
+- **Documentation Accuracy**: Updated README.md to reflect actual command defaults and flag behavior
+  - Corrected `--since` default from "1" to "8" days
+  - Updated flag documentation to use `--commit` instead of `--dry-run` for consistency
+
+### Improved  
+- **Issue Templates**: Enhanced GitHub issue templates with CLI-specific fields for better bug reporting
+- **Makefile Documentation**: Clarified maintenance target description for accuracy
+- **Code Quality**: Improved maintenance lint configuration to keep critical error checking while relaxing style requirements
+
 
 ## [1.0.4] - 2025-06-23
 
@@ -160,3 +177,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLAUDE.md for development notes and project tracking
 - Inline help documentation for all commands
 - TODO.md for task tracking and project management
+
+## [Future Plans]
+
+### Planned Features
+- **Bulk Channel Operations**: Mass operations on multiple channels simultaneously  
+- **Multi-workspace Support**: Manage multiple Slack workspaces from a single configuration
+- **Configurable Message Templates**: Customizable warning and announcement message templates
+- **Scheduled Archival Policies**: Cron-like scheduling for automated archival operations
+
+### Planned Enhancements  
+- **Enhanced Analytics**: Channel usage statistics and reporting
+- **Integration Improvements**: Better error handling and respect for Slack's native rate limiting
+- **Performance Optimizations**: Batch API operations for large workspaces

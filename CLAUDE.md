@@ -10,9 +10,12 @@
 
 ## Current Features
 - **Channel Detection**: Detect new channels created during a specified time period
+- **Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period (✅ **IMPLEMENTED**)
 - **Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **Announcement System**: Optionally announce new channels to a target channel
-- **Time-based Filtering**: Support for days-based time filtering (1, 7, 30, etc.)
+- **Duplicate Prevention**: Scans last 15 messages to prevent duplicate announcements (✅ **IMPLEMENTED**)
+- **Time-based Filtering**: Support for days-based time filtering (8 days default, configurable)
+- **API Resilience**: Relies on Slack's native rate limiting responses rather than client-side rate limiting (✅ **IMPLEMENTED**)
 
 ## Configuration
 - **Token Storage**: Uses `.env` file (git-ignored) with `SLACK_TOKEN` environment variable
@@ -25,28 +28,39 @@
 source .env
 
 # Health check with basic output
-./slack-buddy health
+./bin/slack-buddy health
 
 # Health check with detailed information
-./slack-buddy health --verbose
+./bin/slack-buddy health --verbose
 
-# Basic channel detection (last 1 day)
-./slack-buddy channels detect
+# Basic channel detection (last 8 days - default)
+./bin/slack-buddy channels detect
 
 # Custom time period with announcement (last 7 days)
-./slack-buddy channels detect --since=7 --announce-to=#general
+./bin/slack-buddy channels detect --since=7 --announce-to=#general
 
 # Using token flag directly (last 3 days)
-./slack-buddy channels detect --token=xoxb-your-token --since=3
+./bin/slack-buddy channels detect --token=xoxb-your-token --since=3
 
-# Dry run to preview announcements without posting
-./slack-buddy channels detect --since=7 --announce-to=#general --dry-run
+# Dry run announcements without posting (default)
+./bin/slack-buddy channels detect --since=7 --announce-to=#general
+
+# Actually post announcements
+./bin/slack-buddy channels detect --since=7 --announce-to=#general --commit
+
+# Channel archival management (dry run mode by default)
+./bin/slack-buddy channels archive
+./bin/slack-buddy channels archive --warn-seconds=300 --archive-seconds=60 --commit
+./bin/slack-buddy channels archive --exclude-channels="general,announcements" --commit
 ```
 
 ## Required Slack Permissions
 - `channels:read` - To list public channels (**required**)
-- `chat:write` - To post announcements (**required**)
+- `chat:write` - To post announcements and warnings (**required**)
+- `channels:join` - To join public channels for warnings (**required for archive**)
+- `channels:manage` - To archive channels (**required for archive**)
 - `groups:read` - To list private channels (*optional*)
+- `users:read` - To resolve user names in messages (*optional*)
 
 ## Project Structure
 ```
@@ -103,8 +117,9 @@ make deps
 # Clean build artifacts and coverage files
 make clean
 
-# NOTE: If make targets fail with "tool not found", ensure Go tools are in PATH:
+# NOTE: Security and quality targets require Go tools in PATH:
 export PATH=$PATH:~/go/bin
+# This applies to: security, gosec, vuln-check, quality, maintenance, ci targets
 ```
 
 ### Individual Quality Checks
@@ -163,15 +178,15 @@ make release         # Create release with GoReleaser (standalone)
 make help
 
 # Test CLI help output
-./slack-buddy --help
-./slack-buddy channels detect --help
+./bin/slack-buddy --help
+./bin/slack-buddy channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.0.4 - Current Stable Release
+- **Version**: 1.1.0 - Stable Release
 - **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Documentation accuracy and development tooling improvements (v1.0.4)
+- **Recent Updates**: Channel archival system, comprehensive testing improvements, and enhanced security features (v1.1.0)
 - **Branches**: 
   - `main` - Stable release branch
 
@@ -214,7 +229,40 @@ make help
 - **Quality Gate**: Use `make quality` to check both formatting and complexity before commits
 - **Follow existing patterns** - Look at surrounding code for style and conventions
 - **Error Handling** - Handle errors properly with meaningful, actionable messages
-- **Logging** - Add appropriate logging (debug level for verbose information)
+- **Logging Standards** - NEVER use stdout `fmt.Printf` for INFO or DEBUG logging unless a `--debug` flag is passed. Use structured logging via the logger package for internal diagnostics. Keep stdout clean for user-facing output only.
+
+### API Integration Standards
+**MANDATORY**: All Slack API functions must use standardized robust patterns:
+
+- **Retry Logic**: Use `maxRetries = 3` pattern for all API calls
+- **Rate Limiting**: Always use `c.rateLimiter.Wait(ctx)` before API calls
+- **Timeout Handling**: Use context with appropriate timeouts (30s for quick ops, 2min for complex)
+- **Error Detection**: Check for "rate_limited" errors and apply exponential backoff
+- **Progress Logging**: Log retry attempts with structured fields (attempt, max_tries, error)
+- **Graceful Degradation**: Functions should continue safely even if non-critical API calls fail
+- **Consistent Patterns**: Follow established patterns from archiving functions for all new API integrations
+
+**Example Pattern:**
+```go
+const maxRetries = 3
+for attempt := 1; attempt <= maxRetries; attempt++ {
+    ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+    if err := c.rateLimiter.Wait(ctx); err != nil {
+        cancel()
+        return fmt.Errorf("rate limiter cancelled: %w", err)
+    }
+    cancel()
+    
+    // API call here
+    if err != nil && strings.Contains(err.Error(), "rate_limited") {
+        if attempt < maxRetries {
+            c.rateLimiter.OnRateLimitError()
+            continue
+        }
+    }
+    break
+}
+```
 
 ### Release Process
 **IMPORTANT**: Always maintain documentation with every release (stable or beta):
@@ -252,13 +300,15 @@ make help
 - **Test Real Scenarios**: Integration tests should simulate realistic user workflows
 
 **Current Test Status:**
-- Good test suite covering core functionality
-- Unit tests for business logic and message formatting
-- Integration tests with mock Slack API interactions
-- CLI tests for end-to-end command execution
-- Error path testing for key scenarios
-- Race detection enabled for all tests
-- Realistic mock framework for external dependencies
+- ✅ **Comprehensive test suite** covering core functionality
+- ✅ **Unit tests** for business logic and message formatting
+- ✅ **Integration tests** with mock Slack API interactions
+- ✅ **CLI tests** for end-to-end command execution
+- ✅ **Error path testing** for key scenarios including API failures and rate limiting
+- ✅ **Race detection** enabled for all tests
+- ✅ **Realistic mock framework** for external dependencies
+- ✅ **API resilience testing** validates retry logic and graceful degradation
+- ✅ **Duplicate detection testing** covers all edge cases and error scenarios
 
 **Test Quality Standards:**
 - Tests must validate actual functionality and behavior
@@ -286,4 +336,7 @@ make help
 - **Compliance**: ✅ **BASIC** - No known GPL dependencies
 
 ## Next Features (Ideas)
-- Channel cleanup detection (inactive channels)
+- Bulk channel operations
+- Multi-workspace support
+- Configurable warning message templates
+- Scheduled archival policies

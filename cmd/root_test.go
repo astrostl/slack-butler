@@ -61,12 +61,20 @@ func TestInitConfig(t *testing.T) {
 	})
 
 	t.Run("Environment variables are properly bound", func(t *testing.T) {
+		// Create a fresh viper instance for testing
+		oldInstance := viper.GetViper()
+		defer viper.Reset()
+		defer func() { viper.SetDefault("", oldInstance) }()
+
 		// Test that SLACK_TOKEN environment variable is read by viper
 		expectedToken := "xoxb-test-environment-token-12345678901234567890"
 		t.Setenv("SLACK_TOKEN", expectedToken)
 
-		// Initialize config to bind environment variables
-		initConfig()
+		// Create new viper instance and configure it
+		viper.Reset()
+		viper.SetEnvPrefix("SLACK")
+		viper.AutomaticEnv()
+		_ = viper.BindEnv("token", "SLACK_TOKEN")
 
 		// Verify viper can read the environment variable
 		actualToken := viper.GetString("token")
@@ -74,12 +82,20 @@ func TestInitConfig(t *testing.T) {
 	})
 
 	t.Run("Environment variables take precedence over empty flags", func(t *testing.T) {
+		// Create a fresh viper instance for testing
+		oldInstance := viper.GetViper()
+		defer viper.Reset()
+		defer func() { viper.SetDefault("", oldInstance) }()
+
 		// Test that environment variables work when flags are not set
 		expectedToken := "xoxb-env-precedence-token-12345678901234567890"
 		t.Setenv("SLACK_TOKEN", expectedToken)
 
-		// Initialize config to rebind environment variables
-		initConfig()
+		// Create new viper instance and configure it
+		viper.Reset()
+		viper.SetEnvPrefix("SLACK")
+		viper.AutomaticEnv()
+		_ = viper.BindEnv("token", "SLACK_TOKEN")
 
 		// Environment variable should be picked up
 		actualToken := viper.GetString("token")

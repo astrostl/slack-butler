@@ -1,6 +1,6 @@
 # Slack Buddy AI
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-buddy-ai)](https://goreportcard.com/report/github.com/astrostl/slack-buddy-ai)
+[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-buddy-ai?v=1)](https://goreportcard.com/report/github.com/astrostl/slack-buddy-ai)
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 

@@ -261,7 +261,7 @@ func runArchive(cmd *cobra.Command, args []string) error {
 
 func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string) error {
 	isDebug := viper.GetBool("debug")
-	
+
 	if isDebug {
 		logger.WithFields(logger.LogFields{
 			"warn_seconds":    warnSeconds,

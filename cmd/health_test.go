@@ -214,10 +214,10 @@ func TestRunHealthWithMockClient(t *testing.T) {
 	t.Run("Complete runHealth with mock client - success path", func(t *testing.T) {
 		// Set valid token
 		viper.Set("token", "test-token-for-testing-purposes-only")
-		
+
 		// This test covers integration of runHealth function with real mock client
 		// We can't fully test runHealth due to NewClient dependency, but we can test components
-		
+
 		mockAPI := slack.NewMockSlackAPI()
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestRunHealthWithMockClient(t *testing.T) {
 
 		scopes, err := client.CheckOAuthScopes()
 		assert.NoError(t, err)
-		
+
 		// Verify all required scopes are available
 		requiredScopes := []string{"channels:read", "channels:join", "chat:write", "channels:manage", "users:read"}
 		for _, scope := range requiredScopes {
@@ -245,10 +245,10 @@ func TestRunHealthWithMockClient(t *testing.T) {
 		// Test verbose mode paths
 		originalVerbose := healthVerbose
 		defer func() { healthVerbose = originalVerbose }()
-		
+
 		healthVerbose = true
 		viper.Set("token", "test-token-for-testing-purposes-only")
-		
+
 		mockAPI := slack.NewMockSlackAPI()
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -272,7 +272,7 @@ func TestRunHealthWithMockClient(t *testing.T) {
 		scopes, err := client.CheckOAuthScopes()
 		assert.NoError(t, err)
 		assert.True(t, scopes["channels:read"])
-		
+
 		healthVerbose = false
 	})
 }

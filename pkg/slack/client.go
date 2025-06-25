@@ -86,7 +86,6 @@ func NewClientWithAPI(api SlackAPI) (*Client, error) {
 	}, nil
 }
 
-
 func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 	logger.WithField("since", since.Format("2006-01-02 15:04:05")).Debug("Fetching channels from Slack API")
 
@@ -116,7 +115,6 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 		}
 		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
-
 
 	logger.WithField("total_channels", len(channels)).Debug("Retrieved channels from Slack API")
 
@@ -448,7 +446,6 @@ func (c *Client) getAllChannelNameToIDMap() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-
 	// Create name-to-ID mapping
 	nameToID := make(map[string]string)
 	for _, channel := range channels {
@@ -479,7 +476,6 @@ func (c *Client) PostMessage(channel, message string) error {
 		return fmt.Errorf("failed to find channel %s: %w", channel, err)
 	}
 
-
 	_, _, err = c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
 	if err != nil {
 		errStr := err.Error()
@@ -491,7 +487,7 @@ func (c *Client) PostMessage(channel, message string) error {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -508,7 +504,6 @@ func (c *Client) PostMessage(channel, message string) error {
 		}
 		return fmt.Errorf("failed to post message to %s: %w", channel, err)
 	}
-
 
 	logger.WithField("channel", channel).Debug("Message posted successfully")
 	return nil
@@ -616,7 +611,6 @@ func (c *Client) ResolveChannelNameToID(channelName string) (string, error) {
 	// Clean the channel name
 	cleanName := strings.TrimPrefix(channelName, "#")
 
-
 	// Get all channels to find the matching one
 	params := &slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
@@ -627,7 +621,6 @@ func (c *Client) ResolveChannelNameToID(channelName string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get channels: %w", err)
 	}
-
 
 	// Find channel by name
 	for _, channel := range channels {
@@ -650,7 +643,6 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 
 	// Get all channels
 
-
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
 		Limit:           1000,
@@ -659,7 +651,6 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
-
 
 	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for activity analysis")
 
@@ -817,7 +808,6 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 
 	// Get all channels
 
-
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
 		Limit:           1000,
@@ -826,7 +816,6 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
-
 
 	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for detailed activity analysis")
 
@@ -1018,7 +1007,6 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 
 	// Get all channels
 
-
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
 		Limit:           1000,
@@ -1027,7 +1015,6 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
-
 
 	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for detailed activity analysis")
 
@@ -1319,7 +1306,7 @@ func (c *Client) getChannelActivity(channelID string) (lastActivity time.Time, h
 						showProgressBar(waitDuration)
 					} else {
 						// Fallback to our rate limiter if we can't parse Slack's directive
-										// Use fallback backoff quietly without verbose output
+						// Use fallback backoff quietly without verbose output
 					}
 					continue
 				}
@@ -1335,7 +1322,6 @@ func (c *Client) getChannelActivity(channelID string) (lastActivity time.Time, h
 		// Success - break out of retry loop
 		break
 	}
-
 
 	if len(history.Messages) == 0 {
 		// No messages
@@ -1415,7 +1401,7 @@ func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastAc
 						time.Sleep(waitDuration)
 					} else {
 						// Fallback to our rate limiter if we can't parse Slack's directive
-										fmt.Printf("   ⏳ Using fallback backoff before detailed retry...\n")
+						fmt.Printf("   ⏳ Using fallback backoff before detailed retry...\n")
 					}
 					continue
 				}
@@ -1431,7 +1417,6 @@ func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastAc
 		// Success - break out of retry loop
 		break
 	}
-
 
 	if len(history.Messages) == 0 {
 		return time.Unix(0, 0), false, time.Time{}, nil
@@ -1494,26 +1479,26 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 
 			// Handle rate limiting - this is fatal
 			if strings.Contains(errStr, "rate_limited") {
-						return joinedCount, fmt.Errorf("rate limited during auto-join: %w", err)
+				return joinedCount, fmt.Errorf("rate limited during auto-join: %w", err)
 			}
 
 			// Already in channel is success
 			if strings.Contains(errStr, "already_in_channel") {
 				logger.WithField("channel", ch.Name).Debug("Already in channel")
-							joinedCount++
+				joinedCount++
 				continue
 			}
 
 			// These indicate the channel can't be joined, but that's OK to skip
 			if strings.Contains(errStr, "is_archived") {
 				logger.WithField("channel", ch.Name).Debug("Channel is archived, skipping")
-							skippedCount++
+				skippedCount++
 				continue
 			}
 
 			if strings.Contains(errStr, "invite_only") {
 				logger.WithField("channel", ch.Name).Debug("Channel is invite-only, skipping")
-							skippedCount++
+				skippedCount++
 				continue
 			}
 
@@ -1531,7 +1516,7 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 			continue
 		}
 
-			joinedCount++
+		joinedCount++
 		logger.WithField("channel", ch.Name).Debug("Successfully joined channel")
 	}
 
@@ -1662,7 +1647,6 @@ func (c *Client) ensureBotInChannel(channel Channel) error {
 
 	// Rate limit before API call
 
-
 	_, _, _, err := c.api.JoinConversation(channel.ID)
 	if err != nil {
 		errStr := err.Error()
@@ -1674,13 +1658,13 @@ func (c *Client) ensureBotInChannel(channel Channel) error {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		// Handle expected errors that we can ignore
 		if strings.Contains(errStr, "already_in_channel") {
 			logger.WithField("channel", channel.Name).Debug("Bot already in channel")
-					return nil
+			return nil
 		}
 
 		// Handle permission errors
@@ -1719,7 +1703,6 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 		"message_length": len(message),
 	}).Debug("Posting message to channel by ID")
 
-
 	_, _, err := c.api.PostMessage(channelID, slack.MsgOptionText(message, false))
 	if err != nil {
 		errStr := err.Error()
@@ -1731,7 +1714,7 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -1748,7 +1731,6 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 		}
 		return fmt.Errorf("failed to post message to channel %s: %w", channelID, err)
 	}
-
 
 	logger.WithField("channel_id", channelID).Debug("Message posted successfully")
 	return nil
@@ -1910,7 +1892,6 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 
 	// Rate limit before archival API call
 
-
 	err := c.api.ArchiveConversation(channel.ID)
 	if err != nil {
 		errStr := err.Error()
@@ -1922,7 +1903,7 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") {
-				return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
 		}
 
 		if strings.Contains(errStr, "missing_scope") {
@@ -1950,7 +1931,6 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 
 	// Rate limit before API call
 
-
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types: []string{"public_channel", "private_channel"},
 		Limit: 1000,
@@ -1977,7 +1957,6 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 		}
 		return nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
-
 
 	logger.WithField("total_channels", len(channels)).Debug("Retrieved channels from Slack API")
 
@@ -2078,7 +2057,7 @@ func (c *Client) GetChannelActivityWithMessage(channelID string) (lastActivity t
 						showProgressBar(waitDuration)
 					} else {
 						// Fallback to our rate limiter if we can't parse Slack's directive
-										// Use fallback backoff quietly without verbose output
+						// Use fallback backoff quietly without verbose output
 					}
 					continue
 				}
@@ -2094,7 +2073,6 @@ func (c *Client) GetChannelActivityWithMessage(channelID string) (lastActivity t
 		// Success - break out of retry loop
 		break
 	}
-
 
 	if len(history.Messages) == 0 {
 		// No messages
@@ -2308,7 +2286,7 @@ func (c *Client) getUserMap() (map[string]string, error) {
 
 		// Handle rate limiting
 		if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-				return nil, fmt.Errorf("rate limited getting users: %w", err)
+			return nil, fmt.Errorf("rate limited getting users: %w", err)
 		}
 
 		// Handle missing scope with clearer message
@@ -2318,7 +2296,6 @@ func (c *Client) getUserMap() (map[string]string, error) {
 
 		return nil, fmt.Errorf("failed to get users: %w", err)
 	}
-
 
 	// Build the map
 	userMap := make(map[string]string)

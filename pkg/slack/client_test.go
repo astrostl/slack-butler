@@ -1821,10 +1821,10 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 	t.Run("Detects duplicate when same channel was already announced", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		
+
 		// Add a previous announcement from the bot (U0000000 is bot's user ID)
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
@@ -1836,10 +1836,10 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 	t.Run("No duplicate when different channel was announced", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		
+
 		// Add a previous announcement for a different channel
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #other-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
@@ -1851,10 +1851,10 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 	t.Run("Ignores messages from other users", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		
+
 		// Add a message from a different user (not the bot)
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
@@ -1878,7 +1878,7 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		mockAPI.SetGetConversationHistoryError("C123", true)
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
@@ -1892,11 +1892,11 @@ func TestCheckForDuplicateAnnouncementWithDetails(t *testing.T) {
 	t.Run("Returns detailed information about duplicate channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		
+
 		// Add previous announcements for multiple channels
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #channel1 #channel2", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-2*time.Hour).Unix())))
 		mockAPI.AddMessageToHistory("C123", "New channel created: #channel3", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
@@ -1911,11 +1911,11 @@ func TestCheckForDuplicateAnnouncementWithDetails(t *testing.T) {
 	t.Run("Currently does not filter by cutoff time (known limitation)", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		
+
 		// Add an old announcement beyond cutoff time
 		oldTimestamp := time.Now().Add(-25 * time.Hour)
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(oldTimestamp.Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
@@ -1933,13 +1933,13 @@ func TestCheckForDuplicateAnnouncementWithDetailsAndChannels(t *testing.T) {
 	t.Run("Uses provided channel list when available", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		
+
 		// Add previous announcement
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
-		
+
 		// Provide pre-fetched channel list
 		allChannels := []slack.Channel{
 			{
@@ -1961,10 +1961,10 @@ func TestCheckForDuplicateAnnouncementWithDetailsAndChannels(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		mockAPI.AddChannel("C456", "test-channel", time.Now().Add(-2*time.Hour), "Test channel")
-		
+
 		// Add previous announcement
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
@@ -1976,13 +1976,12 @@ func TestCheckForDuplicateAnnouncementWithDetailsAndChannels(t *testing.T) {
 	})
 }
 
-
 func TestGetAllChannelNameToIDMap(t *testing.T) {
 	t.Run("Creates correct name to ID mapping", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		mockAPI.AddChannel("C456", "random", time.Now().Add(-12*time.Hour), "Random stuff")
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 
 		channelMap, err := client.getAllChannelNameToIDMap()
@@ -1996,7 +1995,7 @@ func TestGetAllChannelNameToIDMap(t *testing.T) {
 	t.Run("Returns error when API fails", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.SetGetConversationsError(true)
-		
+
 		client, _ := NewClientWithAPI(mockAPI)
 
 		channelMap, err := client.getAllChannelNameToIDMap()

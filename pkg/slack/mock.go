@@ -1,13 +1,14 @@
 package slack
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/slack-go/slack"
 )
 
-// Mock error constants
+// Mock error constants.
 const (
 	missingScope    = "missing_scope"
 	channelNotFound = "channel_not_found"
@@ -15,23 +16,30 @@ const (
 
 // MockSlackAPI implements SlackAPI for testing.
 type MockSlackAPI struct {
-	AuthTestResponse            *slack.AuthTestResponse
+
+	// Error fields (16 bytes each on 64-bit) - grouped to minimize padding
 	AuthTestError               error
-	Channels                    []slack.Channel
 	GetConversationsError       error
 	GetConversationHistoryError error
-	ConversationHistory         map[string][]slack.Message
-	ConversationHistoryErrors   map[string]error
 	PostMessageError            error
-	PostedMessages              []MockMessage
 	ArchiveConversationError    error
-	ArchiveConversationErrors   map[string]error
-	ArchivedChannels            []string
 	JoinConversationError       error
-	JoinConversationErrors      map[string]error
-	JoinedChannels              []string
-	Users                       []slack.User
 	GetUsersError               error
+
+	// Map fields (8 bytes each on 64-bit) - grouped together
+	ConversationHistory       map[string][]slack.Message
+	ConversationHistoryErrors map[string]error
+	ArchiveConversationErrors map[string]error
+	JoinConversationErrors    map[string]error
+
+	// Pointer fields (8 bytes each on 64-bit) - at end to minimize padding
+	AuthTestResponse *slack.AuthTestResponse
+	// Slice fields (24 bytes each on 64-bit)
+	Channels         []slack.Channel
+	PostedMessages   []MockMessage
+	ArchivedChannels []string
+	JoinedChannels   []string
+	Users            []slack.User
 }
 
 type MockMessage struct {
@@ -217,9 +225,9 @@ func (m *MockSlackAPI) SetGetConversationsErrorWithMessage(hasError bool, messag
 func (m *MockSlackAPI) SetPostMessageError(errorType string) {
 	switch errorType {
 	case missingScope:
-		m.PostMessageError = fmt.Errorf(missingScope)
+		m.PostMessageError = errors.New(missingScope)
 	case channelNotFound:
-		m.PostMessageError = fmt.Errorf(channelNotFound)
+		m.PostMessageError = errors.New(channelNotFound)
 	case "not_in_channel":
 		m.PostMessageError = fmt.Errorf("not_in_channel")
 	case "rate_limited":
@@ -240,7 +248,7 @@ func (m *MockSlackAPI) SetJoinError(errorType string) {
 	case "rate_limited":
 		m.JoinConversationError = fmt.Errorf("rate_limited")
 	case missingScope:
-		m.JoinConversationError = fmt.Errorf(missingScope)
+		m.JoinConversationError = errors.New(missingScope)
 	case "invalid_auth":
 		m.JoinConversationError = fmt.Errorf("invalid_auth")
 	case "already_in_channel":
@@ -259,7 +267,7 @@ func (m *MockSlackAPI) SetJoinError(errorType string) {
 // Additional helper methods for specific error types.
 func (m *MockSlackAPI) SetMissingScopeError(hasError bool) {
 	if hasError {
-		m.GetConversationsError = fmt.Errorf(missingScope)
+		m.GetConversationsError = errors.New(missingScope)
 	} else {
 		m.GetConversationsError = nil
 	}
@@ -316,7 +324,7 @@ func (m *MockSlackAPI) SimulateInvalidAuthError() {
 }
 
 func (m *MockSlackAPI) SimulateChannelNotFoundError() {
-	m.SetPostMessageError("channel_not_found")
+	m.SetPostMessageError(channelNotFound)
 }
 
 func (m *MockSlackAPI) SimulateNotInChannelError() {
@@ -325,10 +333,10 @@ func (m *MockSlackAPI) SimulateNotInChannelError() {
 
 func (m *MockSlackAPI) SetArchiveConversationError(errorType string) {
 	switch errorType {
-	case "missing_scope":
-		m.ArchiveConversationError = fmt.Errorf("missing_scope")
-	case "channel_not_found":
-		m.ArchiveConversationError = fmt.Errorf("channel_not_found")
+	case missingScope:
+		m.ArchiveConversationError = fmt.Errorf("%s", missingScope)
+	case channelNotFound:
+		m.ArchiveConversationError = fmt.Errorf("%s", channelNotFound)
 	case "already_archived":
 		m.ArchiveConversationError = fmt.Errorf("already_archived")
 	case "":
@@ -348,10 +356,10 @@ func (m *MockSlackAPI) ClearArchivedChannels() {
 
 func (m *MockSlackAPI) SetJoinConversationError(errorType string) {
 	switch errorType {
-	case "missing_scope":
-		m.JoinConversationError = fmt.Errorf("missing_scope")
-	case "channel_not_found":
-		m.JoinConversationError = fmt.Errorf("channel_not_found")
+	case missingScope:
+		m.JoinConversationError = fmt.Errorf("%s", missingScope)
+	case channelNotFound:
+		m.JoinConversationError = fmt.Errorf("%s", channelNotFound)
 	case "already_in_channel":
 		m.JoinConversationError = fmt.Errorf("already_in_channel")
 	case "":
@@ -383,8 +391,8 @@ func (m *MockSlackAPI) AddUser(id, name, realName string) {
 
 func (m *MockSlackAPI) SetGetUsersError(errorType string) {
 	switch errorType {
-	case "missing_scope":
-		m.GetUsersError = fmt.Errorf("missing_scope")
+	case missingScope:
+		m.GetUsersError = fmt.Errorf("%s", missingScope)
 	case "":
 		m.GetUsersError = nil
 	default:
@@ -394,7 +402,7 @@ func (m *MockSlackAPI) SetGetUsersError(errorType string) {
 
 // Additional helper methods for archive testing
 
-// MockMessage represents a message in conversation history for testing
+// MockMessage represents a message in conversation history for testing.
 type MockHistoryMessage struct {
 	Timestamp string
 	User      string
@@ -402,7 +410,7 @@ type MockHistoryMessage struct {
 	SubType   string
 }
 
-// SetChannelHistory sets up mock conversation history for a channel
+// SetChannelHistory sets up mock conversation history for a channel.
 func (m *MockSlackAPI) SetChannelHistory(channelID string, messages []MockHistoryMessage) {
 	if m.ConversationHistory == nil {
 		m.ConversationHistory = make(map[string][]slack.Message)
@@ -424,7 +432,7 @@ func (m *MockSlackAPI) SetChannelHistory(channelID string, messages []MockHistor
 	m.ConversationHistory[channelID] = slackMessages
 }
 
-// SetBotUserID sets the bot user ID for testing
+// SetBotUserID sets the bot user ID for testing.
 func (m *MockSlackAPI) SetBotUserID(userID string) {
 	if m.AuthTestResponse == nil {
 		m.AuthTestResponse = &slack.AuthTestResponse{}
@@ -432,7 +440,7 @@ func (m *MockSlackAPI) SetBotUserID(userID string) {
 	m.AuthTestResponse.UserID = userID
 }
 
-// SetGetConversationHistoryError sets an error for a specific channel's history
+// SetGetConversationHistoryError sets an error for a specific channel's history.
 func (m *MockSlackAPI) SetGetConversationHistoryError(channelID string, hasError bool) {
 	if m.ConversationHistoryErrors == nil {
 		m.ConversationHistoryErrors = make(map[string]error)
@@ -445,7 +453,7 @@ func (m *MockSlackAPI) SetGetConversationHistoryError(channelID string, hasError
 	}
 }
 
-// SetJoinConversationErrorForChannel sets an error for joining a specific channel
+// SetJoinConversationErrorForChannel sets an error for joining a specific channel.
 func (m *MockSlackAPI) SetJoinConversationErrorForChannel(channelID string, hasError bool) {
 	if m.JoinConversationErrors == nil {
 		m.JoinConversationErrors = make(map[string]error)
@@ -458,7 +466,7 @@ func (m *MockSlackAPI) SetJoinConversationErrorForChannel(channelID string, hasE
 	}
 }
 
-// SetArchiveConversationErrorWithMessage sets a specific error message for archiving a channel
+// SetArchiveConversationErrorWithMessage sets a specific error message for archiving a channel.
 func (m *MockSlackAPI) SetArchiveConversationErrorWithMessage(channelID string, hasError bool, errorType string) {
 	if m.ArchiveConversationErrors == nil {
 		m.ArchiveConversationErrors = make(map[string]error)
@@ -466,10 +474,10 @@ func (m *MockSlackAPI) SetArchiveConversationErrorWithMessage(channelID string, 
 
 	if hasError {
 		switch errorType {
-		case "missing_scope":
-			m.ArchiveConversationErrors[channelID] = fmt.Errorf("missing_scope")
-		case "channel_not_found":
-			m.ArchiveConversationErrors[channelID] = fmt.Errorf("channel_not_found")
+		case missingScope:
+			m.ArchiveConversationErrors[channelID] = fmt.Errorf("%s", missingScope)
+		case channelNotFound:
+			m.ArchiveConversationErrors[channelID] = fmt.Errorf("%s", channelNotFound)
 		case "already_archived":
 			m.ArchiveConversationErrors[channelID] = fmt.Errorf("already_archived")
 		default:

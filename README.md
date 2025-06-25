@@ -200,7 +200,7 @@ Manage inactive channel archival with automated warnings and grace periods.
 - `--commit` - Actually warn and archive channels (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
-**Note:** Currently using seconds for testing purposes.
+**Note:** Archive timing is configured in seconds for precise control.
 
 **Examples:**
 ```bash

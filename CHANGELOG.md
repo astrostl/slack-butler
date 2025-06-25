@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2025-06-25
+
+### Fixed
+- **Development Tools**: Fixed tools.go imports and Makefile tool installation for non-importable packages
+- **Documentation**: Removed temporary "testing" language from archive command help text
+- **Dependencies**: Major cleanup of go.mod removing ~2,400 lines of unnecessary dependencies
+
+### Improved
+- **Build System**: Enhanced Makefile to handle standalone tool installation properly
+- **User Experience**: Improved clarity of archive command timing configuration messaging
+- **Project Maintenance**: Streamlined dependency management for better maintainability
+
 ## [1.1.1] - 2025-06-25
 
 ### Fixed

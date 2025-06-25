@@ -11,7 +11,7 @@ import (
 	"github.com/slack-go/slack"
 )
 
-// Common time duration text constants
+// Common time duration text constants.
 const (
 	oneMinuteText = "1 minute"
 	oneHourText   = "1 hour"
@@ -23,16 +23,16 @@ type Client struct {
 }
 
 type Channel struct {
-	ID           string
-	Name         string
+	LastMessage  *MessageInfo // Optional: details about the last message
 	Created      time.Time
 	Updated      time.Time
+	LastActivity time.Time
+	ID           string
+	Name         string
 	Purpose      string
 	Creator      string
-	LastActivity time.Time
 	MemberCount  int
 	IsArchived   bool
-	LastMessage  *MessageInfo // Optional: details about the last message
 }
 
 type AuthInfo struct {
@@ -287,110 +287,26 @@ func (c *Client) CheckForDuplicateAnnouncementWithDetailsAndChannels(channel, ne
 		return false, nil, fmt.Errorf("failed to find channel %s: %w", channel, err)
 	}
 
-	// Create name-to-ID mapping from provided channels or fetch if not provided
-	var channelNameToID map[string]string
-	if allChannels != nil {
-		// Use provided channel list
-		channelNameToID = make(map[string]string)
-		for _, ch := range allChannels {
-			channelNameToID[ch.Name] = ch.ID
-		}
-	} else {
-		// Fallback: get channels via API call
-		var err error
-		channelNameToID, err = c.getAllChannelNameToIDMap()
-		if err != nil {
-			logger.WithFields(logger.LogFields{
-				"error": err.Error(),
-			}).Warn("Failed to get channel mappings for duplicate detection, will use name-only matching")
-			channelNameToID = make(map[string]string)
-		}
+	// Create name-to-ID mapping
+	channelNameToID, err := c.buildChannelNameToIDMapping(allChannels)
+	if err != nil {
+		return false, nil, err
 	}
 
-	// Get our bot's auth info to identify our messages
+	// Get bot authentication info
 	authInfo, err := c.TestAuth()
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to get auth info: %w", err)
 	}
 
-	// Due to Slack API limits (15 messages max, 1 req/min), just get the last 15 messages
-	// No time window - work with whatever we can get
-	params := &slack.GetConversationHistoryParameters{
-		ChannelID: channelID,
-		Limit:     15, // Explicit limit to match API restriction
+	// Fetch channel history with retry logic
+	history, err := c.fetchChannelHistoryWithRetry(channelID, channel)
+	if err != nil {
+		return false, nil, err
 	}
 
-	// Retry on Slack rate limits but not with artificial delays
-	const maxRetries = 3
-	var history *slack.GetConversationHistoryResponse
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		var err error
-		history, err = c.api.GetConversationHistory(params)
-		if err != nil {
-			errStr := err.Error()
-			// Only retry on Slack's rate limiting
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-				if attempt < maxRetries {
-					// Parse Slack's retry-after directive (already includes buffer)
-					waitDuration := parseSlackRetryAfter(errStr)
-					if waitDuration > 0 {
-						logger.WithFields(logger.LogFields{
-							"channel":       channel,
-							"attempt":       attempt,
-							"wait_duration": waitDuration.String(),
-						}).Info("Respecting Slack rate limit for duplicate check")
-						fmt.Printf("⏳ Waiting %s due to Slack rate limit (attempt %d/%d)...\n", waitDuration.String(), attempt, maxRetries)
-						showProgressBar(waitDuration)
-						fmt.Println() // Add newline after progress bar
-						continue
-					}
-				}
-			}
-			// For non-rate-limit errors or final attempt
-			logger.WithFields(logger.LogFields{
-				"channel": channel,
-				"error":   errStr,
-			}).Warn("Failed to get channel history for duplicate check")
-			return false, nil, nil
-		}
-		// Success - break out of retry loop
-		break
-	}
-
-	// Check each message to see if it's from our bot and collect all announced channels
-	var allAnnouncedChannels []string
-	var foundDuplicates bool
-
-	for _, message := range history.Messages {
-		// Skip if not from our bot
-		if message.User != authInfo.UserID && message.BotID != authInfo.UserID {
-			continue
-		}
-		if duplicateChannels := c.findDuplicateChannelsInMessageWithIDs(message.Text, channelNames, channelNameToID); len(duplicateChannels) > 0 {
-			logger.WithFields(logger.LogFields{
-				"channel":            channel,
-				"duplicate_ts":       message.Timestamp,
-				"announced_channels": strings.Join(duplicateChannels, ", "),
-			}).Debug("Found duplicate announcement")
-
-			// Add these channels to our list of announced channels
-			for _, dupChannel := range duplicateChannels {
-				// Avoid duplicates in our list
-				alreadyInList := false
-				for _, existing := range allAnnouncedChannels {
-					if existing == dupChannel {
-						alreadyInList = true
-						break
-					}
-				}
-				if !alreadyInList {
-					allAnnouncedChannels = append(allAnnouncedChannels, dupChannel)
-				}
-			}
-			foundDuplicates = true
-		}
-	}
+	// Analyze messages for duplicates
+	allAnnouncedChannels, foundDuplicates := c.analyzeMessagesForDuplicates(history.Messages, channelNames, channelNameToID, authInfo.UserID, channel)
 
 	if foundDuplicates {
 		return true, allAnnouncedChannels, nil
@@ -403,13 +319,102 @@ func (c *Client) CheckForDuplicateAnnouncementWithDetailsAndChannels(channel, ne
 	return false, nil, nil
 }
 
-func (c *Client) messageContainsSameChannels(messageText string, channelNames []string) bool {
-	return len(c.findDuplicateChannelsInMessage(messageText, channelNames)) > 0
+// buildChannelNameToIDMapping creates a mapping from channel names to IDs.
+func (c *Client) buildChannelNameToIDMapping(allChannels []slack.Channel) (map[string]string, error) {
+	var channelNameToID map[string]string
+	if allChannels != nil {
+		// Use provided channel list
+		channelNameToID = make(map[string]string)
+		for _, ch := range allChannels {
+			channelNameToID[ch.Name] = ch.ID
+		}
+	} else {
+		// Fallback: get channels via API call
+		var apiErr error
+		channelNameToID, apiErr = c.getAllChannelNameToIDMap()
+		if apiErr != nil {
+			logger.WithFields(logger.LogFields{
+				"error": apiErr.Error(),
+			}).Warn("Failed to get channel mappings for duplicate detection, will use name-only matching")
+			channelNameToID = make(map[string]string)
+		}
+	}
+	return channelNameToID, nil
 }
 
-func (c *Client) findDuplicateChannelsInMessage(messageText string, channelNames []string) []string {
-	// Legacy function - creates empty ID map for backward compatibility
-	return c.findDuplicateChannelsInMessageWithIDs(messageText, channelNames, make(map[string]string))
+// fetchChannelHistoryWithRetry fetches channel history with retry logic for rate limits.
+func (c *Client) fetchChannelHistoryWithRetry(channelID, channel string) (*slack.GetConversationHistoryResponse, error) {
+	params := &slack.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Limit:     15, // Explicit limit to match API restriction
+	}
+
+	const maxRetries = 3
+	var history *slack.GetConversationHistoryResponse
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		var err error
+		history, err = c.api.GetConversationHistory(params)
+		if err != nil {
+			if shouldRetryOnRateLimit(err.Error(), attempt, maxRetries, channel) {
+				continue
+			}
+			// For non-rate-limit errors or final attempt
+			logger.WithFields(logger.LogFields{
+				"channel": channel,
+				"error":   err.Error(),
+			}).Warn("Failed to get channel history for duplicate check")
+			// Return empty history instead of nil to avoid null pointer issues
+			return &slack.GetConversationHistoryResponse{Messages: []slack.Message{}}, nil
+		}
+		// Success - break out of retry loop
+		break
+	}
+	return history, nil
+}
+
+// analyzeMessagesForDuplicates analyzes messages to find duplicate announcements.
+func (c *Client) analyzeMessagesForDuplicates(messages []slack.Message, channelNames []string, channelNameToID map[string]string, botUserID, channel string) ([]string, bool) {
+	var allAnnouncedChannels []string
+	var foundDuplicates bool
+
+	for _, message := range messages {
+		// Skip if not from our bot
+		if message.User != botUserID && message.BotID != botUserID {
+			continue
+		}
+		if duplicateChannels := c.findDuplicateChannelsInMessageWithIDs(message.Text, channelNames, channelNameToID); len(duplicateChannels) > 0 {
+			logger.WithFields(logger.LogFields{
+				"channel":            channel,
+				"duplicate_ts":       message.Timestamp,
+				"announced_channels": strings.Join(duplicateChannels, ", "),
+			}).Debug("Found duplicate announcement")
+
+			// Add these channels to our list of announced channels
+			allAnnouncedChannels = c.addUniqueChannels(allAnnouncedChannels, duplicateChannels)
+			foundDuplicates = true
+		}
+	}
+
+	return allAnnouncedChannels, foundDuplicates
+}
+
+// addUniqueChannels adds channels to the list, avoiding duplicates.
+func (c *Client) addUniqueChannels(existing []string, newChannels []string) []string {
+	for _, dupChannel := range newChannels {
+		// Avoid duplicates in our list
+		alreadyInList := false
+		for _, existingChannel := range existing {
+			if existingChannel == dupChannel {
+				alreadyInList = true
+				break
+			}
+		}
+		if !alreadyInList {
+			existing = append(existing, dupChannel)
+		}
+	}
+	return existing
 }
 
 func (c *Client) findDuplicateChannelsInMessageWithIDs(messageText string, channelNames []string, channelNameToID map[string]string) []string {
@@ -638,11 +643,9 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 		"archive_seconds": archiveSeconds,
 	}).Debug("Starting inactive channel detection")
 
-	// Calculate cutoff times
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
 
 	// Get all channels
-
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
 		Limit:           1000,
@@ -652,139 +655,62 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for activity analysis")
+	// Pre-filter channels without exclusions (empty exclusion lists)
+	candidateChannels, stats := c.preFilterChannelsWithExclusions(allChannels, warnCutoff, nil, nil)
+	c.logInactiveChannelsFilteringStats(len(allChannels), len(candidateChannels), stats)
 
-	// Pre-filter channels using metadata to reduce API calls
-	var candidateChannels []slack.Channel
-	var skippedNew, skippedExcluded, skippedActive int
-
-	for _, ch := range allChannels {
-		// Skip if channel is too new to possibly need warning
-		// If a channel was created after the warn cutoff, it can't be inactive long enough to warn
-		created := time.Unix(int64(ch.Created), 0)
-		if created.After(warnCutoff) {
-			logger.WithFields(logger.LogFields{
-				"channel":     ch.Name,
-				"created":     created.Format("2006-01-02 15:04:05"),
-				"warn_cutoff": warnCutoff.Format("2006-01-02 15:04:05"),
-			}).Debug("Skipping channel: created after warn cutoff")
-			skippedNew++
-			continue
-		}
-
-		// Skip channels with certain patterns (configurable exclusions)
-		if c.shouldSkipChannel(ch.Name) {
-			logger.WithField("channel", ch.Name).Debug("Skipping excluded channel")
-			skippedExcluded++
-			continue
-		}
-
-		// Use metadata to pre-filter potentially inactive channels
-		if c.seemsActiveFromMetadata(ch, warnCutoff) {
-			logger.WithFields(logger.LogFields{
-				"channel": ch.Name,
-				"reason":  "metadata_shows_recent_activity",
-			}).Debug("Channel seems active from metadata, skipping message history check")
-			skippedActive++
-			continue
-		}
-
-		candidateChannels = append(candidateChannels, ch)
-	}
-
-	logger.WithFields(logger.LogFields{
-		"total_channels":     len(allChannels),
-		"candidate_channels": len(candidateChannels),
-		"skipped_new":        skippedNew,
-		"skipped_excluded":   skippedExcluded,
-		"skipped_active":     skippedActive,
-	}).Info("Pre-filtered channels using metadata")
-
-	// Auto-join all public candidate channels before analyzing them
-	// This is critical for getting accurate message history data
+	// Auto-join channels before analysis
 	joinedCount, err := c.autoJoinPublicChannels(candidateChannels)
 	if err != nil {
 		return toWarn, toArchive, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
 	}
 	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
 
-	// Now check message history only for candidate channels
+	// Analyze channels for inactivity
+	return c.analyzeChannelsForBasicInactivity(candidateChannels, warnCutoff, archiveSeconds)
+}
+
+// logInactiveChannelsFilteringStats logs filtering statistics for basic inactive channel detection.
+func (c *Client) logInactiveChannelsFilteringStats(totalChannels, candidateChannels int, stats channelFilterStats) {
+	logger.WithFields(logger.LogFields{
+		"total_channels":     totalChannels,
+		"candidate_channels": candidateChannels,
+		"skipped_new":        stats.skippedNew,
+		"skipped_excluded":   stats.skippedExcluded,
+		"skipped_active":     stats.skippedActive,
+	}).Info("Pre-filtered channels using metadata")
+}
+
+// analyzeChannelsForBasicInactivity analyzes channels for basic inactivity without detailed reporting.
+func (c *Client) analyzeChannelsForBasicInactivity(candidateChannels []slack.Channel, warnCutoff time.Time, archiveSeconds int) (toWarn []Channel, toArchive []Channel, err error) {
 	for _, ch := range candidateChannels {
 		logger.WithField("channel", ch.Name).Debug("Checking message history for candidate channel")
 
 		// Get channel activity with retry for rate limits
 		lastActivity, hasWarning, warningTime, err := c.getChannelActivityWithRetry(ch.ID, ch.Name)
 		if err != nil {
-			errStr := err.Error()
-
-			// Handle different error types with appropriate policies
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-				logger.WithFields(logger.LogFields{
-					"channel": ch.Name,
-					"error":   errStr,
-				}).Warn("Rate limited by Slack API - this affects all subsequent requests, stopping analysis")
+			if c.handleBasicChannelActivityError(err, ch.Name) {
 				return toWarn, toArchive, fmt.Errorf("rate limited by Slack API while processing channel %s: %w", ch.Name, err)
 			}
-
-			if strings.Contains(errStr, "not_in_channel") {
-				// Bot isn't in channel, treat as potentially inactive
-				logger.WithFields(logger.LogFields{
-					"channel": ch.Name,
-				}).Debug("Bot not in channel, treating as potentially inactive")
-				lastActivity = time.Unix(0, 0) // Very old timestamp
-				hasWarning = false
-				warningTime = time.Time{}
-			} else {
-				// For other errors, skip the channel to be safe
-				logger.WithFields(logger.LogFields{
-					"channel": ch.Name,
-					"error":   errStr,
-				}).Warn("Failed to get channel activity, skipping")
-				continue
+			// Handle special error cases
+			lastActivity, hasWarning, warningTime = c.handleChannelNotInBotError(err)
+			if lastActivity.IsZero() && !hasWarning {
+				continue // Skip this channel
 			}
 		}
 
-		logger.WithFields(logger.LogFields{
-			"channel":       ch.Name,
-			"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
-			"has_warning":   hasWarning,
-			"warning_time":  warningTime.Format("2006-01-02 15:04:05"),
-		}).Debug("Retrieved channel activity data")
+		c.logChannelActivityData(ch.Name, lastActivity, hasWarning, warningTime)
 
-		created := time.Unix(int64(ch.Created), 0)
-		channel := Channel{
-			ID:           ch.ID,
-			Name:         ch.Name,
-			Created:      created,
-			Purpose:      ch.Purpose.Value,
-			Creator:      ch.Creator,
-			LastActivity: lastActivity,
-			MemberCount:  ch.NumMembers,
-			IsArchived:   ch.IsArchived,
-		}
-
-		// Decision logic
+		// Create channel struct and make decision
+		channel := c.createBasicChannel(ch, lastActivity)
 		if hasWarning {
-			// Channel was already warned, check if it should be archived
-			// Archive if: last activity was before warning AND warning was sent long enough ago
-			gracePeriodExpired := time.Since(warningTime) > time.Duration(archiveSeconds)*time.Second
-			if lastActivity.Before(warningTime) && gracePeriodExpired {
+			if c.shouldArchiveBasicChannel(lastActivity, warningTime, archiveSeconds) {
 				toArchive = append(toArchive, channel)
-				logger.WithFields(logger.LogFields{
-					"channel":       ch.Name,
-					"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
-					"warning_time":  warningTime.Format("2006-01-02 15:04:05"),
-				}).Debug("Channel marked for archival")
+				c.logBasicChannelDecision(ch.Name, "archival", lastActivity, warningTime)
 			}
-		} else {
-			// No warning yet, check if it should be warned
-			if lastActivity.IsZero() || lastActivity.Before(warnCutoff) {
-				toWarn = append(toWarn, channel)
-				logger.WithFields(logger.LogFields{
-					"channel":       ch.Name,
-					"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
-				}).Debug("Channel marked for warning")
-			}
+		} else if c.shouldWarnChannel(lastActivity, warnCutoff) {
+			toWarn = append(toWarn, channel)
+			c.logBasicChannelDecision(ch.Name, "warning", lastActivity, time.Time{})
 		}
 	}
 
@@ -796,18 +722,87 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 	return toWarn, toArchive, nil
 }
 
-// GetInactiveChannelsWithDetails returns inactive channels with detailed message information and user name resolution
+// handleBasicChannelActivityError handles errors during basic channel activity retrieval.
+func (c *Client) handleBasicChannelActivityError(err error, channelName string) bool {
+	errStr := err.Error()
+	if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
+		logger.WithFields(logger.LogFields{
+			"channel": channelName,
+			"error":   errStr,
+		}).Warn("Rate limited by Slack API - this affects all subsequent requests, stopping analysis")
+		return true
+	}
+	return false
+}
+
+// handleChannelNotInBotError handles the case where bot is not in channel.
+func (c *Client) handleChannelNotInBotError(err error) (time.Time, bool, time.Time) {
+	errStr := err.Error()
+	if strings.Contains(errStr, "not_in_channel") {
+		// Bot isn't in channel, treat as potentially inactive
+		return time.Unix(0, 0), false, time.Time{}
+	}
+	// For other errors, indicate to skip the channel
+	return time.Time{}, false, time.Time{}
+}
+
+// logChannelActivityData logs channel activity data for debugging.
+func (c *Client) logChannelActivityData(channelName string, lastActivity time.Time, hasWarning bool, warningTime time.Time) {
+	logger.WithFields(logger.LogFields{
+		"channel":       channelName,
+		"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
+		"has_warning":   hasWarning,
+		"warning_time":  warningTime.Format("2006-01-02 15:04:05"),
+	}).Debug("Retrieved channel activity data")
+}
+
+// createBasicChannel creates a basic channel struct.
+func (c *Client) createBasicChannel(ch slack.Channel, lastActivity time.Time) Channel {
+	return Channel{
+		ID:           ch.ID,
+		Name:         ch.Name,
+		Created:      time.Unix(int64(ch.Created), 0),
+		Purpose:      ch.Purpose.Value,
+		Creator:      ch.Creator,
+		LastActivity: lastActivity,
+		MemberCount:  ch.NumMembers,
+		IsArchived:   ch.IsArchived,
+	}
+}
+
+// shouldArchiveBasicChannel determines if a basic channel should be archived.
+func (c *Client) shouldArchiveBasicChannel(lastActivity, warningTime time.Time, archiveSeconds int) bool {
+	gracePeriodExpired := time.Since(warningTime) > time.Duration(archiveSeconds)*time.Second
+	return lastActivity.Before(warningTime) && gracePeriodExpired
+}
+
+// logBasicChannelDecision logs decisions for basic channel analysis.
+func (c *Client) logBasicChannelDecision(channelName, decision string, lastActivity, warningTime time.Time) {
+	switch decision {
+	case "archival":
+		logger.WithFields(logger.LogFields{
+			"channel":       channelName,
+			"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
+			"warning_time":  warningTime.Format("2006-01-02 15:04:05"),
+		}).Debug("Channel marked for archival")
+	case "warning":
+		logger.WithFields(logger.LogFields{
+			"channel":       channelName,
+			"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
+		}).Debug("Channel marked for warning")
+	}
+}
+
+// GetInactiveChannelsWithDetails returns inactive channels with detailed message information and user name resolution.
 func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds int, userMap map[string]string, isDebug bool) (toWarn []Channel, toArchive []Channel, err error) {
 	logger.WithFields(logger.LogFields{
 		"warn_seconds":    warnSeconds,
 		"archive_seconds": archiveSeconds,
 	}).Debug("Starting inactive channel detection with message details")
 
-	// Calculate cutoff times
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
 
 	// Get all channels
-
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
 		Limit:           1000,
@@ -817,183 +812,22 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for detailed activity analysis")
+	// Pre-filter channels without exclusions (empty exclusion lists)
+	candidateChannels, stats := c.preFilterChannelsWithExclusions(allChannels, warnCutoff, nil, nil)
+	c.logChannelFilteringStatsSimple(len(allChannels), len(candidateChannels), stats, isDebug)
 
-	// Pre-filter channels using metadata to reduce API calls
-	var candidateChannels []slack.Channel
-	var skippedActive, skippedExcluded, skippedNew int
-
-	for _, ch := range allChannels {
-		// Skip excluded channels
-		if c.shouldSkipChannel(ch.Name) {
-			skippedExcluded++
-			continue
-		}
-
-		// Skip channels that are too new to possibly need warnings
-		created := time.Unix(int64(ch.Created), 0)
-		if created.After(warnCutoff) {
-			skippedNew++
-			continue
-		}
-
-		// Skip channels that seem active from metadata
-		if c.seemsActiveFromMetadata(ch, warnCutoff) {
-			skippedActive++
-			continue
-		}
-
-		candidateChannels = append(candidateChannels, ch)
-	}
-
-	logger.WithFields(logger.LogFields{
-		"total_channels":     len(allChannels),
-		"candidate_channels": len(candidateChannels),
-		"skipped_active":     skippedActive,
-		"skipped_excluded":   skippedExcluded,
-		"skipped_new":        skippedNew,
-	}).Info("Pre-filtered channels using metadata")
-
-	fmt.Printf("📞 API Call 2: Getting channel list with metadata...\n")
-	fmt.Printf("✅ Got %d channels from API\n", len(allChannels))
-	fmt.Printf("   Pre-filtered to %d candidates (skipped %d active, %d excluded, %d too new)\n\n",
-		len(candidateChannels), skippedActive, skippedExcluded, skippedNew)
-
-	// Auto-join public channels before analysis
-	fmt.Printf("📞 API Calls 3+: Auto-joining public channels for accurate analysis...\n")
-	joinedCount, err := c.autoJoinPublicChannels(candidateChannels)
+	// Auto-join channels and analyze activity
+	joinedCount, err := c.autoJoinChannelsForAnalysis(candidateChannels, isDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
 	}
-	fmt.Printf("✅ Auto-joined %d channels\n\n", joinedCount)
-
 	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
 
-	// Now analyze each candidate channel for activity with detailed reporting
-	now := time.Now()
-	for _, ch := range candidateChannels {
-
-		lastActivity, hasWarning, warningTime, lastMessage, err := c.GetChannelActivityWithMessageAndUsers(ch.ID, userMap)
-		if err != nil {
-			errStr := err.Error()
-			// Log the error but continue with other channels
-			logger.WithFields(logger.LogFields{
-				"channel": ch.Name,
-				"error":   errStr,
-			}).Error("Failed to get channel activity")
-
-			// If rate limited, stop processing entirely
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-				logger.WithFields(logger.LogFields{
-					"channel": ch.Name,
-					"error":   errStr,
-				}).Warn("Rate limited by Slack API - this affects all subsequent requests, stopping analysis")
-
-				if isDebug {
-					fmt.Printf("❌ API Call failed: Rate limited while checking #%s\n", ch.Name)
-				}
-				return toWarn, toArchive, fmt.Errorf("rate limited by Slack API")
-			}
-
-			if isDebug {
-				fmt.Printf("❌ API Call failed: Error checking #%s: %s\n", ch.Name, errStr)
-			}
-			continue
-		}
-
-		if isDebug {
-			fmt.Printf("✅ API Call succeeded\n")
-		}
-
-		// Create enhanced channel with message details
-		enhancedChannel := Channel{
-			ID:           ch.ID,
-			Name:         ch.Name,
-			Created:      time.Unix(int64(ch.Created), 0),
-			Purpose:      ch.Purpose.Value,
-			Creator:      ch.Creator,
-			LastActivity: lastActivity,
-			MemberCount:  ch.NumMembers,
-			IsArchived:   ch.IsArchived,
-			LastMessage:  lastMessage,
-		}
-
-		// Show detailed info about the channel
-		var activityStr string
-		if lastActivity.IsZero() {
-			created := time.Unix(int64(ch.Created), 0)
-			createdDuration := now.Sub(created)
-			activityStr = fmt.Sprintf("no real messages (created %s ago)", formatDuration(createdDuration))
-		} else {
-			duration := now.Sub(lastActivity)
-			activityStr = fmt.Sprintf("last real message %s ago", formatDuration(duration))
-			if hasWarning && !warningTime.IsZero() {
-				warningDuration := now.Sub(warningTime)
-				activityStr += fmt.Sprintf(" (warning sent %s ago)", formatDuration(warningDuration))
-			}
-		}
-
-		fmt.Printf("  #%-20s - %s\n", ch.Name, activityStr)
-
-		// Show message details if available
-		if lastMessage != nil {
-			// Truncate long messages
-			messageText := lastMessage.Text
-			if len(messageText) > 80 {
-				messageText = messageText[:77] + "..."
-			}
-
-			// Replace newlines with spaces for cleaner display
-			messageText = strings.ReplaceAll(messageText, "\n", " ")
-
-			botIndicator := ""
-			if lastMessage.IsBot {
-				botIndicator = " (bot)"
-			}
-
-			// Use resolved name if available, fallback to ID
-			authorName := lastMessage.UserName
-			if authorName == "" {
-				authorName = lastMessage.User
-			}
-
-			fmt.Printf("    └─ Author: %s%s | Message: \"%s\"\n", authorName, botIndicator, messageText)
-		}
-		fmt.Println() // Empty line between channels
-
-		// Determine if this channel needs warning or archiving
-		if hasWarning {
-			// Channel already has a warning, check if grace period has expired
-			// Archive if warning was sent more than archiveSeconds ago
-			gracePeriodExpired := time.Since(warningTime) > time.Duration(archiveSeconds)*time.Second
-			if gracePeriodExpired {
-				toArchive = append(toArchive, enhancedChannel)
-				logger.WithFields(logger.LogFields{
-					"channel":      ch.Name,
-					"warning_time": warningTime.Format("2006-01-02 15:04:05"),
-					"grace_period": "expired",
-				}).Debug("Channel marked for archival - grace period expired")
-			}
-		} else if lastActivity.IsZero() || lastActivity.Before(warnCutoff) {
-			// Channel has no messages or is inactive and hasn't been warned yet
-			toWarn = append(toWarn, enhancedChannel)
-			logger.WithFields(logger.LogFields{
-				"channel":       ch.Name,
-				"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
-				"inactive_for":  now.Sub(lastActivity).String(),
-			}).Debug("Channel marked for warning")
-		}
-	}
-
-	logger.WithFields(logger.LogFields{
-		"channels_to_warn":    len(toWarn),
-		"channels_to_archive": len(toArchive),
-	}).Info("Inactive channel analysis completed")
-
-	return toWarn, toArchive, nil
+	// Analyze each candidate channel for activity
+	return c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug)
 }
 
-// GetInactiveChannelsWithDetailsAndExclusions returns inactive channels with exclusion support
+// GetInactiveChannelsWithDetailsAndExclusions returns inactive channels with exclusion support.
 func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, archiveSeconds int, userMap map[string]string, excludeChannels, excludePrefixes []string, isDebug bool) (toWarn []Channel, toArchive []Channel, err error) {
 	logger.WithFields(logger.LogFields{
 		"warn_seconds":     warnSeconds,
@@ -1002,11 +836,9 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 		"exclude_prefixes": excludePrefixes,
 	}).Debug("Starting inactive channel detection with message details and exclusions")
 
-	// Calculate cutoff times
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
 
 	// Get all channels
-
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
 		Limit:           1000,
@@ -1016,99 +848,117 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
-	logger.WithField("total_channels", len(allChannels)).Debug("Retrieved channels for detailed activity analysis")
+	// Pre-filter channels to reduce API calls
+	candidateChannels, stats := c.preFilterChannelsWithExclusions(allChannels, warnCutoff, excludeChannels, excludePrefixes)
+	c.logChannelFilteringStats(len(allChannels), len(candidateChannels), stats, isDebug)
 
-	// Pre-filter channels using metadata and exclusions to reduce API calls
-	var candidateChannels []slack.Channel
-	var skippedActive, skippedExcluded, skippedNew, skippedUserExcluded int
+	// Auto-join channels and analyze activity
+	joinedCount, err := c.autoJoinChannelsForAnalysis(candidateChannels, isDebug)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
+	}
+	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
+
+	// Analyze each candidate channel for activity
+	return c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug)
+}
+
+// channelFilterStats holds statistics about channel filtering.
+type channelFilterStats struct {
+	skippedActive       int
+	skippedExcluded     int
+	skippedNew          int
+	skippedUserExcluded int
+}
+
+// preFilterChannelsWithExclusions filters channels using metadata and exclusions to reduce API calls.
+func (c *Client) preFilterChannelsWithExclusions(allChannels []slack.Channel, warnCutoff time.Time, excludeChannels, excludePrefixes []string) ([]slack.Channel, channelFilterStats) {
+	candidateChannels := make([]slack.Channel, 0, len(allChannels))
+	stats := channelFilterStats{}
 
 	for _, ch := range allChannels {
-		// Check user-specified exclusions first
 		if c.shouldSkipChannelWithExclusions(ch.Name, excludeChannels, excludePrefixes) {
-			skippedUserExcluded++
+			stats.skippedUserExcluded++
 			continue
 		}
 
-		// Skip default excluded channels
 		if c.shouldSkipChannel(ch.Name) {
-			skippedExcluded++
+			stats.skippedExcluded++
 			continue
 		}
 
-		// Skip channels that are too new to possibly need warnings
 		created := time.Unix(int64(ch.Created), 0)
 		if created.After(warnCutoff) {
-			skippedNew++
+			stats.skippedNew++
 			continue
 		}
 
-		// Skip channels that seem active from metadata
 		if c.seemsActiveFromMetadata(ch, warnCutoff) {
-			skippedActive++
+			stats.skippedActive++
 			continue
 		}
 
 		candidateChannels = append(candidateChannels, ch)
 	}
 
+	return candidateChannels, stats
+}
+
+// logChannelFilteringStatsSimple logs and prints filtering statistics without user exclusions.
+func (c *Client) logChannelFilteringStatsSimple(totalChannels, candidateChannels int, stats channelFilterStats, isDebug bool) {
 	logger.WithFields(logger.LogFields{
-		"total_channels":        len(allChannels),
-		"candidate_channels":    len(candidateChannels),
-		"skipped_active":        skippedActive,
-		"skipped_excluded":      skippedExcluded,
-		"skipped_new":           skippedNew,
-		"skipped_user_excluded": skippedUserExcluded,
+		"total_channels":     totalChannels,
+		"candidate_channels": candidateChannels,
+		"skipped_active":     stats.skippedActive,
+		"skipped_excluded":   stats.skippedExcluded,
+		"skipped_new":        stats.skippedNew,
+	}).Info("Pre-filtered channels using metadata")
+
+	fmt.Printf("📞 API Call 2: Getting channel list with metadata...\n")
+	fmt.Printf("✅ Got %d channels from API\n", totalChannels)
+	fmt.Printf("   Pre-filtered to %d candidates (skipped %d active, %d excluded, %d too new)\n\n",
+		candidateChannels, stats.skippedActive, stats.skippedExcluded, stats.skippedNew)
+}
+
+// logChannelFilteringStats logs and optionally prints channel filtering statistics.
+func (c *Client) logChannelFilteringStats(totalChannels, candidateChannels int, stats channelFilterStats, isDebug bool) {
+	logger.WithFields(logger.LogFields{
+		"total_channels":        totalChannels,
+		"candidate_channels":    candidateChannels,
+		"skipped_active":        stats.skippedActive,
+		"skipped_excluded":      stats.skippedExcluded,
+		"skipped_new":           stats.skippedNew,
+		"skipped_user_excluded": stats.skippedUserExcluded,
 	}).Debug("Pre-filtered channels using metadata and exclusions")
 
 	if isDebug {
 		fmt.Printf("📞 API Call 2: Getting channel list with metadata...\n")
-		fmt.Printf("✅ Got %d channels from API\n", len(allChannels))
+		fmt.Printf("✅ Got %d channels from API\n", totalChannels)
 		fmt.Printf("   Pre-filtered to %d candidates (skipped %d active, %d excluded, %d too new, %d user-excluded)\n\n",
-			len(candidateChannels), skippedActive, skippedExcluded, skippedNew, skippedUserExcluded)
+			candidateChannels, stats.skippedActive, stats.skippedExcluded, stats.skippedNew, stats.skippedUserExcluded)
 	}
+}
 
-	// Auto-join public channels before analysis
+// autoJoinChannelsForAnalysis auto-joins public channels before analysis.
+func (c *Client) autoJoinChannelsForAnalysis(candidateChannels []slack.Channel, isDebug bool) (int, error) {
 	if isDebug {
 		fmt.Printf("📞 API Calls 3+: Auto-joining public channels for accurate analysis...\n")
 	}
 	joinedCount, err := c.autoJoinPublicChannels(candidateChannels)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
-	}
 	if isDebug {
 		fmt.Printf("✅ Auto-joined %d channels\n\n", joinedCount)
 	}
+	return joinedCount, err
+}
 
-	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
-
-	// Now analyze each candidate channel for activity with detailed reporting
+// analyzeChannelsForInactivity analyzes each candidate channel for activity and categorizes them.
+func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel, userMap map[string]string, warnCutoff time.Time, archiveSeconds int, isDebug bool) (toWarn []Channel, toArchive []Channel, err error) {
 	now := time.Now()
 	for _, ch := range candidateChannels {
-
 		lastActivity, hasWarning, warningTime, lastMessage, err := c.GetChannelActivityWithMessageAndUsers(ch.ID, userMap)
 		if err != nil {
-			errStr := err.Error()
-			// Log the error but continue with other channels
-			logger.WithFields(logger.LogFields{
-				"channel": ch.Name,
-				"error":   errStr,
-			}).Error("Failed to get channel activity")
-
-			// If rate limited, stop processing entirely
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-				logger.WithFields(logger.LogFields{
-					"channel": ch.Name,
-					"error":   errStr,
-				}).Warn("Rate limited by Slack API - this affects all subsequent requests, stopping analysis")
-
-				if isDebug {
-					fmt.Printf("❌ API Call failed: Rate limited while checking #%s\n", ch.Name)
-				}
+			if c.handleChannelAnalysisError(err, ch.Name, isDebug) {
 				return toWarn, toArchive, fmt.Errorf("rate limited by Slack API")
-			}
-
-			if isDebug {
-				fmt.Printf("❌ API Call failed: Error checking #%s: %s\n", ch.Name, errStr)
 			}
 			continue
 		}
@@ -1117,83 +967,17 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 			fmt.Printf("✅ API Call succeeded\n")
 		}
 
-		// Create enhanced channel with message details
-		enhancedChannel := Channel{
-			ID:           ch.ID,
-			Name:         ch.Name,
-			Created:      time.Unix(int64(ch.Created), 0),
-			Purpose:      ch.Purpose.Value,
-			Creator:      ch.Creator,
-			LastActivity: lastActivity,
-			MemberCount:  ch.NumMembers,
-			IsArchived:   ch.IsArchived,
-			LastMessage:  lastMessage,
-		}
+		enhancedChannel := c.createEnhancedChannel(ch, lastActivity, lastMessage)
+		c.displayChannelAnalysis(ch, lastActivity, hasWarning, warningTime, lastMessage, now)
 
-		// Show detailed info about the channel
-		var activityStr string
-		if lastActivity.IsZero() {
-			created := time.Unix(int64(ch.Created), 0)
-			createdDuration := now.Sub(created)
-			activityStr = fmt.Sprintf("no real messages (created %s ago)", formatDuration(createdDuration))
-		} else {
-			duration := now.Sub(lastActivity)
-			activityStr = fmt.Sprintf("last real message %s ago", formatDuration(duration))
-			if hasWarning && !warningTime.IsZero() {
-				warningDuration := now.Sub(warningTime)
-				activityStr += fmt.Sprintf(" (warning sent %s ago)", formatDuration(warningDuration))
-			}
-		}
-
-		fmt.Printf("  #%-20s - %s\n", ch.Name, activityStr)
-
-		// Show message details if available
-		if lastMessage != nil {
-			// Truncate long messages
-			messageText := lastMessage.Text
-			if len(messageText) > 80 {
-				messageText = messageText[:77] + "..."
-			}
-
-			// Replace newlines with spaces for cleaner display
-			messageText = strings.ReplaceAll(messageText, "\n", " ")
-
-			botIndicator := ""
-			if lastMessage.IsBot {
-				botIndicator = " (bot)"
-			}
-
-			// Use resolved name if available, fallback to ID
-			authorName := lastMessage.UserName
-			if authorName == "" {
-				authorName = lastMessage.User
-			}
-
-			fmt.Printf("    └─ Author: %s%s | Message: \"%s\"\n", authorName, botIndicator, messageText)
-		}
-		fmt.Println() // Empty line between channels
-
-		// Determine if this channel needs warning or archiving
 		if hasWarning {
-			// Channel already has a warning, check if grace period has expired
-			// Archive if warning was sent more than archiveSeconds ago
-			gracePeriodExpired := time.Since(warningTime) > time.Duration(archiveSeconds)*time.Second
-			if gracePeriodExpired {
+			if c.shouldArchiveChannel(warningTime, archiveSeconds) {
 				toArchive = append(toArchive, enhancedChannel)
-				logger.WithFields(logger.LogFields{
-					"channel":      ch.Name,
-					"warning_time": warningTime.Format("2006-01-02 15:04:05"),
-					"grace_period": "expired",
-				}).Debug("Channel marked for archival - grace period expired")
+				c.logChannelDecision(ch.Name, "archival", warningTime)
 			}
-		} else if lastActivity.IsZero() || lastActivity.Before(warnCutoff) {
-			// Channel has no messages or is inactive and hasn't been warned yet
+		} else if c.shouldWarnChannel(lastActivity, warnCutoff) {
 			toWarn = append(toWarn, enhancedChannel)
-			logger.WithFields(logger.LogFields{
-				"channel":       ch.Name,
-				"last_activity": lastActivity.Format("2006-01-02 15:04:05"),
-				"inactive_for":  now.Sub(lastActivity).String(),
-			}).Debug("Channel marked for warning")
+			c.logChannelDecision(ch.Name, "warning", lastActivity)
 		}
 	}
 
@@ -1205,7 +989,125 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 	return toWarn, toArchive, nil
 }
 
-// shouldSkipChannelWithExclusions checks if a channel should be skipped based on user exclusions
+// handleChannelAnalysisError handles errors during channel analysis and returns true if processing should stop.
+func (c *Client) handleChannelAnalysisError(err error, channelName string, isDebug bool) bool {
+	errStr := err.Error()
+	logger.WithFields(logger.LogFields{
+		"channel": channelName,
+		"error":   errStr,
+	}).Error("Failed to get channel activity")
+
+	if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
+		logger.WithFields(logger.LogFields{
+			"channel": channelName,
+			"error":   errStr,
+		}).Warn("Rate limited by Slack API - this affects all subsequent requests, stopping analysis")
+
+		if isDebug {
+			fmt.Printf("❌ API Call failed: Rate limited while checking #%s\n", channelName)
+		}
+		return true
+	}
+
+	if isDebug {
+		fmt.Printf("❌ API Call failed: Error checking #%s: %s\n", channelName, errStr)
+	}
+	return false
+}
+
+// createEnhancedChannel creates an enhanced channel struct with message details.
+func (c *Client) createEnhancedChannel(ch slack.Channel, lastActivity time.Time, lastMessage *MessageInfo) Channel {
+	return Channel{
+		ID:           ch.ID,
+		Name:         ch.Name,
+		Created:      time.Unix(int64(ch.Created), 0),
+		Purpose:      ch.Purpose.Value,
+		Creator:      ch.Creator,
+		LastActivity: lastActivity,
+		MemberCount:  ch.NumMembers,
+		IsArchived:   ch.IsArchived,
+		LastMessage:  lastMessage,
+	}
+}
+
+// displayChannelAnalysis displays detailed channel analysis information.
+func (c *Client) displayChannelAnalysis(ch slack.Channel, lastActivity time.Time, hasWarning bool, warningTime time.Time, lastMessage *MessageInfo, now time.Time) {
+	activityStr := c.formatChannelActivityString(lastActivity, hasWarning, warningTime, now, ch)
+	fmt.Printf("  #%-20s - %s\n", ch.Name, activityStr)
+
+	if lastMessage != nil {
+		c.displayMessageDetails(lastMessage)
+	}
+	fmt.Println()
+}
+
+// formatChannelActivityString formats the activity description for a channel.
+func (c *Client) formatChannelActivityString(lastActivity time.Time, hasWarning bool, warningTime time.Time, now time.Time, ch slack.Channel) string {
+	if lastActivity.IsZero() {
+		created := time.Unix(int64(ch.Created), 0)
+		createdDuration := now.Sub(created)
+		return fmt.Sprintf("no real messages (created %s ago)", formatDuration(createdDuration))
+	}
+
+	duration := now.Sub(lastActivity)
+	activityStr := fmt.Sprintf("last real message %s ago", formatDuration(duration))
+	if hasWarning && !warningTime.IsZero() {
+		warningDuration := now.Sub(warningTime)
+		activityStr += fmt.Sprintf(" (warning sent %s ago)", formatDuration(warningDuration))
+	}
+	return activityStr
+}
+
+// displayMessageDetails displays the details of the last message in a channel.
+func (c *Client) displayMessageDetails(lastMessage *MessageInfo) {
+	messageText := lastMessage.Text
+	if len(messageText) > 80 {
+		messageText = messageText[:77] + "..."
+	}
+	messageText = strings.ReplaceAll(messageText, "\n", " ")
+
+	botIndicator := ""
+	if lastMessage.IsBot {
+		botIndicator = " (bot)"
+	}
+
+	authorName := lastMessage.UserName
+	if authorName == "" {
+		authorName = lastMessage.User
+	}
+
+	fmt.Printf("    └─ Author: %s%s | Message: \"%s\"\n", authorName, botIndicator, messageText)
+}
+
+// shouldArchiveChannel determines if a channel should be archived based on warning time.
+func (c *Client) shouldArchiveChannel(warningTime time.Time, archiveSeconds int) bool {
+	return time.Since(warningTime) > time.Duration(archiveSeconds)*time.Second
+}
+
+// shouldWarnChannel determines if a channel should receive a warning based on activity.
+func (c *Client) shouldWarnChannel(lastActivity time.Time, warnCutoff time.Time) bool {
+	return lastActivity.IsZero() || lastActivity.Before(warnCutoff)
+}
+
+// logChannelDecision logs the decision made for a channel.
+func (c *Client) logChannelDecision(channelName, decision string, timestamp time.Time) {
+	switch decision {
+	case "archival":
+		logger.WithFields(logger.LogFields{
+			"channel":      channelName,
+			"warning_time": timestamp.Format("2006-01-02 15:04:05"),
+			"grace_period": "expired",
+		}).Debug("Channel marked for archival - grace period expired")
+	case "warning":
+		logger.WithFields(logger.LogFields{
+			"channel":       channelName,
+			"last_activity": timestamp.Format("2006-01-02 15:04:05"),
+			"inactive_for":  time.Since(timestamp).String(),
+		}).Debug("Channel marked for warning")
+	}
+}
+
+// shouldSkipChannelWithExclusions checks if a channel should be skipped based on user exclusions.
 func (c *Client) shouldSkipChannelWithExclusions(channelName string, excludeChannels, excludePrefixes []string) bool {
 	// Check exact channel name matches
 	for _, excluded := range excludeChannels {
@@ -1234,7 +1136,7 @@ func (c *Client) shouldSkipChannelWithExclusions(channelName string, excludeChan
 	return false
 }
 
-// formatDuration formats a duration in a human-readable way
+// formatDuration formats a duration in a human-readable way.
 func formatDuration(d time.Duration) string {
 	if d < time.Minute {
 		seconds := int(d.Seconds())
@@ -1274,160 +1176,181 @@ func (c *Client) getChannelActivityWithRetry(channelID, channelName string) (las
 }
 
 func (c *Client) getChannelActivity(channelID string) (lastActivity time.Time, hasWarning bool, warningTime time.Time, err error) {
+	// Fetch initial channel history
+	history, err := c.fetchInitialChannelHistory(channelID)
+	if err != nil {
+		return time.Time{}, false, time.Time{}, err
+	}
+
+	if len(history.Messages) == 0 {
+		return time.Unix(0, 0), false, time.Time{}, nil
+	}
+
+	// Analyze messages for recent activity
+	botUserID := c.getBotUserID()
+	lastRealMsg, lastRealMsgTime := c.findMostRecentRealMessage(history.Messages, botUserID)
+
+	// Determine if we need detailed analysis
+	if c.needsDetailedAnalysis(lastRealMsg, botUserID) {
+		return c.getDetailedChannelActivity(channelID, botUserID)
+	}
+
+	// If the last real message is from a user, that's our activity time
+	if lastRealMsg != nil && lastRealMsg.User != botUserID {
+		return lastRealMsgTime, false, time.Time{}, nil
+	}
+
+	// Need detailed analysis for other cases
+	return c.getDetailedChannelActivity(channelID, botUserID)
+}
+
+// fetchInitialChannelHistory fetches initial channel history with retry logic.
+func (c *Client) fetchInitialChannelHistory(channelID string) (*slack.GetConversationHistoryResponse, error) {
 	const maxRetries = 3
 	var history *slack.GetConversationHistoryResponse
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-
-		// Optimized two-stage approach:
-		// 1. Get just the last message to check if channel is obviously active
-		// 2. Only if needed, get more messages to check for bot warnings
-
-		// Stage 1: Get recent messages to find the most recent real one
 		params := &slack.GetConversationHistoryParameters{
 			ChannelID: channelID,
 			Limit:     10, // Get enough messages to find real ones past any system messages
 		}
 
+		var err error
 		history, err = c.api.GetConversationHistory(params)
 		if err != nil {
-			errStr := err.Error()
-
-			// Handle rate limiting with retry
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-
-				// If not the last attempt, continue to retry
-				if attempt < maxRetries {
-					// Parse Slack's retry-after directive
-					waitDuration := parseSlackRetryAfter(errStr)
-					if waitDuration > 0 {
-						// Wait for the specified duration with user-friendly explanation
-						fmt.Printf("⏳ Waiting %s due to Slack API rate limiting...\n", waitDuration.String())
-						showProgressBar(waitDuration)
-					} else {
-						// Fallback to our rate limiter if we can't parse Slack's directive
-						// Use fallback backoff quietly without verbose output
-					}
-					continue
-				}
-				// Last attempt failed, return error
-				// All retry attempts failed, proceeding to return error
-				return time.Time{}, false, time.Time{}, fmt.Errorf("failed to get channel history after %d attempts, final Slack error: %s", maxRetries, errStr)
+			if shouldRetryOnRateLimitSimple(err.Error(), attempt, maxRetries) {
+				continue
 			}
-
+			errStr := err.Error()
+			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
+				return nil, fmt.Errorf("failed to get channel history after %d attempts, final Slack error: %s", maxRetries, errStr)
+			}
 			// Non-rate-limit errors - don't retry
-			return time.Time{}, false, time.Time{}, fmt.Errorf("failed to get channel history: %w", err)
+			return nil, fmt.Errorf("failed to get channel history: %w", err)
 		}
-
 		// Success - break out of retry loop
 		break
 	}
+	return history, nil
+}
 
-	if len(history.Messages) == 0 {
-		// No messages
-		return time.Unix(0, 0), false, time.Time{}, nil
-	}
-
-	// Find the most recent "real" message (not join/leave/system messages)
-	botUserID := c.getBotUserID()
-	var lastRealMsg *slack.Message
-	var lastRealMsgTime time.Time
-
-	for _, msg := range history.Messages {
+// findMostRecentRealMessage finds the most recent real message in the history.
+func (c *Client) findMostRecentRealMessage(messages []slack.Message, botUserID string) (*slack.Message, time.Time) {
+	for _, msg := range messages {
 		if isRealMessage(msg, botUserID) {
-			lastRealMsg = &msg
 			if msgTime, err := parseSlackTimestamp(msg.Timestamp); err == nil {
-				lastRealMsgTime = msgTime
+				return &msg, msgTime
 			}
-			break // Found the most recent real message
+			return &msg, time.Time{}
 		}
 	}
+	return nil, time.Time{}
+}
 
-	// If no real messages found in the first message, get more history
+// needsDetailedAnalysis determines if detailed channel analysis is needed.
+func (c *Client) needsDetailedAnalysis(lastRealMsg *slack.Message, botUserID string) bool {
 	if lastRealMsg == nil {
-		return c.getDetailedChannelActivity(channelID, botUserID)
+		return true
 	}
-
 	// If the last real message is from the bot and contains a warning, we need more context
 	if lastRealMsg.User == botUserID && strings.Contains(lastRealMsg.Text, "inactive channel warning") {
-		// Stage 2: Get more messages to find actual user activity and warning history
-		return c.getDetailedChannelActivity(channelID, botUserID)
+		return true
 	}
-
-	// If the last real message is from a user, that's our activity time
-	if lastRealMsg.User != botUserID {
-		return lastRealMsgTime, false, time.Time{}, nil
-	}
-
 	// If the last real message is from the bot but not a warning, we need to look deeper
-	// to find the last user activity
-	return c.getDetailedChannelActivity(channelID, botUserID)
+	if lastRealMsg.User == botUserID {
+		return true
+	}
+	return false
 }
 
 func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastActivity time.Time, hasWarning bool, warningTime time.Time, err error) {
+	// Fetch detailed channel history with retry logic
+	history, err := c.fetchDetailedChannelHistory(channelID)
+	if err != nil {
+		return time.Time{}, false, time.Time{}, err
+	}
+
+	if len(history.Messages) == 0 {
+		return time.Unix(0, 0), false, time.Time{}, nil
+	}
+
+	// Analyze messages for activity and warnings
+	mostRecentActivity, hasWarningMessage, mostRecentWarning := c.analyzeChannelMessages(history.Messages, botUserID)
+
+	// Fallback to oldest message if no user activity found
+	if mostRecentActivity.IsZero() && len(history.Messages) > 0 {
+		if msgTime, err := parseSlackTimestamp(history.Messages[len(history.Messages)-1].Timestamp); err == nil {
+			mostRecentActivity = msgTime
+		}
+	}
+
+	return mostRecentActivity, hasWarningMessage, mostRecentWarning, nil
+}
+
+// fetchDetailedChannelHistory fetches detailed channel history with retry logic.
+func (c *Client) fetchDetailedChannelHistory(channelID string) (*slack.GetConversationHistoryResponse, error) {
 	const maxRetries = 3
 	var history *slack.GetConversationHistoryResponse
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-
-		// Get more messages to analyze warning history and find user activity
 		params := &slack.GetConversationHistoryParameters{
 			ChannelID: channelID,
 			Limit:     50, // Reasonable limit to find warnings and user activity
 		}
 
+		var err error
 		history, err = c.api.GetConversationHistory(params)
 		if err != nil {
-			errStr := err.Error()
-
-			// Handle rate limiting with retry
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-				logger.WithFields(logger.LogFields{
-					"attempt":     attempt,
-					"max_tries":   maxRetries,
-					"channel":     channelID,
-					"slack_error": errStr,
-				}).Warn("Rate limited on detailed history, will retry after Slack-specified delay")
-
-				// Print to stdout so user can see retry attempts
-				fmt.Printf("   🔄 Detailed history retry %d/%d for channel %s (Slack error: %s)\n", attempt, maxRetries, channelID, errStr)
-
-				// If not the last attempt, continue to retry
-				if attempt < maxRetries {
-					// Parse Slack's retry-after directive
-					waitDuration := parseSlackRetryAfter(errStr)
-					if waitDuration > 0 {
-						fmt.Printf("   ⏳ Slack says wait %s (includes 3s buffer) before detailed retry...\n", waitDuration)
-						time.Sleep(waitDuration)
-					} else {
-						// Fallback to our rate limiter if we can't parse Slack's directive
-						fmt.Printf("   ⏳ Using fallback backoff before detailed retry...\n")
-					}
-					continue
-				}
-				// Last attempt failed, return error
-				fmt.Printf("   ❌ All %d detailed retry attempts failed\n", maxRetries)
-				return time.Time{}, false, time.Time{}, fmt.Errorf("failed to get detailed channel history after %d attempts, final Slack error: %s", maxRetries, errStr)
+			if c.handleDetailedHistoryError(err, attempt, maxRetries, channelID) {
+				continue
 			}
-
-			// Non-rate-limit errors - don't retry
-			return time.Time{}, false, time.Time{}, fmt.Errorf("failed to get detailed channel history: %w", err)
+			return nil, err
 		}
-
 		// Success - break out of retry loop
 		break
 	}
+	return history, nil
+}
 
-	if len(history.Messages) == 0 {
-		return time.Unix(0, 0), false, time.Time{}, nil
+// handleDetailedHistoryError handles errors during detailed history fetch and returns true if should retry.
+func (c *Client) handleDetailedHistoryError(err error, attempt, maxRetries int, channelID string) bool {
+	errStr := err.Error()
+
+	// Handle rate limiting with retry
+	if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
+		logger.WithFields(logger.LogFields{
+			"attempt":     attempt,
+			"max_tries":   maxRetries,
+			"channel":     channelID,
+			"slack_error": errStr,
+		}).Warn("Rate limited on detailed history, will retry after Slack-specified delay")
+
+		fmt.Printf("   🔄 Detailed history retry %d/%d for channel %s (Slack error: %s)\n", attempt, maxRetries, channelID, errStr)
+
+		if attempt < maxRetries {
+			c.handleRateLimitWait(errStr)
+			return true
+		}
+		// Last attempt failed
+		fmt.Printf("   ❌ All %d detailed retry attempts failed\n", maxRetries)
 	}
+	return false
+}
 
-	// Find the most recent real user message and check for warnings
-	mostRecentActivity := time.Time{}
-	hasWarningMessage := false
-	mostRecentWarning := time.Time{}
+// handleRateLimitWait handles waiting for rate limit recovery.
+func (c *Client) handleRateLimitWait(errStr string) {
+	waitDuration := parseSlackRetryAfter(errStr)
+	if waitDuration > 0 {
+		fmt.Printf("   ⏳ Slack says wait %s (includes 3s buffer) before detailed retry...\n", waitDuration)
+		time.Sleep(waitDuration)
+	} else {
+		fmt.Printf("   ⏳ Using fallback backoff before detailed retry...\n")
+	}
+}
 
-	for _, msg := range history.Messages {
+// analyzeChannelMessages analyzes messages for user activity and bot warnings.
+func (c *Client) analyzeChannelMessages(messages []slack.Message, botUserID string) (mostRecentActivity time.Time, hasWarningMessage bool, mostRecentWarning time.Time) {
+	for _, msg := range messages {
 		msgTime, err := parseSlackTimestamp(msg.Timestamp)
 		if err != nil {
 			continue
@@ -1446,15 +1369,7 @@ func (c *Client) getDetailedChannelActivity(channelID, botUserID string) (lastAc
 			mostRecentActivity = msgTime
 		}
 	}
-
-	// If only bot messages exist, use the oldest message time
-	if mostRecentActivity.IsZero() && len(history.Messages) > 0 {
-		if msgTime, err := parseSlackTimestamp(history.Messages[len(history.Messages)-1].Timestamp); err == nil {
-			mostRecentActivity = msgTime
-		}
-	}
-
-	return mostRecentActivity, hasWarningMessage, mostRecentWarning, nil
+	return mostRecentActivity, hasWarningMessage, mostRecentWarning
 }
 
 func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
@@ -1463,74 +1378,121 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 	var skippedCount = 0
 
 	for _, ch := range channels {
-		// Only join public channels
 		if ch.IsPrivate {
 			logger.WithField("channel", ch.Name).Debug("Skipping private channel for auto-join")
 			skippedCount++
 			continue
 		}
 
-		// Rate limit before joining
-
-		// Try to join the channel
-		_, _, _, err := c.api.JoinConversation(ch.ID)
-		if err != nil {
-			errStr := err.Error()
-
-			// Handle rate limiting - this is fatal
-			if strings.Contains(errStr, "rate_limited") {
-				return joinedCount, fmt.Errorf("rate limited during auto-join: %w", err)
-			}
-
-			// Already in channel is success
-			if strings.Contains(errStr, "already_in_channel") {
-				logger.WithField("channel", ch.Name).Debug("Already in channel")
-				joinedCount++
-				continue
-			}
-
-			// These indicate the channel can't be joined, but that's OK to skip
-			if strings.Contains(errStr, "is_archived") {
-				logger.WithField("channel", ch.Name).Debug("Channel is archived, skipping")
-				skippedCount++
-				continue
-			}
-
-			if strings.Contains(errStr, "invite_only") {
-				logger.WithField("channel", ch.Name).Debug("Channel is invite-only, skipping")
-				skippedCount++
-				continue
-			}
-
-			// Missing scope or permissions - this is fatal for the bot's functionality
-			if strings.Contains(errStr, "missing_scope") {
-				return joinedCount, fmt.Errorf("missing required OAuth scope to join channels. Your bot needs the 'channels:join' OAuth scope.\nPlease add this scope in your Slack app settings at https://api.slack.com/apps")
-			}
-
-			if strings.Contains(errStr, "invalid_auth") {
-				return joinedCount, fmt.Errorf("invalid authentication token: %w", err)
-			}
-
-			// Other errors are fatal - we need to be able to join channels for accurate analysis
-			fatalErrors = append(fatalErrors, fmt.Sprintf("%s: %s", ch.Name, errStr))
-			continue
+		result := c.joinChannel(ch)
+		switch result.status {
+		case joinSuccess:
+			joinedCount++
+		case joinSkipped:
+			skippedCount++
+		case joinFatal:
+			return joinedCount, result.err
+		case joinError:
+			fatalErrors = append(fatalErrors, fmt.Sprintf("%s: %s", ch.Name, result.err.Error()))
 		}
-
-		joinedCount++
-		logger.WithField("channel", ch.Name).Debug("Successfully joined channel")
 	}
 
-	logger.WithFields(logger.LogFields{
-		"joined":  joinedCount,
-		"skipped": skippedCount,
-		"total":   len(channels),
-	}).Debug("Auto-join summary")
+	c.logAutoJoinSummary(joinedCount, skippedCount, len(channels))
 
 	if len(fatalErrors) > 0 {
 		return joinedCount, fmt.Errorf("failed to join %d channels, cannot proceed with accurate analysis: %v", len(fatalErrors), fatalErrors)
 	}
 
 	return joinedCount, nil
+}
+
+type joinStatus int
+
+const (
+	joinSuccess joinStatus = iota
+	joinSkipped
+	joinFatal
+	joinError
+)
+
+type joinResult struct {
+	err    error
+	status joinStatus
+}
+
+// joinChannel attempts to join a single channel and returns the result.
+func (c *Client) joinChannel(ch slack.Channel) joinResult {
+	_, _, _, err := c.api.JoinConversation(ch.ID)
+	if err == nil {
+		logger.WithField("channel", ch.Name).Debug("Successfully joined channel")
+		return joinResult{status: joinSuccess}
+	}
+
+	errStr := err.Error()
+
+	// Handle rate limiting - this is fatal
+	if strings.Contains(errStr, "rate_limited") {
+		return joinResult{status: joinFatal, err: fmt.Errorf("rate limited during auto-join: %w", err)}
+	}
+
+	// Already in channel is success
+	if strings.Contains(errStr, "already_in_channel") {
+		logger.WithField("channel", ch.Name).Debug("Already in channel")
+		return joinResult{status: joinSuccess}
+	}
+
+	// Handle skippable errors
+	if c.isSkippableJoinError(errStr) {
+		c.logSkippableError(ch.Name, errStr)
+		return joinResult{status: joinSkipped}
+	}
+
+	// Handle fatal errors
+	if c.isFatalJoinError(errStr) {
+		return joinResult{status: joinFatal, err: c.createFatalJoinError(errStr, err)}
+	}
+
+	// Other errors
+	return joinResult{status: joinError, err: err}
+}
+
+// isSkippableJoinError checks if a join error can be safely skipped.
+func (c *Client) isSkippableJoinError(errStr string) bool {
+	return strings.Contains(errStr, "is_archived") || strings.Contains(errStr, "invite_only")
+}
+
+// isFatalJoinError checks if a join error is fatal for the bot's functionality.
+func (c *Client) isFatalJoinError(errStr string) bool {
+	return strings.Contains(errStr, "missing_scope") || strings.Contains(errStr, "invalid_auth")
+}
+
+// logSkippableError logs skippable join errors.
+func (c *Client) logSkippableError(channelName, errStr string) {
+	if strings.Contains(errStr, "is_archived") {
+		logger.WithField("channel", channelName).Debug("Channel is archived, skipping")
+	} else if strings.Contains(errStr, "invite_only") {
+		logger.WithField("channel", channelName).Debug("Channel is invite-only, skipping")
+	}
+}
+
+// createFatalJoinError creates appropriate fatal error messages.
+func (c *Client) createFatalJoinError(errStr string, originalErr error) error {
+	if strings.Contains(errStr, "missing_scope") {
+		return fmt.Errorf("missing required OAuth scope to join channels. Your bot needs the 'channels:join' OAuth scope.\nPlease add this scope in your Slack app settings at https://api.slack.com/apps")
+	}
+	if strings.Contains(errStr, "invalid_auth") {
+		return fmt.Errorf("invalid authentication token: %w", originalErr)
+	}
+	return originalErr
+}
+
+// logAutoJoinSummary logs the summary of auto-join operation.
+func (c *Client) logAutoJoinSummary(joined, skipped, total int) {
+	logger.WithFields(logger.LogFields{
+		"joined":  joined,
+		"skipped": skipped,
+		"total":   total,
+	}).Debug("Auto-join summary")
 }
 
 func (c *Client) shouldSkipChannel(channelName string) bool {
@@ -1645,55 +1607,69 @@ func (c *Client) WarnInactiveChannel(channel Channel, warnSeconds, archiveSecond
 func (c *Client) ensureBotInChannel(channel Channel) error {
 	logger.WithField("channel", channel.Name).Debug("Ensuring bot is in channel")
 
-	// Rate limit before API call
-
 	_, _, _, err := c.api.JoinConversation(channel.ID)
-	if err != nil {
-		errStr := err.Error()
-		logger.WithFields(logger.LogFields{
-			"channel":   channel.Name,
-			"error":     errStr,
-			"operation": "join_conversation",
-		}).Debug("Join conversation result")
-
-		// Handle rate limiting
-		if strings.Contains(errStr, "rate_limited") {
-			return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
-		}
-
-		// Handle expected errors that we can ignore
-		if strings.Contains(errStr, "already_in_channel") {
-			logger.WithField("channel", channel.Name).Debug("Bot already in channel")
-			return nil
-		}
-
-		// Handle permission errors
-		if strings.Contains(errStr, "missing_scope") {
-			return fmt.Errorf("missing required permission to join channels. Your bot needs the 'channels:join' OAuth scope.\nPlease add this scope in your Slack app settings at https://api.slack.com/apps")
-		}
-
-		if strings.Contains(errStr, "channel_not_found") {
-			return fmt.Errorf("channel '%s' not found", channel.Name)
-		}
-
-		if strings.Contains(errStr, "is_archived") {
-			return fmt.Errorf("channel '%s' is archived", channel.Name)
-		}
-
-		if strings.Contains(errStr, "invite_only") {
-			logger.WithField("channel", channel.Name).Debug("Channel is private/invite-only, cannot join")
-			return fmt.Errorf("channel '%s' is private or invite-only", channel.Name)
-		}
-
-		// For other errors, log but don't fail completely
-		logger.WithFields(logger.LogFields{
-			"channel": channel.Name,
-			"error":   errStr,
-		}).Warn("Unexpected error joining channel")
-		return fmt.Errorf("failed to join channel %s: %w", channel.Name, err)
+	if err == nil {
+		logger.WithField("channel", channel.Name).Info("Successfully joined channel")
+		return nil
 	}
 
-	logger.WithField("channel", channel.Name).Info("Successfully joined channel")
+	errStr := err.Error()
+	logger.WithFields(logger.LogFields{
+		"channel":   channel.Name,
+		"error":     errStr,
+		"operation": "join_conversation",
+	}).Debug("Join conversation result")
+
+	return c.handleJoinChannelError(channel, errStr, err)
+}
+
+// handleJoinChannelError handles various join channel errors.
+func (c *Client) handleJoinChannelError(channel Channel, errStr string, originalErr error) error {
+	// Handle rate limiting
+	if strings.Contains(errStr, "rate_limited") {
+		return fmt.Errorf("rate limited by Slack API. Will retry with exponential backoff on next request")
+	}
+
+	// Handle expected success cases
+	if strings.Contains(errStr, "already_in_channel") {
+		logger.WithField("channel", channel.Name).Debug("Bot already in channel")
+		return nil
+	}
+
+	// Handle fatal permission errors
+	if strings.Contains(errStr, "missing_scope") {
+		return fmt.Errorf("missing required permission to join channels. Your bot needs the 'channels:join' OAuth scope.\nPlease add this scope in your Slack app settings at https://api.slack.com/apps")
+	}
+
+	// Handle specific channel errors
+	err := c.handleSpecificChannelErrors(channel, errStr)
+	if err != nil {
+		return err
+	}
+
+	// For other errors, log but don't fail completely
+	logger.WithFields(logger.LogFields{
+		"channel": channel.Name,
+		"error":   errStr,
+	}).Warn("Unexpected error joining channel")
+	return fmt.Errorf("failed to join channel %s: %w", channel.Name, originalErr)
+}
+
+// handleSpecificChannelErrors handles specific channel-related errors.
+func (c *Client) handleSpecificChannelErrors(channel Channel, errStr string) error {
+	if strings.Contains(errStr, "channel_not_found") {
+		return fmt.Errorf("channel '%s' not found", channel.Name)
+	}
+
+	if strings.Contains(errStr, "is_archived") {
+		return fmt.Errorf("channel '%s' is archived", channel.Name)
+	}
+
+	if strings.Contains(errStr, "invite_only") {
+		logger.WithField("channel", channel.Name).Debug("Channel is private/invite-only, cannot join")
+		return fmt.Errorf("channel '%s' is private or invite-only", channel.Name)
+	}
+
 	return nil
 }
 
@@ -1741,43 +1717,11 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 
 	builder.WriteString("🚨 **Inactive Channel Warning** 🚨\n\n")
 
-	// Format warn period in human readable format
-	warnText := fmt.Sprintf("%d seconds", warnSeconds)
-	if warnSeconds >= 60 {
-		minutes := warnSeconds / 60
-		if minutes == 1 {
-			warnText = "1 minute"
-		} else if minutes < 60 {
-			warnText = fmt.Sprintf("%d minutes", minutes)
-		} else {
-			hours := minutes / 60
-			if hours == 1 {
-				warnText = "1 hour"
-			} else if hours < 24 {
-				warnText = fmt.Sprintf("%d hours", hours)
-			} else {
-				days := hours / 24
-				if days == 1 {
-					warnText = "1 day"
-				} else {
-					warnText = fmt.Sprintf("%d days", days)
-				}
-			}
-		}
-	}
+	warnText := formatDurationSeconds(warnSeconds)
 
 	builder.WriteString(fmt.Sprintf("This channel has been inactive for more than %s.\n\n", warnText))
 
-	// Convert seconds to human readable format
-	archiveText := fmt.Sprintf("%d seconds", archiveSeconds)
-	if archiveSeconds >= 60 {
-		minutes := archiveSeconds / 60
-		if minutes == 1 {
-			archiveText = "1 minute"
-		} else {
-			archiveText = fmt.Sprintf("%d minutes", minutes)
-		}
-	}
+	archiveText := formatDurationSeconds(archiveSeconds)
 
 	builder.WriteString(fmt.Sprintf("**This channel will be archived in %s** unless new messages are posted.\n\n", archiveText))
 
@@ -1796,59 +1740,13 @@ func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, arch
 
 	builder.WriteString("📋 **Channel Archival Notice** 📋\n\n")
 
-	// Format warn period in human readable format
-	warnText := fmt.Sprintf("%d seconds", warnSeconds)
-	if warnSeconds >= 60 {
-		minutes := warnSeconds / 60
-		if minutes == 1 {
-			warnText = "1 minute"
-		} else if minutes < 60 {
-			warnText = fmt.Sprintf("%d minutes", minutes)
-		} else {
-			hours := minutes / 60
-			if hours == 1 {
-				warnText = "1 hour"
-			} else if hours < 24 {
-				warnText = fmt.Sprintf("%d hours", hours)
-			} else {
-				days := hours / 24
-				if days == 1 {
-					warnText = "1 day"
-				} else {
-					warnText = fmt.Sprintf("%d days", days)
-				}
-			}
-		}
-	}
+	warnText := formatDurationSeconds(warnSeconds)
 
-	// Format archive period in human readable format
-	archiveText := fmt.Sprintf("%d seconds", archiveSeconds)
-	if archiveSeconds >= 60 {
-		minutes := archiveSeconds / 60
-		if minutes == 1 {
-			archiveText = "1 minute"
-		} else if minutes < 60 {
-			archiveText = fmt.Sprintf("%d minutes", minutes)
-		} else {
-			hours := minutes / 60
-			if hours == 1 {
-				archiveText = "1 hour"
-			} else if hours < 24 {
-				archiveText = fmt.Sprintf("%d hours", hours)
-			} else {
-				days := hours / 24
-				if days == 1 {
-					archiveText = oneDayText
-				} else {
-					archiveText = strconv.Itoa(days) + " days"
-				}
-			}
-		}
-	}
+	archiveText := formatDurationSeconds(archiveSeconds)
 
-	builder.WriteString(fmt.Sprintf("This channel is being archived because:\n"))
+	builder.WriteString("This channel is being archived because:\n")
 	builder.WriteString(fmt.Sprintf("• It was inactive for more than %s (warning threshold)\n", warnText))
-	builder.WriteString(fmt.Sprintf("• An inactivity warning was posted\n"))
+	builder.WriteString("• An inactivity warning was posted\n")
 	builder.WriteString(fmt.Sprintf("• No new activity occurred within %s after the warning (archive threshold)\n\n", archiveText))
 
 	builder.WriteString("**This channel is now being archived.**\n\n")
@@ -1960,7 +1858,7 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 
 	logger.WithField("total_channels", len(channels)).Debug("Retrieved channels from Slack API")
 
-	var result []Channel
+	result := make([]Channel, 0, len(channels))
 	for _, ch := range channels {
 		created := time.Unix(int64(ch.Created), 0)
 
@@ -2013,12 +1911,12 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 	return result, nil
 }
 
-// GetChannelActivity returns the last activity time, warning status, and warning time for a channel
+// GetChannelActivity returns the last activity time, warning status, and warning time for a channel.
 func (c *Client) GetChannelActivity(channelID string) (lastActivity time.Time, hasWarning bool, warningTime time.Time, err error) {
 	return c.getChannelActivity(channelID)
 }
 
-// MessageInfo contains details about a message
+// MessageInfo contains details about a message.
 type MessageInfo struct {
 	Timestamp time.Time
 	User      string
@@ -2027,100 +1925,90 @@ type MessageInfo struct {
 	IsBot     bool
 }
 
-// GetChannelActivityWithMessage returns activity info plus details about the most recent message
+// GetChannelActivityWithMessage returns activity info plus details about the most recent message.
 func (c *Client) GetChannelActivityWithMessage(channelID string) (lastActivity time.Time, hasWarning bool, warningTime time.Time, lastMessage *MessageInfo, err error) {
-	const maxRetries = 3
-	var history *slack.GetConversationHistoryResponse
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-
-		// Get recent messages to find the most recent real one
-		params := &slack.GetConversationHistoryParameters{
-			ChannelID: channelID,
-			Limit:     10, // Get more messages to find real ones past any system messages
-		}
-
-		history, err = c.api.GetConversationHistory(params)
-		if err != nil {
-			errStr := err.Error()
-
-			// Handle rate limiting with retry
-			if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
-
-				// If not the last attempt, continue to retry
-				if attempt < maxRetries {
-					// Parse Slack's retry-after directive
-					waitDuration := parseSlackRetryAfter(errStr)
-					if waitDuration > 0 {
-						// Wait for the specified duration with user-friendly explanation
-						fmt.Printf("⏳ Waiting %s due to Slack API rate limiting...\n", waitDuration.String())
-						showProgressBar(waitDuration)
-					} else {
-						// Fallback to our rate limiter if we can't parse Slack's directive
-						// Use fallback backoff quietly without verbose output
-					}
-					continue
-				}
-				// Last attempt failed, return error
-				// All retry attempts failed, proceeding to return error
-				return time.Time{}, false, time.Time{}, nil, fmt.Errorf("failed to get channel history after %d attempts, final Slack error: %s", maxRetries, errStr)
-			}
-
-			// Non-rate-limit errors - don't retry
-			return time.Time{}, false, time.Time{}, nil, fmt.Errorf("failed to get channel history: %w", err)
-		}
-
-		// Success - break out of retry loop
-		break
+	history, err := c.getChannelHistoryWithRetry(channelID)
+	if err != nil {
+		return time.Time{}, false, time.Time{}, nil, err
 	}
 
 	if len(history.Messages) == 0 {
-		// No messages
 		return time.Time{}, false, time.Time{}, nil, nil
 	}
 
-	// Find the most recent "real" message (not join/leave/system messages)
 	botUserID := c.getBotUserID()
-	var lastRealMsg *slack.Message
-	var lastRealMsgTime time.Time
-
-	for _, msg := range history.Messages {
-		if isRealMessage(msg, botUserID) {
-			lastRealMsg = &msg
-			if msgTime, err := parseSlackTimestamp(msg.Timestamp); err == nil {
-				lastRealMsgTime = msgTime
-			}
-			break // Found the most recent real message
-		}
-	}
-
-	// If no real messages found, check if we need to look deeper
+	lastRealMsg, lastRealMsgTime := c.findMostRecentRealMessage(history.Messages, botUserID)
 	if lastRealMsg == nil {
-		// No real messages in the first message, might need to get more history
-		// For now, return no activity
 		return time.Time{}, false, time.Time{}, nil, nil
 	}
 
-	// Create message info for the real message
-	msgInfo := &MessageInfo{
-		Timestamp: lastRealMsgTime,
-		User:      lastRealMsg.User,
-		Text:      lastRealMsg.Text,
-		IsBot:     lastRealMsg.User == botUserID,
-	}
-
-	// Check if this is a warning message from our bot
-	hasWarningMessage := lastRealMsg.User == botUserID && strings.Contains(lastRealMsg.Text, "inactive channel warning")
-	var mostRecentWarning time.Time
-	if hasWarningMessage {
-		mostRecentWarning = lastRealMsgTime
-	}
+	msgInfo := c.createMessageInfo(lastRealMsg, lastRealMsgTime, botUserID)
+	hasWarningMessage, mostRecentWarning := c.checkForWarningMessage(lastRealMsg, lastRealMsgTime, botUserID)
 
 	return lastRealMsgTime, hasWarningMessage, mostRecentWarning, msgInfo, nil
 }
 
-// parseSlackRetryAfter parses Slack's "retry after" directive from error messages
-// Example: "slack rate limit exceeded, retry after 1m0s" -> 1 minute duration
+// getChannelHistoryWithRetry handles the API call with retry logic.
+func (c *Client) getChannelHistoryWithRetry(channelID string) (*slack.GetConversationHistoryResponse, error) {
+	const maxRetries = 3
+	params := &slack.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Limit:     10,
+	}
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		history, err := c.api.GetConversationHistory(params)
+		if err != nil {
+			if c.isRateLimitError(err) && attempt < maxRetries {
+				c.handleRateLimit(err, attempt, maxRetries)
+				continue
+			}
+			if c.isRateLimitError(err) {
+				return nil, fmt.Errorf("failed to get channel history after %d attempts, final Slack error: %s", maxRetries, err.Error())
+			}
+			return nil, fmt.Errorf("failed to get channel history: %w", err)
+		}
+		return history, nil
+	}
+	return nil, fmt.Errorf("unexpected end of retry loop")
+}
+
+// createMessageInfo creates a MessageInfo struct from a Slack message.
+func (c *Client) createMessageInfo(msg *slack.Message, msgTime time.Time, botUserID string) *MessageInfo {
+	return &MessageInfo{
+		Timestamp: msgTime,
+		User:      msg.User,
+		Text:      msg.Text,
+		IsBot:     msg.User == botUserID,
+	}
+}
+
+// checkForWarningMessage checks if the message is a warning from our bot.
+func (c *Client) checkForWarningMessage(msg *slack.Message, msgTime time.Time, botUserID string) (bool, time.Time) {
+	hasWarning := msg.User == botUserID && strings.Contains(msg.Text, "inactive channel warning")
+	if hasWarning {
+		return true, msgTime
+	}
+	return false, time.Time{}
+}
+
+// isRateLimitError checks if an error is a rate limiting error.
+func (c *Client) isRateLimitError(err error) bool {
+	errStr := err.Error()
+	return strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit")
+}
+
+// handleRateLimit handles rate limiting with user feedback.
+func (c *Client) handleRateLimit(err error, attempt, maxRetries int) {
+	waitDuration := parseSlackRetryAfter(err.Error())
+	if waitDuration > 0 {
+		fmt.Printf("⏳ Waiting %s due to Slack API rate limiting...\n", waitDuration.String())
+		showProgressBar(waitDuration)
+	}
+}
+
+// parseSlackRetryAfter parses Slack's "retry after" directive from error messages.
+// Example: "slack rate limit exceeded, retry after 1m0s" -> 1 minute duration.
 func parseSlackRetryAfter(errorStr string) time.Duration {
 	// Look for "retry after" followed by a duration
 	retryAfterIndex := strings.Index(errorStr, "retry after ")
@@ -2158,8 +2046,8 @@ func parseSlackRetryAfter(errorStr string) time.Duration {
 	return bufferedDuration
 }
 
-// showProgressBar displays a text-based progress bar for waiting periods
-// Shows - for remaining time and * for elapsed time
+// showProgressBar displays a text-based progress bar for waiting periods.
+// Shows - for remaining time and * for elapsed time.
 func showProgressBar(duration time.Duration) {
 	totalSeconds := int(duration.Seconds())
 	if totalSeconds <= 0 {
@@ -2209,7 +2097,7 @@ func showProgressBar(duration time.Duration) {
 }
 
 // isRealMessage filters out system messages like joins, leaves, topic changes, etc.
-// Returns true for actual user-generated content
+// Returns true for actual user-generated content.
 func isRealMessage(msg slack.Message, botUserID string) bool {
 	// Filter out messages with system subtypes
 	if msg.SubType != "" {
@@ -2272,7 +2160,7 @@ func isRealMessage(msg slack.Message, botUserID string) bool {
 	return true
 }
 
-// getUserMap fetches all users and builds a map from user ID to display name
+// getUserMap fetches all users and builds a map from user ID to display name.
 func (c *Client) getUserMap() (map[string]string, error) {
 
 	users, err := c.api.GetUsers()
@@ -2317,12 +2205,12 @@ func (c *Client) getUserMap() (map[string]string, error) {
 	return userMap, nil
 }
 
-// GetUserMap is a public wrapper for getUserMap
+// GetUserMap is a public wrapper for getUserMap.
 func (c *Client) GetUserMap() (map[string]string, error) {
 	return c.getUserMap()
 }
 
-// GetChannelActivityWithMessageAndUsers returns activity info plus message details with resolved user names
+// GetChannelActivityWithMessageAndUsers returns activity info plus message details with resolved user names.
 func (c *Client) GetChannelActivityWithMessageAndUsers(channelID string, userMap map[string]string) (lastActivity time.Time, hasWarning bool, warningTime time.Time, lastMessage *MessageInfo, err error) {
 	// Get the basic activity info
 	lastActivity, hasWarning, warningTime, basicMessage, err := c.GetChannelActivityWithMessage(channelID)
@@ -2346,4 +2234,72 @@ func (c *Client) GetChannelActivityWithMessageAndUsers(channelID string, userMap
 	}
 
 	return lastActivity, hasWarning, warningTime, enhancedMessage, nil
+}
+
+func shouldRetryOnRateLimit(errStr string, attempt, maxRetries int, channel string) bool {
+	if !strings.Contains(errStr, "rate_limited") && !strings.Contains(errStr, "rate limit") {
+		return false
+	}
+	if attempt >= maxRetries {
+		return false
+	}
+
+	waitDuration := parseSlackRetryAfter(errStr)
+	if waitDuration <= 0 {
+		return false
+	}
+
+	logger.WithFields(logger.LogFields{
+		"channel":       channel,
+		"attempt":       attempt,
+		"wait_duration": waitDuration.String(),
+	}).Info("Respecting Slack rate limit for duplicate check")
+	fmt.Printf("⏳ Waiting %s due to Slack rate limit (attempt %d/%d)...\n", waitDuration.String(), attempt, maxRetries)
+	showProgressBar(waitDuration)
+	fmt.Println() // Add newline after progress bar
+	return true
+}
+
+func shouldRetryOnRateLimitSimple(errStr string, attempt, maxRetries int) bool {
+	if !strings.Contains(errStr, "rate_limited") && !strings.Contains(errStr, "rate limit") {
+		return false
+	}
+	if attempt >= maxRetries {
+		return false
+	}
+
+	waitDuration := parseSlackRetryAfter(errStr)
+	if waitDuration > 0 {
+		fmt.Printf("⏳ Waiting %s due to Slack API rate limiting...\n", waitDuration.String())
+		showProgressBar(waitDuration)
+	}
+	return true
+}
+
+func formatDurationSeconds(seconds int) string {
+	if seconds < 60 {
+		return fmt.Sprintf("%d seconds", seconds)
+	}
+
+	minutes := seconds / 60
+	if minutes == 1 {
+		return "1 minute"
+	}
+	if minutes < 60 {
+		return fmt.Sprintf("%d minutes", minutes)
+	}
+
+	hours := minutes / 60
+	if hours == 1 {
+		return "1 hour"
+	}
+	if hours < 24 {
+		return fmt.Sprintf("%d hours", hours)
+	}
+
+	days := hours / 24
+	if days == 1 {
+		return "1 day"
+	}
+	return fmt.Sprintf("%d days", days)
 }

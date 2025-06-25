@@ -33,7 +33,9 @@ func TestMainIntegration(t *testing.T) {
 
 		// Clean up binary after test
 		defer func() {
-			os.Remove("./slack-buddy-test")
+			if removeErr := os.Remove("./slack-buddy-test"); removeErr != nil {
+				t.Logf("Failed to clean up test binary: %v", removeErr)
+			}
 		}()
 
 		// Test version flag
@@ -55,7 +57,9 @@ func TestMainIntegration(t *testing.T) {
 
 		// Clean up binary after test
 		defer func() {
-			os.Remove("./slack-buddy-test")
+			if removeErr := os.Remove("./slack-buddy-test"); removeErr != nil {
+				t.Logf("Failed to clean up test binary: %v", removeErr)
+			}
 		}()
 
 		// Test help flag
@@ -79,7 +83,9 @@ func TestMainIntegration(t *testing.T) {
 
 		// Clean up binary after test
 		defer func() {
-			os.Remove("./slack-buddy-test")
+			if removeErr := os.Remove("./slack-buddy-test"); removeErr != nil {
+				t.Logf("Failed to clean up test binary: %v", removeErr)
+			}
 		}()
 
 		// Test invalid command

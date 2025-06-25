@@ -106,7 +106,8 @@ func TestMockHelperMethods(t *testing.T) {
 		mock := NewMockSlackAPI()
 
 		// Post a message
-		_, _, _ = mock.PostMessage("test", nil)
+		_, _, err := mock.PostMessage("test", nil)
+		assert.NoError(t, err)
 		assert.Len(t, mock.GetPostedMessages(), 1)
 
 		// Clear messages

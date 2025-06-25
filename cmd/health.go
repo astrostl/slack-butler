@@ -46,8 +46,8 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check 2: Token format validation
-	if err := validateTokenFormat(token); err != nil {
-		return err
+	if validateErr := validateTokenFormat(token); validateErr != nil {
+		return validateErr
 	}
 
 	// Check 3: Slack client creation
@@ -75,7 +75,7 @@ func runHealth(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// validateConfiguration checks if token is configured and displays appropriate messages
+// validateConfiguration checks if token is configured and displays appropriate messages.
 func validateConfiguration() (string, error) {
 	fmt.Print("✓ Configuration validation... ")
 	token := viper.GetString("token")
@@ -92,7 +92,7 @@ func validateConfiguration() (string, error) {
 	return token, nil
 }
 
-// validateTokenFormat validates the token format
+// validateTokenFormat validates the token format.
 func validateTokenFormat(token string) error {
 	fmt.Print("✓ Token format validation... ")
 	if !isValidTokenFormat(token) {
@@ -105,7 +105,7 @@ func validateTokenFormat(token string) error {
 	return nil
 }
 
-// createAndTestClient creates a Slack client and tests initialization
+// createAndTestClient creates a Slack client and tests initialization.
 func createAndTestClient(token string) (*slack.Client, error) {
 	fmt.Print("✓ Slack client initialization... ")
 	client, err := slack.NewClient(token)
@@ -118,7 +118,7 @@ func createAndTestClient(token string) (*slack.Client, error) {
 	return client, nil
 }
 
-// testAPIConnectivity tests API connectivity and returns auth info
+// testAPIConnectivity tests API connectivity and returns auth info.
 func testAPIConnectivity(client *slack.Client) (*slack.AuthInfo, error) {
 	fmt.Print("✓ Slack API connectivity... ")
 	authInfo, err := client.TestAuth()
@@ -136,7 +136,7 @@ func testAPIConnectivity(client *slack.Client) (*slack.AuthInfo, error) {
 	return authInfo, nil
 }
 
-// validateOAuthScopes validates required and optional OAuth scopes
+// validateOAuthScopes validates required and optional OAuth scopes.
 func validateOAuthScopes(client *slack.Client) error {
 	fmt.Print("✓ OAuth scope validation (channels:read, channels:join, chat:write, channels:manage, users:read)... ")
 	if healthVerbose {
@@ -144,7 +144,7 @@ func validateOAuthScopes(client *slack.Client) error {
 		fmt.Printf("  Testing optional scopes: groups:read\n")
 		fmt.Print("  Validation result: ")
 	}
-	
+
 	scopes, err := client.CheckOAuthScopes()
 	if err != nil {
 		fmt.Println("❌ FAILED")
@@ -181,7 +181,7 @@ func validateOAuthScopes(client *slack.Client) error {
 	return nil
 }
 
-// checkMissingScopes checks which scopes are missing
+// checkMissingScopes checks which scopes are missing.
 func checkMissingScopes(scopes map[string]bool, requiredScopes, optionalScopes map[string]bool) ([]string, []string) {
 	var missingRequired []string
 	var missingOptional []string
@@ -201,7 +201,7 @@ func checkMissingScopes(scopes map[string]bool, requiredScopes, optionalScopes m
 	return missingRequired, missingOptional
 }
 
-// displayScopeErrors displays missing scope errors
+// displayScopeErrors displays missing scope errors.
 func displayScopeErrors(missingRequired, missingOptional []string) {
 	fmt.Println("❌ FAILED")
 	fmt.Println("  Missing REQUIRED OAuth scopes:")
@@ -217,7 +217,7 @@ func displayScopeErrors(missingRequired, missingOptional []string) {
 	fmt.Println("  Fix: Add missing OAuth scopes in your Slack app settings at https://api.slack.com/apps")
 }
 
-// displayScopeDetails displays detailed scope information in verbose mode
+// displayScopeDetails displays detailed scope information in verbose mode.
 func displayScopeDetails(scopes map[string]bool, requiredScopes, optionalScopes map[string]bool) {
 	fmt.Println("  OAuth scope test results:")
 
@@ -244,7 +244,7 @@ func displayScopeDetails(scopes map[string]bool, requiredScopes, optionalScopes 
 	}
 }
 
-// getScopeTestMethod returns the test method description for a scope
+// getScopeTestMethod returns the test method description for a scope.
 func getScopeTestMethod(scope string) string {
 	switch scope {
 	case "channels:read":
@@ -264,7 +264,7 @@ func getScopeTestMethod(scope string) string {
 	}
 }
 
-// testBasicFunctionalityAndReport tests basic functionality and reports results
+// testBasicFunctionalityAndReport tests basic functionality and reports results.
 func testBasicFunctionalityAndReport(client *slack.Client) {
 	fmt.Print("✓ Basic functionality test... ")
 	if err := testBasicFunctionality(client); err != nil {
@@ -276,7 +276,7 @@ func testBasicFunctionalityAndReport(client *slack.Client) {
 	}
 }
 
-// displaySuccessSummary displays the final success message
+// displaySuccessSummary displays the final success message.
 func displaySuccessSummary(authInfo *slack.AuthInfo) {
 	fmt.Println()
 	fmt.Println("🎉 Health check completed successfully!")

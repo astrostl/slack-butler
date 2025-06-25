@@ -18,24 +18,31 @@ var (
 	gitCommit string
 )
 
+// Constants for version info.
+const unknownValue = "unknown"
+
 var rootCmd = &cobra.Command{
 	Use:   "slack-buddy",
 	Short: "A CLI tool to help manage Slack workspaces",
 	Long:  `Slack Buddy is a CLI tool that helps make Slack workspaces more useful and tidy.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Handle --version flag when no subcommand is specified
-		if versionFlag, _ := cmd.Flags().GetBool("version"); versionFlag {
+		versionFlag, err := cmd.Flags().GetBool("version")
+		if err == nil && versionFlag {
 			fmt.Printf("slack-buddy version %s\n", version)
-			if buildTime != "unknown" {
+			if buildTime != unknownValue {
 				fmt.Printf("Built: %s\n", buildTime)
 			}
-			if gitCommit != "unknown" {
+			if gitCommit != unknownValue {
 				fmt.Printf("Commit: %s\n", gitCommit)
 			}
 			return
 		}
 		// Show help if no version flag and no subcommand
-		_ = cmd.Help()
+		if err := cmd.Help(); err != nil {
+			// Ignore help display errors
+			return
+		}
 	},
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,
@@ -77,8 +84,14 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// Explicitly bind environment variables
-	_ = viper.BindEnv("token", "SLACK_TOKEN")
-	_ = viper.BindEnv("debug", "SLACK_DEBUG")
+	if err := viper.BindEnv("token", "SLACK_TOKEN"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
+	if err := viper.BindEnv("debug", "SLACK_DEBUG"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
 
 	// Set log level based on debug flag
 	if viper.GetBool("debug") {

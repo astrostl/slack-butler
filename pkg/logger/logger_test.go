@@ -18,8 +18,9 @@ func TestLoggerInitialization(t *testing.T) {
 		{
 			name: "Default log level is Info",
 			setup: func() {
-				if err := os.Unsetenv("SLACK_LOG_LEVEL"); err != nil {
-					// Not critical if unset fails in test
+				err := os.Unsetenv("SLACK_LOG_LEVEL")
+				if err != nil {
+					panic(err)
 				}
 				// Reinitialize logger
 				Log = logrus.New()
@@ -31,28 +32,38 @@ func TestLoggerInitialization(t *testing.T) {
 		{
 			name: "Debug log level from environment",
 			setup: func() {
-				if err := os.Setenv("SLACK_LOG_LEVEL", "debug"); err != nil {
-					// Not critical if setenv fails in test
+				err := os.Setenv("SLACK_LOG_LEVEL", "debug")
+				if err != nil {
+					panic(err)
 				}
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.DebugLevel)
 			},
 			cleanup: func() {
-				_ = os.Unsetenv("SLACK_LOG_LEVEL")
+				err := os.Unsetenv("SLACK_LOG_LEVEL")
+				if err != nil {
+					panic(err)
+				}
 			},
 			expected: logrus.DebugLevel,
 		},
 		{
 			name: "Error log level from environment",
 			setup: func() {
-				_ = os.Setenv("SLACK_LOG_LEVEL", "error")
+				err := os.Setenv("SLACK_LOG_LEVEL", "error")
+				if err != nil {
+					panic(err)
+				}
 				// Reinitialize logger
 				Log = logrus.New()
 				Log.SetLevel(logrus.ErrorLevel)
 			},
 			cleanup: func() {
-				_ = os.Unsetenv("SLACK_LOG_LEVEL")
+				err := os.Unsetenv("SLACK_LOG_LEVEL")
+				if err != nil {
+					panic(err)
+				}
 			},
 			expected: logrus.ErrorLevel,
 		},
@@ -132,9 +143,15 @@ func TestLoggerFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.formatEnv != "" {
-				_ = os.Setenv("SLACK_LOG_FORMAT", tt.formatEnv)
+				err := os.Setenv("SLACK_LOG_FORMAT", tt.formatEnv)
+				if err != nil {
+					panic(err)
+				}
 			} else {
-				_ = os.Unsetenv("SLACK_LOG_FORMAT")
+				err := os.Unsetenv("SLACK_LOG_FORMAT")
+				if err != nil {
+					panic(err)
+				}
 			}
 
 			// Reinitialize logger to pick up env changes
@@ -156,7 +173,10 @@ func TestLoggerFormatter(t *testing.T) {
 			assert.Contains(t, getFormatterTypeName(formatterType), tt.expectedType)
 
 			// Cleanup
-			_ = os.Unsetenv("SLACK_LOG_FORMAT")
+			err := os.Unsetenv("SLACK_LOG_FORMAT")
+			if err != nil {
+				panic(err)
+			}
 		})
 	}
 }

@@ -15,18 +15,25 @@ func TestVersionCommand(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
 	os.Stdout = w
 
 	// Execute version command run function directly
 	versionCmd.Run(versionCmd, []string{})
 
 	// Restore stdout and read output
-	_ = w.Close()
+	if err := w.Close(); err != nil {
+		t.Logf("Warning: failed to close pipe writer: %v", err)
+	}
 	os.Stdout = oldStdout
 
 	buf := new(bytes.Buffer)
-	_, _ = buf.ReadFrom(r)
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("Failed to read from pipe: %v", err)
+	}
 	output := buf.String()
 
 	// Check output contains expected information
@@ -51,18 +58,25 @@ func TestVersionCommandDefaults(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
 	os.Stdout = w
 
 	// Execute version command run function directly
 	versionCmd.Run(versionCmd, []string{})
 
 	// Restore stdout and read output
-	_ = w.Close()
+	if err := w.Close(); err != nil {
+		t.Logf("Warning: failed to close pipe writer: %v", err)
+	}
 	os.Stdout = oldStdout
 
 	buf := new(bytes.Buffer)
-	_, _ = buf.ReadFrom(r)
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("Failed to read from pipe: %v", err)
+	}
 	output := buf.String()
 
 	// Check output contains version but not unknown values

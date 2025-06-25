@@ -766,7 +766,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		// Test verbose mode functionality
 		healthVerbose = true
 
-		viper.Set("token", "test-fake-token-not-real-for-testing")
+		viper.Set("token", "test-12345678901234567890123456")
 
 		// Create mock client
 		mockAPI := slack.NewMockSlackAPI()

@@ -9,6 +9,7 @@ import (
 	"github.com/astrostl/slack-buddy-ai/pkg/logger"
 	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 
+	slackapi "github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -47,7 +48,7 @@ The bot will automatically join public channels to send warning messages. Requir
 
 Use --commit to actually warn and archive channels (default is dry run mode).
 
-NOTE: Currently using SECONDS for testing (will be changed back to days later).`,
+NOTE: Archive timing is configured in seconds for precise control.`,
 	SilenceUsage: true, // Don't show usage on errors
 	RunE:         runArchive,
 }
@@ -115,6 +116,22 @@ func runDetect(cmd *cobra.Command, args []string) error {
 	return runDetectWithClient(client, cutoffTime, announceTo, !commit)
 }
 
+func displayNewChannels(newChannels []slack.Channel) {
+	channelList := make([]string, len(newChannels))
+	for i, channel := range newChannels {
+		channelList[i] = "#" + channel.Name
+	}
+	fmt.Printf("New channels found (%d): %s\n\n", len(newChannels), strings.Join(channelList, ", "))
+}
+
+func extractChannelNames(channels []slack.Channel) []string {
+	channelNames := make([]string, len(channels))
+	for i, channel := range channels {
+		channelNames[i] = channel.Name
+	}
+	return channelNames
+}
+
 func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceChannel string, isDryRun bool) error {
 	newChannels, allChannels, err := client.GetNewChannelsWithAllChannels(cutoffTime)
 	if err != nil {
@@ -125,115 +142,124 @@ func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceCha
 		return nil
 	}
 
-	// Show simple summary list on one line
-	channelList := make([]string, len(newChannels))
-	for i, channel := range newChannels {
-		channelList[i] = "#" + channel.Name
-	}
-	fmt.Printf("New channels found (%d): %s\n\n", len(newChannels), strings.Join(channelList, ", "))
+	displayNewChannels(newChannels)
 
 	if announceChannel != "" {
-		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
+		return handleAnnouncement(client, newChannels, allChannels, cutoffTime, announceChannel, isDryRun)
+	}
 
-		// Extract channel names for duplicate checking
-		channelNames := make([]string, len(newChannels))
-		for i, channel := range newChannels {
-			channelNames[i] = channel.Name
+	return handleDryRunWithoutChannel(client, newChannels, cutoffTime, isDryRun)
+}
+
+func handleAnnouncement(client *slack.Client, newChannels []slack.Channel, allChannels []slackapi.Channel, cutoffTime time.Time, announceChannel string, isDryRun bool) error {
+	message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
+	channelNames := extractChannelNames(newChannels)
+
+	fmt.Printf("Checking for duplicate announcements in %s...\n\n", announceChannel)
+	isDuplicate, skippedChannels, err := client.CheckForDuplicateAnnouncementWithDetailsAndChannels(announceChannel, message, channelNames, cutoffTime, allChannels)
+	if err != nil {
+		logger.WithFields(logger.LogFields{
+			"channel": announceChannel,
+			"error":   err.Error(),
+		}).Warn("Failed to check for duplicate announcements, proceeding with post")
+	}
+
+	var finalMessage string
+	var channelsToAnnounce []slack.Channel
+
+	if isDuplicate {
+		newChannelsToAnnounce := filterSkippedChannels(channelNames, skippedChannels)
+
+		if len(skippedChannels) > 0 {
+			fmt.Printf("Channels already announced (skipped): %s\n", strings.Join(skippedChannels, ", "))
 		}
 
-		// Check for duplicate announcements and track skipped channels (regardless of dry run mode)
-		fmt.Printf("Checking for duplicate announcements in %s...\n\n", announceChannel)
-		isDuplicate, skippedChannels, err := client.CheckForDuplicateAnnouncementWithDetailsAndChannels(announceChannel, message, channelNames, cutoffTime, allChannels)
-		if err != nil {
+		if len(newChannelsToAnnounce) == 0 {
+			fmt.Printf("All channels already announced, skipping announcement to %s\n", announceChannel)
+			return nil
+		}
+
+		channelsToAnnounce = filterChannelsByNames(newChannels, newChannelsToAnnounce)
+		finalMessage = client.FormatNewChannelAnnouncement(channelsToAnnounce, cutoffTime)
+
+		if len(newChannelsToAnnounce) > 0 {
+			displayAnnouncingChannels(newChannelsToAnnounce, len(skippedChannels))
+		}
+	} else {
+		channelsToAnnounce = newChannels
+		finalMessage = message
+	}
+
+	return postOrPreviewAnnouncement(client, announceChannel, finalMessage, channelsToAnnounce, cutoffTime, isDryRun)
+}
+
+func filterSkippedChannels(channelNames []string, skippedChannels []string) []string {
+	var newChannelsToAnnounce []string
+	for _, channelName := range channelNames {
+		skipped := false
+		for _, skippedChannel := range skippedChannels {
+			if channelName == skippedChannel {
+				skipped = true
+				break
+			}
+		}
+		if !skipped {
+			newChannelsToAnnounce = append(newChannelsToAnnounce, channelName)
+		}
+	}
+	return newChannelsToAnnounce
+}
+
+func filterChannelsByNames(channels []slack.Channel, names []string) []slack.Channel {
+	var filtered []slack.Channel
+	for _, channel := range channels {
+		for _, name := range names {
+			if channel.Name == name {
+				filtered = append(filtered, channel)
+				break
+			}
+		}
+	}
+	return filtered
+}
+
+func displayAnnouncingChannels(channelNames []string, skippedCount int) {
+	announcingList := make([]string, 0, len(channelNames))
+	for _, channelName := range channelNames {
+		announcingList = append(announcingList, "#"+channelName)
+	}
+	fmt.Printf("Announcing channels: %s (skipped %d already announced)\n", strings.Join(announcingList, ", "), skippedCount)
+}
+
+func postOrPreviewAnnouncement(client *slack.Client, announceChannel, finalMessage string, channelsToAnnounce []slack.Channel, cutoffTime time.Time, isDryRun bool) error {
+	if isDryRun {
+		dryRunMessage := client.FormatNewChannelAnnouncementDryRun(channelsToAnnounce, cutoffTime)
+		fmt.Printf("\n--- DRY RUN ---\n")
+		fmt.Printf("Would announce to channel: %s\n", announceChannel)
+		fmt.Printf("Message content:\n%s\n", dryRunMessage)
+		fmt.Printf("--- END DRY RUN ---\n")
+		fmt.Printf("\nTo actually post this announcement, add --commit to your command\n")
+	} else {
+		if err := client.PostMessage(announceChannel, finalMessage); err != nil {
 			logger.WithFields(logger.LogFields{
 				"channel": announceChannel,
 				"error":   err.Error(),
-			}).Warn("Failed to check for duplicate announcements, proceeding with post")
+			}).Error("Failed to post announcement")
+			return fmt.Errorf("failed to post announcement to %s: %w", announceChannel, err)
 		}
+		fmt.Printf("Announcement posted to %s\n", announceChannel)
+	}
+	return nil
+}
 
-		var finalMessage string
-		var channelsToAnnounce []slack.Channel
-
-		if isDuplicate {
-			// Separate channels into new and skipped
-			var newChannelsToAnnounce []string
-			for _, channelName := range channelNames {
-				skipped := false
-				for _, skippedChannel := range skippedChannels {
-					if channelName == skippedChannel {
-						skipped = true
-						break
-					}
-				}
-				if !skipped {
-					newChannelsToAnnounce = append(newChannelsToAnnounce, channelName)
-				}
-			}
-
-			if len(skippedChannels) > 0 {
-				fmt.Printf("Channels already announced (skipped): %s\n", strings.Join(skippedChannels, ", "))
-			}
-
-			// If all channels were already announced, skip entirely
-			if len(newChannelsToAnnounce) == 0 {
-				fmt.Printf("All channels already announced, skipping announcement to %s\n", announceChannel)
-				return nil
-			}
-
-			// Update the message to only include new channels
-			var newChannelsToFormat []slack.Channel
-			for _, channel := range newChannels {
-				for _, newChannelName := range newChannelsToAnnounce {
-					if channel.Name == newChannelName {
-						newChannelsToFormat = append(newChannelsToFormat, channel)
-						break
-					}
-				}
-			}
-			channelsToAnnounce = newChannelsToFormat
-			finalMessage = client.FormatNewChannelAnnouncement(newChannelsToFormat, cutoffTime)
-
-			// Show what's being announced
-			if len(newChannelsToAnnounce) > 0 {
-				var announcingList []string
-				for _, channelName := range newChannelsToAnnounce {
-					announcingList = append(announcingList, "#"+channelName)
-				}
-				fmt.Printf("Announcing channels: %s (skipped %d already announced)\n", strings.Join(announcingList, ", "), len(skippedChannels))
-			}
-		} else {
-			channelsToAnnounce = newChannels
-			finalMessage = message
-		}
-
-		if isDryRun {
-			// For dry run, create a pretty version with readable names
-			dryRunMessage := client.FormatNewChannelAnnouncementDryRun(channelsToAnnounce, cutoffTime)
-
-			fmt.Printf("\n--- DRY RUN ---\n")
-			fmt.Printf("Would announce to channel: %s\n", announceChannel)
-			fmt.Printf("Message content:\n%s\n", dryRunMessage)
-			fmt.Printf("--- END DRY RUN ---\n")
-			fmt.Printf("\nTo actually post this announcement, add --commit to your command\n")
-		} else {
-			if err := client.PostMessage(announceChannel, finalMessage); err != nil {
-				logger.WithFields(logger.LogFields{
-					"channel": announceChannel,
-					"error":   err.Error(),
-				}).Error("Failed to post announcement")
-				return fmt.Errorf("failed to post announcement to %s: %w", announceChannel, err)
-			}
-			fmt.Printf("Announcement posted to %s\n", announceChannel)
-		}
-	} else if isDryRun {
-		// Show what announcement message would look like even without a target channel
+func handleDryRunWithoutChannel(client *slack.Client, newChannels []slack.Channel, cutoffTime time.Time, isDryRun bool) error {
+	if isDryRun {
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
 		fmt.Printf("\n--- DRY RUN ---\n")
 		fmt.Printf("Announcement message dry run (use --announce-to to specify target):\n%s\n", message)
 		fmt.Printf("--- END DRY RUN ---\n")
 		fmt.Printf("\nTo actually post announcements, add --commit to your command\n")
 	}
-
 	return nil
 }
 
@@ -311,7 +337,7 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 	return nil
 }
 
-// getUserMapWithErrorHandling gets user map with proper error handling and logging
+// getUserMapWithErrorHandling gets user map with proper error handling and logging.
 func getUserMapWithErrorHandling(client *slack.Client, isDebug bool) (map[string]string, error) {
 	if isDebug {
 		fmt.Printf("📞 API Call 1: Getting user list for name resolution...\n")
@@ -337,7 +363,7 @@ func getUserMapWithErrorHandling(client *slack.Client, isDebug bool) (map[string
 	return userMap, nil
 }
 
-// parseExclusionLists parses comma-separated exclusion lists and removes # prefixes
+// parseExclusionLists parses comma-separated exclusion lists and removes # prefixes.
 func parseExclusionLists(excludeChannels, excludePrefixes string) ([]string, []string) {
 	var excludeChannelsList []string
 	var excludePrefixesList []string
@@ -346,9 +372,7 @@ func parseExclusionLists(excludeChannels, excludePrefixes string) ([]string, []s
 		for _, channel := range strings.Split(excludeChannels, ",") {
 			channel = strings.TrimSpace(channel)
 			// Remove # prefix if present
-			if strings.HasPrefix(channel, "#") {
-				channel = channel[1:]
-			}
+			channel = strings.TrimPrefix(channel, "#")
 			if channel != "" {
 				excludeChannelsList = append(excludeChannelsList, channel)
 			}
@@ -359,9 +383,7 @@ func parseExclusionLists(excludeChannels, excludePrefixes string) ([]string, []s
 		for _, prefix := range strings.Split(excludePrefixes, ",") {
 			prefix = strings.TrimSpace(prefix)
 			// Remove # prefix if present
-			if strings.HasPrefix(prefix, "#") {
-				prefix = prefix[1:]
-			}
+			prefix = strings.TrimPrefix(prefix, "#")
 			if prefix != "" {
 				excludePrefixesList = append(excludePrefixesList, prefix)
 			}
@@ -371,7 +393,7 @@ func parseExclusionLists(excludeChannels, excludePrefixes string) ([]string, []s
 	return excludeChannelsList, excludePrefixesList
 }
 
-// displayExclusionInfo shows configured exclusions to the user
+// displayExclusionInfo shows configured exclusions to the user.
 func displayExclusionInfo(excludeChannelsList, excludePrefixesList []string) {
 	if len(excludeChannelsList) > 0 || len(excludePrefixesList) > 0 {
 		fmt.Printf("📋 Channel exclusions configured:\n")
@@ -385,7 +407,7 @@ func displayExclusionInfo(excludeChannelsList, excludePrefixesList []string) {
 	}
 }
 
-// getInactiveChannelsWithErrorHandling analyzes inactive channels with proper error handling
+// getInactiveChannelsWithErrorHandling analyzes inactive channels with proper error handling.
 func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, archiveSeconds int, userMap map[string]string, excludeChannelsList, excludePrefixesList []string, isDebug bool) ([]slack.Channel, []slack.Channel, error) {
 	toWarn, toArchive, err := client.GetInactiveChannelsWithDetailsAndExclusions(warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
 	if err != nil {
@@ -403,7 +425,7 @@ func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, arc
 	return toWarn, toArchive, nil
 }
 
-// displayChannelDetails shows channel information with last message details
+// displayChannelDetails shows channel information with last message details.
 func displayChannelDetails(channels []slack.Channel, title string) {
 	fmt.Printf("%s:\n", title)
 	for _, channel := range channels {
@@ -436,7 +458,7 @@ func displayChannelDetails(channels []slack.Channel, title string) {
 	fmt.Println()
 }
 
-// processWarnings handles warning channels in both dry-run and real modes
+// processWarnings handles warning channels in both dry-run and real modes.
 func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool) {
 	displayChannelDetails(toWarn, "Channels to warn about inactivity")
 
@@ -469,7 +491,7 @@ func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, 
 	}
 }
 
-// processArchival handles archiving channels in both dry-run and real modes
+// processArchival handles archiving channels in both dry-run and real modes.
 func processArchival(client *slack.Client, toArchive []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool) {
 	displayChannelDetails(toArchive, "Channels to archive (grace period expired)")
 

@@ -74,7 +74,9 @@ func TestInitConfig(t *testing.T) {
 		viper.Reset()
 		viper.SetEnvPrefix("SLACK")
 		viper.AutomaticEnv()
-		_ = viper.BindEnv("token", "SLACK_TOKEN")
+		if err := viper.BindEnv("token", "SLACK_TOKEN"); err != nil {
+			t.Fatalf("Failed to bind environment variable: %v", err)
+		}
 
 		// Verify viper can read the environment variable
 		actualToken := viper.GetString("token")
@@ -95,7 +97,9 @@ func TestInitConfig(t *testing.T) {
 		viper.Reset()
 		viper.SetEnvPrefix("SLACK")
 		viper.AutomaticEnv()
-		_ = viper.BindEnv("token", "SLACK_TOKEN")
+		if err := viper.BindEnv("token", "SLACK_TOKEN"); err != nil {
+			t.Fatalf("Failed to bind environment variable: %v", err)
+		}
 
 		// Environment variable should be picked up
 		actualToken := viper.GetString("token")

@@ -31,7 +31,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 go install github.com/astrostl/slack-buddy-ai@latest
 ```
 
-**Note:** This will install the binary as `slack-buddy-ai`. You may want to create an alias:
+**Note:** This installs the binary as `slack-buddy-ai`. You can create an alias if you prefer:
 ```bash
 # Add to your shell profile (.bashrc, .zshrc, etc.)
 alias slack-buddy='slack-buddy-ai'

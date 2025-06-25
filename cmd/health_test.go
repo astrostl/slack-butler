@@ -352,7 +352,7 @@ func TestHealthVerboseOutput(t *testing.T) {
 func TestRunHealthMissingScopes(t *testing.T) {
 	t.Run("Health check fails with invalid token", func(t *testing.T) {
 		// Use a properly formatted test token that will pass format validation
-		viper.Set("token", "xoxb-1234567890123-4567890123456-abcdefghijklmnopqrstuvwx")
+		viper.Set("token", "xoxb-test-token-fake-for-testing-only-not-real")
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
@@ -368,7 +368,7 @@ func TestRunHealthMissingScopes(t *testing.T) {
 func TestRunHealthSuccess(t *testing.T) {
 	t.Run("Health check with proper token format", func(t *testing.T) {
 		// Set properly formatted token that will pass format validation
-		viper.Set("token", "xoxb-1234567890123-4567890123456-abcdefghijklmnopqrstuvwx")
+		viper.Set("token", "xoxb-test-token-fake-for-testing-only-not-real")
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
@@ -381,7 +381,7 @@ func TestRunHealthSuccess(t *testing.T) {
 
 	t.Run("Health check verbose flag processing", func(t *testing.T) {
 		// Test verbose flag processing without going through full health check
-		viper.Set("token", "xoxb-1234567890123-4567890123456-abcdefghijklmnopqrstuvwx")
+		viper.Set("token", "xoxb-test-token-fake-for-testing-only-not-real")
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
@@ -689,7 +689,7 @@ func TestRunHealthEndToEnd(t *testing.T) {
 
 	t.Run("Health check with working token format", func(t *testing.T) {
 		// Use a properly formatted test token that passes validation
-		viper.Set("token", "xoxb-123456789012-123456789012-abcdefghij1234567890123456")
+		viper.Set("token", "xoxb-test-fake-token-not-real-just-for-testing")
 
 		cmd := &cobra.Command{}
 
@@ -713,7 +713,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		// the components that make up a successful health check
 
 		// Set valid token
-		viper.Set("token", "xoxb-123456789012-123456789012-abcdefghij1234567890123456")
+		viper.Set("token", "xoxb-test-fake-token-not-real-just-for-testing")
 
 		// Verify token format validation passes
 		token := viper.GetString("token")
@@ -766,7 +766,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		// Test verbose mode functionality
 		healthVerbose = true
 
-		viper.Set("token", "xoxb-123456789012-123456789012-abcdefghij1234567890123456")
+		viper.Set("token", "xoxb-test-fake-token-not-real-just-for-testing")
 
 		// Create mock client
 		mockAPI := slack.NewMockSlackAPI()
@@ -904,7 +904,7 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 
 	t.Run("Verbose token display logic", func(t *testing.T) {
 		// Test the verbose token display logic without full health check
-		token := "xoxb-12345678-ABCDEFGHIJ-test-token-for-display-test"
+		token := "xoxb-test-fake-token-for-display-test-only"
 
 		// Simulate what runHealth does for verbose token display
 		if len(token) >= 16 {

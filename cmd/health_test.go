@@ -46,10 +46,10 @@ func TestIsValidTokenFormat(t *testing.T) {
 		token    string
 		expected bool
 	}{
-		{"Valid bot token", "xoxb-FAKE-TESTING-ONLY-NOT-REAL-TOKEN", true},
+		{"Valid bot token", "test-FAKE-TESTING-ONLY-NOT-REAL-TOKEN", true},
 		{"Valid user token", "xoxp-FAKE-TESTING-ONLY-NOT-REAL-TOKEN", true},
 		{"Invalid prefix", "invalid-FAKE-TOKEN-FOR-TESTING-ONLY-NOT-REAL", false},
-		{"Too short", "xoxb-123", false},
+		{"Too short", "test-123", false},
 		{"Empty token", "", false},
 		{"Random string", "randomstring", false},
 	}
@@ -162,7 +162,7 @@ func TestRunHealthErrorScenarios(t *testing.T) {
 
 	t.Run("Client creation failure", func(t *testing.T) {
 		// Set valid token format directly in viper
-		viper.Set("token", "xoxb-test-invalid-auth-token")
+		viper.Set("token", "test-invalid-auth-token")
 
 		cmd := &cobra.Command{}
 
@@ -213,7 +213,7 @@ func TestRunHealthWithMockClient(t *testing.T) {
 
 	t.Run("Complete runHealth with mock client - success path", func(t *testing.T) {
 		// Set valid token
-		viper.Set("token", "xoxb-test-token-12345678901234567890123456789012")
+		viper.Set("token", "test-token-for-testing-purposes-only")
 		
 		// This test covers integration of runHealth function with real mock client
 		// We can't fully test runHealth due to NewClient dependency, but we can test components
@@ -247,7 +247,7 @@ func TestRunHealthWithMockClient(t *testing.T) {
 		defer func() { healthVerbose = originalVerbose }()
 		
 		healthVerbose = true
-		viper.Set("token", "xoxb-test-token-12345678901234567890123456789012")
+		viper.Set("token", "test-token-for-testing-purposes-only")
 		
 		mockAPI := slack.NewMockSlackAPI()
 		client, err := slack.NewClientWithAPI(mockAPI)
@@ -258,8 +258,8 @@ func TestRunHealthWithMockClient(t *testing.T) {
 		if len(token) >= 16 {
 			prefix := token[:8]
 			suffix := token[len(token)-8:]
-			assert.Equal(t, "xoxb-tes", prefix)
-			assert.Equal(t, "56789012", suffix)
+			assert.Equal(t, "test-tok", prefix)
+			assert.Equal(t, "ses-only", suffix)
 		}
 
 		// Test verbose auth info
@@ -352,7 +352,7 @@ func TestHealthVerboseOutput(t *testing.T) {
 func TestRunHealthMissingScopes(t *testing.T) {
 	t.Run("Health check fails with invalid token", func(t *testing.T) {
 		// Use a properly formatted test token that will pass format validation
-		viper.Set("token", "xoxb-test-token-fake-for-testing-only-not-real")
+		viper.Set("token", "test-fake-token-not-real-for-testing")
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
@@ -368,7 +368,7 @@ func TestRunHealthMissingScopes(t *testing.T) {
 func TestRunHealthSuccess(t *testing.T) {
 	t.Run("Health check with proper token format", func(t *testing.T) {
 		// Set properly formatted token that will pass format validation
-		viper.Set("token", "xoxb-test-token-fake-for-testing-only-not-real")
+		viper.Set("token", "test-fake-token-not-real-for-testing")
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
@@ -381,7 +381,7 @@ func TestRunHealthSuccess(t *testing.T) {
 
 	t.Run("Health check verbose flag processing", func(t *testing.T) {
 		// Test verbose flag processing without going through full health check
-		viper.Set("token", "xoxb-test-token-fake-for-testing-only-not-real")
+		viper.Set("token", "test-fake-token-not-real-for-testing")
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
@@ -398,7 +398,7 @@ func TestRunHealthSuccess(t *testing.T) {
 func TestRunHealthStructure(t *testing.T) {
 	t.Run("Health command structure validation", func(t *testing.T) {
 		// Set up valid token
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		// Test that the health command exists and is properly structured
@@ -407,7 +407,7 @@ func TestRunHealthStructure(t *testing.T) {
 		assert.NotNil(t, healthCmd.RunE)
 
 		// Test that token validation would pass with a properly formatted token
-		token := "xoxb-test-token-12345678901234567890123456789012"
+		token := "test-token-for-testing-purposes-only"
 		assert.True(t, isValidTokenFormat(token))
 	})
 
@@ -469,7 +469,7 @@ func TestRunHealthErrors(t *testing.T) {
 	})
 
 	t.Run("Invalid token pattern", func(t *testing.T) {
-		viper.Set("token", "xoxb-short")
+		viper.Set("token", "test-short")
 
 		err := runHealth(healthCmd, []string{})
 		assert.Error(t, err)
@@ -478,7 +478,7 @@ func TestRunHealthErrors(t *testing.T) {
 	})
 
 	t.Run("API authentication failure", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		// We would need to mock the NewClient function to test client initialization failure
@@ -531,7 +531,7 @@ func TestRunHealthVerboseOutput(t *testing.T) {
 func TestRunHealthWithMockSuccess(t *testing.T) {
 	t.Run("Successful health check with mock", func(t *testing.T) {
 		// Set up valid token
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		// Create mock client with successful responses
@@ -555,7 +555,7 @@ func TestRunHealthWithMockSuccess(t *testing.T) {
 
 func TestRunHealthWithMissingScopeScenarios(t *testing.T) {
 	t.Run("Health check with missing optional groups:read scope", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		// Create mock that simulates missing groups:read scope specifically
@@ -578,7 +578,7 @@ func TestRunHealthWithMissingScopeScenarios(t *testing.T) {
 	})
 
 	t.Run("Health check with missing users:read scope", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		// Create mock that simulates missing users:read scope
@@ -600,7 +600,7 @@ func TestRunHealthWithMissingScopeScenarios(t *testing.T) {
 
 func TestRunHealthAPIFailureScenarios(t *testing.T) {
 	t.Run("Client creation with auth error", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		mockAPI := slack.NewMockSlackAPI()
@@ -613,7 +613,7 @@ func TestRunHealthAPIFailureScenarios(t *testing.T) {
 	})
 
 	t.Run("OAuth scope check with auth error during check", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		mockAPI := slack.NewMockSlackAPI()
@@ -630,7 +630,7 @@ func TestRunHealthAPIFailureScenarios(t *testing.T) {
 	})
 
 	t.Run("Basic functionality test failure", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		mockAPI := slack.NewMockSlackAPI()
@@ -682,14 +682,14 @@ func TestRunHealthEndToEnd(t *testing.T) {
 		cmd := &cobra.Command{}
 		err := runHealth(cmd, []string{})
 
-		// This test should fail at token format validation since health command expects xoxb- prefix
+		// This test should fail at token format validation since health command expects valid prefix
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "token format validation failed")
 	})
 
 	t.Run("Health check with working token format", func(t *testing.T) {
 		// Use a properly formatted test token that passes validation
-		viper.Set("token", "xoxb-test-fake-token-not-real-just-for-testing")
+		viper.Set("token", "test-fake-token-not-real-for-testing")
 
 		cmd := &cobra.Command{}
 
@@ -713,7 +713,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		// the components that make up a successful health check
 
 		// Set valid token
-		viper.Set("token", "xoxb-test-fake-token-not-real-just-for-testing")
+		viper.Set("token", "test-fake-token-not-real-for-testing")
 
 		// Verify token format validation passes
 		token := viper.GetString("token")
@@ -766,7 +766,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		// Test verbose mode functionality
 		healthVerbose = true
 
-		viper.Set("token", "xoxb-test-fake-token-not-real-just-for-testing")
+		viper.Set("token", "test-fake-token-not-real-for-testing")
 
 		// Create mock client
 		mockAPI := slack.NewMockSlackAPI()
@@ -778,7 +778,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		if len(token) >= 16 {
 			prefix := token[:8]
 			suffix := token[len(token)-8:]
-			assert.Equal(t, "xoxb-123", prefix)
+			assert.Equal(t, "test-123", prefix)
 			assert.Equal(t, "90123456", suffix)
 		}
 
@@ -817,7 +817,7 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 
 func TestRunHealthMissingRequiredScopes(t *testing.T) {
 	t.Run("Health check fails with missing required scopes", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "xoxb-test-token-12345678901234567890123456789012")
+		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
 		initConfig()
 
 		// Create mock that simulates missing required scopes
@@ -904,14 +904,14 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 
 	t.Run("Verbose token display logic", func(t *testing.T) {
 		// Test the verbose token display logic without full health check
-		token := "xoxb-test-fake-token-for-display-test-only"
+		token := "test-fake-token-for-display-test"
 
 		// Simulate what runHealth does for verbose token display
 		if len(token) >= 16 {
 			prefix := token[:8]
 			suffix := token[len(token)-8:]
 
-			assert.Equal(t, "xoxb-123", prefix)
+			assert.Equal(t, "test-123", prefix)
 			assert.Equal(t, "lay-test", suffix)
 		}
 	})

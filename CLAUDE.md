@@ -59,8 +59,8 @@ source .env
 - `chat:write` - To post announcements and warnings (**required**)
 - `channels:join` - To join public channels for warnings (**required for archive**)
 - `channels:manage` - To archive channels (**required for archive**)
+- `users:read` - To resolve user names in messages (**required for enhanced features**)
 - `groups:read` - To list private channels (*optional*)
-- `users:read` - To resolve user names in messages (*optional*)
 
 ## Project Structure
 ```

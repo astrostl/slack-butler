@@ -54,8 +54,8 @@ go build -o slack-buddy
    - `channels:join` - To join public channels for warnings (**required for archive**)
    - `channels:manage` - To archive channels (**required for archive**)
    - `chat:write` - To post announcements and warnings (**required**)
+   - `users:read` - To resolve user names in messages (**required for enhanced features**)
    - `groups:read` - To list private channels (*optional*)
-   - `users:read` - To resolve user names in messages (*optional*)
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
 ### 2. Configure Token
@@ -214,7 +214,7 @@ Manage inactive channel archival with automated warnings and grace periods.
 - `channels:join` (to join public channels)
 - `chat:write` (to post warnings)
 - `channels:manage` (to archive channels)
-- `users:read` (optional, for user name resolution)
+- `users:read` (required for enhanced features, user name resolution)
 
 ## Development
 

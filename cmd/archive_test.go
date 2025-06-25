@@ -8,128 +8,128 @@ import (
 	"github.com/astrostl/slack-buddy-ai/pkg/slack"
 )
 
-func TestRunArchiveWithClient(t *testing.T) {
-	tests := []struct {
-		name            string
-		warnSeconds     int
-		archiveSeconds  int
-		isPreviewMode   bool
-		setupChannels   func(*slack.MockSlackAPI)
-		expectedErr     string
-		expectedWarn    int
-		expectedArchive int
-	}{
+type archiveTestCase struct {
+	setupChannels   func(*slack.MockSlackAPI)
+	name            string
+	expectedErr     string
+	warnSeconds     int
+	archiveSeconds  int
+	expectedWarn    int
+	expectedArchive int
+	isPreviewMode   bool
+}
+
+func setupActiveChannelTest(mock *slack.MockSlackAPI) {
+	mock.AddChannel("C1", "active-channel", time.Now().Add(-10*time.Minute), "Active channel")
+	mock.AddMessageToHistory("C1", "recent message", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-2*time.Second).Unix())))
+}
+
+func setupWarningChannelTest(mock *slack.MockSlackAPI) {
+	mock.AddChannel("C2", "inactive-channel", time.Now().Add(-2*time.Hour), "Inactive channel")
+	lastActivity := time.Now().Add(-35 * time.Second)
+	mock.AddMessageToHistory("C2", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
+}
+
+func setupArchiveChannelTest(mock *slack.MockSlackAPI) {
+	mock.AddChannel("C3", "archive-channel", time.Now().Add(-2*time.Hour), "Channel to archive")
+	lastActivity := time.Now().Add(-40 * time.Second)
+	mock.AddMessageToHistory("C3", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
+	warningTime := time.Now().Add(-10 * time.Second)
+	mock.AddMessageToHistory("C3", "Warning: inactive channel warning <!-- inactive channel warning -->", "U0000000", fmt.Sprintf("%.6f", float64(warningTime.Unix())))
+}
+
+func setupMixedChannelsTest(mock *slack.MockSlackAPI) {
+	mock.AddChannel("C1", "active", time.Now().Add(-10*time.Minute), "Active")
+	mock.AddMessageToHistory("C1", "recent", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-4*time.Second).Unix())))
+
+	mock.AddChannel("C2", "warn-me", time.Now().Add(-2*time.Hour), "Warn me")
+	lastActivity := time.Now().Add(-35 * time.Second)
+	mock.AddMessageToHistory("C2", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
+
+	mock.AddChannel("C3", "archive-me", time.Now().Add(-3*time.Hour), "Archive me")
+	oldActivity := time.Now().Add(-40 * time.Second)
+	mock.AddMessageToHistory("C3", "very old", "U1234567", fmt.Sprintf("%.6f", float64(oldActivity.Unix())))
+	warningTime := time.Now().Add(-10 * time.Second)
+	mock.AddMessageToHistory("C3", "Warning: inactive channel warning <!-- inactive channel warning -->", "U0000000", fmt.Sprintf("%.6f", float64(warningTime.Unix())))
+}
+
+func setupExcludedChannelsTest(mock *slack.MockSlackAPI) {
+	mock.AddChannel("C1", "general", time.Now().Add(-3*time.Hour), "General channel")
+	mock.AddChannel("C2", "announcements", time.Now().Add(-3*time.Hour), "Announcements")
+	mock.AddChannel("C3", "admin-stuff", time.Now().Add(-3*time.Hour), "Admin channel")
+
+	oldTime := time.Now().Add(-40 * time.Second)
+	for _, channelID := range []string{"C1", "C2", "C3"} {
+		mock.AddMessageToHistory(channelID, "old message", "U1234567", fmt.Sprintf("%.6f", float64(oldTime.Unix())))
+	}
+}
+
+func setupCommitModeTest(mock *slack.MockSlackAPI) {
+	mock.AddChannel("C1", "warn-channel", time.Now().Add(-2*time.Hour), "Warn this")
+	lastActivity := time.Now().Add(-35 * time.Second)
+	mock.AddMessageToHistory("C1", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
+
+	mock.AddChannel("C2", "archive-channel", time.Now().Add(-3*time.Hour), "Archive this")
+	oldActivity := time.Now().Add(-40 * time.Second)
+	mock.AddMessageToHistory("C2", "very old", "U1234567", fmt.Sprintf("%.6f", float64(oldActivity.Unix())))
+	warningTime := time.Now().Add(-10 * time.Second)
+	mock.AddMessageToHistory("C2", "Warning: inactive channel warning <!-- inactive channel warning -->", "U0000000", fmt.Sprintf("%.6f", float64(warningTime.Unix())))
+}
+
+func getArchiveTestCases() []archiveTestCase {
+	return []archiveTestCase{
 		{
-			name:           "No inactive channels",
-			warnSeconds:    30, // 30 seconds warn threshold
-			archiveSeconds: 7,  // 7 seconds archive threshold
-			isPreviewMode:  true,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// Add recent active channel
-				mock.AddChannel("C1", "active-channel", time.Now().Add(-10*time.Minute), "Active channel")
-				mock.AddMessageToHistory("C1", "recent message", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-2*time.Second).Unix())))
-			},
+			name:            "No inactive channels",
+			warnSeconds:     30,
+			archiveSeconds:  7,
+			isPreviewMode:   true,
+			setupChannels:   setupActiveChannelTest,
 			expectedWarn:    0,
 			expectedArchive: 0,
 		},
 		{
-			name:           "Channel needs warning - preview mode",
-			warnSeconds:    30, // 30 seconds warn threshold
-			archiveSeconds: 7,  // 7 seconds archive threshold
-			isPreviewMode:  true,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// Add inactive channel (created earlier, last activity 35 seconds ago)
-				mock.AddChannel("C2", "inactive-channel", time.Now().Add(-2*time.Hour), "Inactive channel")
-				lastActivity := time.Now().Add(-35 * time.Second)
-				mock.AddMessageToHistory("C2", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
-			},
+			name:            "Channel needs warning - preview mode",
+			warnSeconds:     30,
+			archiveSeconds:  7,
+			isPreviewMode:   true,
+			setupChannels:   setupWarningChannelTest,
 			expectedWarn:    1,
 			expectedArchive: 0,
 		},
 		{
-			name:           "Channel needs archiving - preview mode",
-			warnSeconds:    30, // 30 seconds warn threshold
-			archiveSeconds: 7,  // 7 seconds archive threshold
-			isPreviewMode:  true,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// Add channel that was warned and should be archived
-				mock.AddChannel("C3", "archive-channel", time.Now().Add(-2*time.Hour), "Channel to archive")
-
-				// Add old activity (40 seconds ago)
-				lastActivity := time.Now().Add(-40 * time.Second)
-				mock.AddMessageToHistory("C3", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
-
-				// Add warning message from bot (10 seconds ago, past archive threshold)
-				warningTime := time.Now().Add(-10 * time.Second)
-				mock.AddMessageToHistory("C3", "Warning: inactive channel warning <!-- inactive channel warning -->", "U0000000", fmt.Sprintf("%.6f", float64(warningTime.Unix())))
-			},
+			name:            "Channel needs archiving - preview mode",
+			warnSeconds:     30,
+			archiveSeconds:  7,
+			isPreviewMode:   true,
+			setupChannels:   setupArchiveChannelTest,
 			expectedWarn:    0,
 			expectedArchive: 1,
 		},
 		{
-			name:           "Mixed scenario - some warn, some archive",
-			warnSeconds:    30, // 30 seconds warn threshold
-			archiveSeconds: 7,  // 7 seconds archive threshold
-			isPreviewMode:  true,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// Channel 1: Active (should be ignored)
-				mock.AddChannel("C1", "active", time.Now().Add(-10*time.Minute), "Active")
-				mock.AddMessageToHistory("C1", "recent", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-4*time.Second).Unix())))
-
-				// Channel 2: Inactive, needs warning
-				mock.AddChannel("C2", "warn-me", time.Now().Add(-2*time.Hour), "Warn me")
-				lastActivity := time.Now().Add(-35 * time.Second)
-				mock.AddMessageToHistory("C2", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
-
-				// Channel 3: Warned, needs archiving
-				mock.AddChannel("C3", "archive-me", time.Now().Add(-3*time.Hour), "Archive me")
-				oldActivity := time.Now().Add(-40 * time.Second)
-				mock.AddMessageToHistory("C3", "very old", "U1234567", fmt.Sprintf("%.6f", float64(oldActivity.Unix())))
-				warningTime := time.Now().Add(-10 * time.Second)
-				mock.AddMessageToHistory("C3", "Warning: inactive channel warning <!-- inactive channel warning -->", "U0000000", fmt.Sprintf("%.6f", float64(warningTime.Unix())))
-			},
+			name:            "Mixed scenario - some warn, some archive",
+			warnSeconds:     30,
+			archiveSeconds:  7,
+			isPreviewMode:   true,
+			setupChannels:   setupMixedChannelsTest,
 			expectedWarn:    1,
 			expectedArchive: 1,
 		},
 		{
-			name:           "Excluded channels are skipped",
-			warnSeconds:    30, // 30 seconds warn threshold
-			archiveSeconds: 7,  // 7 seconds archive threshold
-			isPreviewMode:  true,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// Add channels that should be excluded
-				mock.AddChannel("C1", "general", time.Now().Add(-3*time.Hour), "General channel")
-				mock.AddChannel("C2", "announcements", time.Now().Add(-3*time.Hour), "Announcements")
-				mock.AddChannel("C3", "admin-stuff", time.Now().Add(-3*time.Hour), "Admin channel")
-
-				// Add old activity to all
-				oldTime := time.Now().Add(-40 * time.Second)
-				for _, channelID := range []string{"C1", "C2", "C3"} {
-					mock.AddMessageToHistory(channelID, "old message", "U1234567", fmt.Sprintf("%.6f", float64(oldTime.Unix())))
-				}
-			},
+			name:            "Excluded channels are skipped",
+			warnSeconds:     30,
+			archiveSeconds:  7,
+			isPreviewMode:   true,
+			setupChannels:   setupExcludedChannelsTest,
 			expectedWarn:    0,
 			expectedArchive: 0,
 		},
 		{
-			name:           "Warning and archiving actions - commit mode",
-			warnSeconds:    30, // 30 seconds warn threshold
-			archiveSeconds: 7,  // 7 seconds archive threshold
-			isPreviewMode:  false,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// Channel to warn
-				mock.AddChannel("C1", "warn-channel", time.Now().Add(-2*time.Hour), "Warn this")
-				lastActivity := time.Now().Add(-35 * time.Second)
-				mock.AddMessageToHistory("C1", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
-
-				// Channel to archive
-				mock.AddChannel("C2", "archive-channel", time.Now().Add(-3*time.Hour), "Archive this")
-				oldActivity := time.Now().Add(-40 * time.Second)
-				mock.AddMessageToHistory("C2", "very old", "U1234567", fmt.Sprintf("%.6f", float64(oldActivity.Unix())))
-				warningTime := time.Now().Add(-10 * time.Second)
-				mock.AddMessageToHistory("C2", "Warning: inactive channel warning <!-- inactive channel warning -->", "U0000000", fmt.Sprintf("%.6f", float64(warningTime.Unix())))
-			},
-			expectedWarn:    2, // Warning message + archival announcement message
+			name:            "Warning and archiving actions - commit mode",
+			warnSeconds:     30,
+			archiveSeconds:  7,
+			isPreviewMode:   false,
+			setupChannels:   setupCommitModeTest,
+			expectedWarn:    2,
 			expectedArchive: 1,
 		},
 		{
@@ -137,10 +137,8 @@ func TestRunArchiveWithClient(t *testing.T) {
 			warnSeconds:    0,
 			archiveSeconds: 7,
 			isPreviewMode:  true,
-			setupChannels: func(mock *slack.MockSlackAPI) {
-				// No setup needed for error case
-			},
-			expectedErr: "warn-seconds must be positive, got 0",
+			setupChannels:  func(mock *slack.MockSlackAPI) {},
+			expectedErr:    "warn-seconds must be positive, got 0",
 		},
 		{
 			name:           "API error handling",
@@ -153,76 +151,79 @@ func TestRunArchiveWithClient(t *testing.T) {
 			expectedErr: "failed to analyze inactive channels",
 		},
 	}
+}
+
+func validateTestParameters(t *testing.T, tt archiveTestCase) bool {
+	if tt.expectedErr != "" && (tt.warnSeconds <= 0 || tt.archiveSeconds <= 0) {
+		if tt.warnSeconds <= 0 {
+			expectedMsg := fmt.Sprintf("warn-seconds must be positive, got %d", tt.warnSeconds)
+			if expectedMsg != tt.expectedErr {
+				t.Errorf("Expected error '%s', got constructed: %s", tt.expectedErr, expectedMsg)
+			}
+		}
+		if tt.archiveSeconds <= 0 {
+			expectedMsg := fmt.Sprintf("archive-seconds must be positive, got %d", tt.archiveSeconds)
+			if expectedMsg != tt.expectedErr {
+				t.Errorf("Expected error '%s', got constructed: %s", tt.expectedErr, expectedMsg)
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func validateTestResults(t *testing.T, tt archiveTestCase, err error, mockAPI *slack.MockSlackAPI) {
+	if tt.expectedErr != "" {
+		if err == nil {
+			t.Errorf("Expected error containing '%s', got nil", tt.expectedErr)
+			return
+		}
+		if err.Error() != tt.expectedErr && !containsString(err.Error(), tt.expectedErr) {
+			t.Errorf("Expected error containing '%s', got: %s", tt.expectedErr, err.Error())
+		}
+		return
+	}
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+		return
+	}
+
+	if !tt.isPreviewMode {
+		postedMessages := mockAPI.GetPostedMessages()
+		if len(postedMessages) != tt.expectedWarn {
+			t.Errorf("Expected %d warning messages, got %d", tt.expectedWarn, len(postedMessages))
+		}
+
+		archivedChannels := mockAPI.GetArchivedChannels()
+		if len(archivedChannels) != tt.expectedArchive {
+			t.Errorf("Expected %d archived channels, got %d", tt.expectedArchive, len(archivedChannels))
+		}
+	}
+}
+
+func TestRunArchiveWithClient(t *testing.T) {
+	tests := getArchiveTestCases()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create mock API
 			mockAPI := slack.NewMockSlackAPI()
 
-			// Setup test data
 			if tt.setupChannels != nil {
 				tt.setupChannels(mockAPI)
 			}
 
-			// Create client
 			client, err := slack.NewClientWithAPI(mockAPI)
 			if err != nil {
 				t.Fatalf("Failed to create client: %v", err)
 			}
 
-			// Test parameter validation if needed
-			if tt.expectedErr != "" && (tt.warnSeconds <= 0 || tt.archiveSeconds <= 0) {
-				// For parameter validation, we can test directly
-				if tt.warnSeconds <= 0 {
-					expectedMsg := fmt.Sprintf("warn-seconds must be positive, got %d", tt.warnSeconds)
-					if expectedMsg != tt.expectedErr {
-						t.Errorf("Expected error '%s', got constructed: %s", tt.expectedErr, expectedMsg)
-					}
-				}
-				if tt.archiveSeconds <= 0 {
-					expectedMsg := fmt.Sprintf("archive-seconds must be positive, got %d", tt.archiveSeconds)
-					if expectedMsg != tt.expectedErr {
-						t.Errorf("Expected error '%s', got constructed: %s", tt.expectedErr, expectedMsg)
-					}
-				}
+			if !validateTestParameters(t, tt) {
 				return
 			}
 
-			// Run the function
 			err = runArchiveWithClient(client, tt.warnSeconds, tt.archiveSeconds, tt.isPreviewMode, "", "")
-
-			// Check for expected errors
-			if tt.expectedErr != "" {
-				if err == nil {
-					t.Errorf("Expected error containing '%s', got nil", tt.expectedErr)
-					return
-				}
-				if err.Error() != tt.expectedErr && !containsString(err.Error(), tt.expectedErr) {
-					t.Errorf("Expected error containing '%s', got: %s", tt.expectedErr, err.Error())
-				}
-				return
-			}
-
-			// Should not have errors for successful cases
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-				return
-			}
-
-			// For non-preview tests, verify actions were taken
-			if !tt.isPreviewMode {
-				// Check that warnings were sent
-				postedMessages := mockAPI.GetPostedMessages()
-				if len(postedMessages) != tt.expectedWarn {
-					t.Errorf("Expected %d warning messages, got %d", tt.expectedWarn, len(postedMessages))
-				}
-
-				// Check that channels were archived
-				archivedChannels := mockAPI.GetArchivedChannels()
-				if len(archivedChannels) != tt.expectedArchive {
-					t.Errorf("Expected %d archived channels, got %d", tt.expectedArchive, len(archivedChannels))
-				}
-			}
+			validateTestResults(t, tt, err, mockAPI)
 		})
 	}
 }
@@ -232,10 +233,10 @@ func TestInactiveChannelDetectionLogic(t *testing.T) {
 		name           string
 		channelAge     time.Duration // time ago channel was created
 		lastActivity   time.Duration // time ago last activity occurred
-		hasWarning     bool
 		warningAge     time.Duration // time ago warning was sent
 		warnSeconds    int           // threshold for inactivity in seconds
 		archiveSeconds int           // grace period after warning in seconds
+		hasWarning     bool
 		expectWarn     bool
 		expectArchive  bool
 	}{
@@ -401,10 +402,10 @@ func TestChannelExclusions(t *testing.T) {
 func TestRunArchive(t *testing.T) {
 	tests := []struct {
 		name           string
-		warnSeconds    int
-		archiveSeconds int
 		token          string
 		expectedErr    string
+		warnSeconds    int
+		archiveSeconds int
 	}{
 		{
 			name:           "Missing token",
@@ -468,7 +469,7 @@ func TestRunArchive(t *testing.T) {
 	}
 }
 
-// Helper function
+// Helper function.
 func containsString(str, substr string) bool {
 	return len(str) >= len(substr) && (str == substr ||
 		(len(str) > len(substr) &&

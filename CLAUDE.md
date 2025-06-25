@@ -183,10 +183,10 @@ make help
 ```
 
 ## Git Repository
-- **Version**: 1.1.0 - Stable Release
+- **Version**: 1.1.1 - Stable Release
 - **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Channel archival system, comprehensive testing improvements, and enhanced security features (v1.1.0)
+- **Recent Updates**: Code quality improvements, test refactoring, and reduced cyclomatic complexity (v1.1.1)
 - **Branches**: 
   - `main` - Stable release branch
 
@@ -235,10 +235,10 @@ make help
 **MANDATORY**: All Slack API functions must use standardized robust patterns:
 
 - **Retry Logic**: Use `maxRetries = 3` pattern for all API calls
-- **Rate Limiting**: Always use `c.rateLimiter.Wait(ctx)` before API calls
+- **Rate Limiting**: Reactive approach - handle Slack's rate limit responses, parse retry-after directives
 - **Timeout Handling**: Use context with appropriate timeouts (30s for quick ops, 2min for complex)
-- **Error Detection**: Check for "rate_limited" errors and apply exponential backoff
-- **Progress Logging**: Log retry attempts with structured fields (attempt, max_tries, error)
+- **Error Detection**: Check for "rate_limited" errors and apply Slack's retry-after timing
+- **Progress Feedback**: Show progress bars during rate limit waits using `showProgressBar()`
 - **Graceful Degradation**: Functions should continue safely even if non-critical API calls fail
 - **Consistent Patterns**: Follow established patterns from archiving functions for all new API integrations
 
@@ -246,21 +246,28 @@ make help
 ```go
 const maxRetries = 3
 for attempt := 1; attempt <= maxRetries; attempt++ {
-    ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
-    if err := c.rateLimiter.Wait(ctx); err != nil {
-        cancel()
-        return fmt.Errorf("rate limiter cancelled: %w", err)
-    }
-    cancel()
-    
-    // API call here
-    if err != nil && strings.Contains(err.Error(), "rate_limited") {
-        if attempt < maxRetries {
-            c.rateLimiter.OnRateLimitError()
-            continue
+    // Make API call
+    result, err := c.api.SomeAPICall(params)
+    if err != nil {
+        errStr := err.Error()
+        if strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit") {
+            if attempt < maxRetries {
+                // Parse Slack's retry directive and wait
+                waitDuration := parseSlackRetryAfter(errStr)
+                if waitDuration > 0 {
+                    logger.WithFields(logrus.Fields{
+                        "attempt": attempt,
+                        "max_tries": maxRetries,
+                        "wait_duration": waitDuration,
+                    }).Info("Rate limited, waiting before retry")
+                    showProgressBar(waitDuration)
+                }
+                continue
+            }
         }
+        return nil, fmt.Errorf("API call failed after %d attempts: %w", maxRetries, err)
     }
-    break
+    return result, nil
 }
 ```
 
@@ -287,6 +294,34 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
 - **Beta releases**: `1.x.x-beta` for feature-complete testing
 - **Stable releases**: `1.x.x` for production-ready versions
 - **Major versions**: Breaking changes or significant feature additions
+
+### Release Quality Gates
+**CRITICAL**: NEVER push releases to GitHub without passing ALL quality checks:
+
+**MANDATORY Pre-Release Requirements:**
+1. **Complete Test Suite**: Run `make test` - ALL tests must pass with 100% success rate
+2. **Quality Checks**: Run `make quality` - ALL linting, security, and complexity checks must pass
+3. **Coverage Validation**: Run `make coverage` - Ensure test coverage remains comprehensive
+4. **Build Verification**: Run `make build` - Binary must compile successfully
+5. **Race Condition Testing**: All tests must pass with race detection enabled
+
+**ABSOLUTE PROHIBITIONS:**
+- ❌ **NEVER** push releases with failing tests
+- ❌ **NEVER** push releases with linting errors
+- ❌ **NEVER** push releases with security issues (gosec failures)
+- ❌ **NEVER** push releases with build failures
+- ❌ **NEVER** skip quality checks "just this once"
+
+**Release Command Sequence (MANDATORY):**
+```bash
+# Required sequence before ANY release push
+make clean && make deps && make quality && make test && make coverage && make build
+
+# Only proceed to release if ALL commands succeed
+make release
+```
+
+**Rationale**: Quality is non-negotiable. Users depend on stable, secure releases. Every release represents the project's commitment to excellence.
 
 #### Testing Excellence
 **MANDATORY**: Maintain comprehensive testing without artificial shortcuts.

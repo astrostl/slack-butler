@@ -7,12 +7,14 @@ import (
 
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 	t.Run("Rate limited during auto-join", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return rate limit error
 		mockAPI.SetJoinError("rate_limited")
@@ -37,7 +39,8 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 
 	t.Run("Missing channels:join scope", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return missing scope error
 		mockAPI.SetJoinError("missing_scope")
@@ -63,7 +66,8 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 
 	t.Run("Invalid auth token", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return invalid auth error
 		mockAPI.SetJoinError("invalid_auth")
@@ -88,7 +92,8 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 
 	t.Run("Successfully handles already_in_channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return already in channel
 		mockAPI.SetJoinError("already_in_channel")
@@ -112,7 +117,8 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 
 	t.Run("Skips archived channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return archived error
 		mockAPI.SetJoinError("is_archived")
@@ -136,7 +142,8 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 
 	t.Run("Skips invite-only channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return invite only error
 		mockAPI.SetJoinError("invite_only")
@@ -160,7 +167,8 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 
 	t.Run("Skips private channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// No errors needed - should skip by design
 		channels := []slack.Channel{
@@ -184,24 +192,26 @@ func TestAutoJoinPublicChannelsErrorPaths(t *testing.T) {
 func TestPostMessageToChannelIDErrorPaths(t *testing.T) {
 	t.Run("Rate limited during message posting", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return rate limit error
 		mockAPI.SetPostMessageError("rate_limited")
 
-		err := client.postMessageToChannelID("C123", "test message")
+		err = client.postMessageToChannelID("C123", "test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "rate limited")
 	})
 
 	t.Run("Missing chat:write scope", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return missing scope error
 		mockAPI.SetPostMessageError("missing_scope")
 
-		err := client.postMessageToChannelID("C123", "test message")
+		err = client.postMessageToChannelID("C123", "test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required permission to post messages")
 		assert.Contains(t, err.Error(), "chat:write")
@@ -209,24 +219,26 @@ func TestPostMessageToChannelIDErrorPaths(t *testing.T) {
 
 	t.Run("Channel not found", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return channel not found error
 		mockAPI.SetPostMessageError("channel_not_found")
 
-		err := client.postMessageToChannelID("C123", "test message")
+		err = client.postMessageToChannelID("C123", "test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "channel with ID 'C123' not found")
 	})
 
 	t.Run("Bot not in channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return not in channel error
 		mockAPI.SetPostMessageError("not_in_channel")
 
-		err := client.postMessageToChannelID("C123", "test message")
+		err = client.postMessageToChannelID("C123", "test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "bot is not a member of channel")
 		assert.Contains(t, err.Error(), "Please add the bot to the channel")
@@ -234,22 +246,24 @@ func TestPostMessageToChannelIDErrorPaths(t *testing.T) {
 
 	t.Run("Invalid auth token", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Set up mock to return invalid auth error
 		mockAPI.SetPostMessageError("invalid_auth")
 
-		err := client.postMessageToChannelID("C123", "test message")
+		err = client.postMessageToChannelID("C123", "test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to post message to channel")
 	})
 
 	t.Run("Successful message posting", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// No errors - should succeed
-		err := client.postMessageToChannelID("C123", "test message")
+		err = client.postMessageToChannelID("C123", "test message")
 		assert.NoError(t, err)
 	})
 }
@@ -283,7 +297,8 @@ func TestNewClientWithAPI(t *testing.T) {
 func TestGetNewChannels(t *testing.T) {
 	t.Run("Success with new channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add a channel created 1 hour ago
 		createdTime := time.Now().Add(-1 * time.Hour)
@@ -300,7 +315,8 @@ func TestGetNewChannels(t *testing.T) {
 
 	t.Run("No new channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add a channel created 3 hours ago
 		createdTime := time.Now().Add(-3 * time.Hour)
@@ -316,7 +332,8 @@ func TestGetNewChannels(t *testing.T) {
 
 	t.Run("Channel created exactly at boundary", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Create a specific time for boundary testing
 		boundaryTime := time.Now().Add(-2 * time.Hour)
@@ -333,7 +350,8 @@ func TestGetNewChannels(t *testing.T) {
 
 	t.Run("Channel created one second after boundary", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Create a specific time for boundary testing
 		boundaryTime := time.Now().Add(-2 * time.Hour)
@@ -352,24 +370,26 @@ func TestGetNewChannels(t *testing.T) {
 
 	t.Run("API error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetGetConversationsError(true)
 
 		since := time.Now().Add(-2 * time.Hour)
-		_, err := client.GetNewChannels(since)
+		_, err = client.GetNewChannels(since)
 
 		assert.Error(t, err)
 	})
 
 	t.Run("Missing scope error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetMissingScopeError(true)
 
 		since := time.Now().Add(-2 * time.Hour)
-		_, err := client.GetNewChannels(since)
+		_, err = client.GetNewChannels(since)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required permissions")
@@ -379,12 +399,13 @@ func TestGetNewChannels(t *testing.T) {
 
 	t.Run("Invalid auth error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetInvalidAuthError(true)
 
 		since := time.Now().Add(-2 * time.Hour)
-		_, err := client.GetNewChannels(since)
+		_, err = client.GetNewChannels(since)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid token")
@@ -393,7 +414,8 @@ func TestGetNewChannels(t *testing.T) {
 
 func TestFormatNewChannelAnnouncement(t *testing.T) {
 	mockAPI := NewMockSlackAPI()
-	client, _ := NewClientWithAPI(mockAPI)
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
 
 	t.Run("Single channel", func(t *testing.T) {
 		channels := []Channel{
@@ -475,7 +497,8 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 func TestGetNewChannelsErrorHandling(t *testing.T) {
 	t.Run("Rate limit error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return rate limit error
 		mockAPI.SetGetConversationsErrorWithMessage(true, "rate_limited")
@@ -492,7 +515,8 @@ func TestGetNewChannelsErrorHandling(t *testing.T) {
 
 	t.Run("Missing scope error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return missing scope error
 		mockAPI.SetGetConversationsErrorWithMessage(true, "missing_scope")
@@ -509,7 +533,8 @@ func TestGetNewChannelsErrorHandling(t *testing.T) {
 
 	t.Run("Invalid auth error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return invalid auth error
 		mockAPI.SetGetConversationsErrorWithMessage(true, "invalid_auth")
@@ -525,7 +550,8 @@ func TestGetNewChannelsErrorHandling(t *testing.T) {
 
 	t.Run("Generic error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return generic error
 		mockAPI.SetGetConversationsErrorWithMessage(true, "network_error")
@@ -542,10 +568,11 @@ func TestGetNewChannelsErrorHandling(t *testing.T) {
 func TestPostMessageErrorHandling(t *testing.T) {
 	t.Run("Channel not found error via resolve", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Don't add the channel to mock - this will cause the resolve to fail
-		err := client.PostMessage("#nonexistent", "Test message")
+		err = client.PostMessage("#nonexistent", "Test message")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to find channel #nonexistent")
@@ -554,7 +581,8 @@ func TestPostMessageErrorHandling(t *testing.T) {
 
 	t.Run("PostMessage API error with valid channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add the channel so resolve works
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
@@ -562,7 +590,7 @@ func TestPostMessageErrorHandling(t *testing.T) {
 		// Configure mock to return rate limit error at PostMessage level
 		mockAPI.SetPostMessageError("rate_limited")
 
-		err := client.PostMessage("#general", "Test message")
+		err = client.PostMessage("#general", "Test message")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "rate limited")
@@ -570,7 +598,8 @@ func TestPostMessageErrorHandling(t *testing.T) {
 
 	t.Run("PostMessage missing scope error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add the channel so resolve works
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
@@ -578,7 +607,7 @@ func TestPostMessageErrorHandling(t *testing.T) {
 		// Configure mock to return missing scope error
 		mockAPI.SetPostMessageError("missing_scope")
 
-		err := client.PostMessage("#general", "Test message")
+		err = client.PostMessage("#general", "Test message")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required permission")
@@ -589,7 +618,8 @@ func TestPostMessageErrorHandling(t *testing.T) {
 func TestChannelExclusionLogic(t *testing.T) {
 	t.Run("shouldSkipChannelWithExclusions with exact matches", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		excludeChannels := []string{"general", "announcements"}
 		excludePrefixes := []string{}
@@ -613,7 +643,8 @@ func TestChannelExclusionLogic(t *testing.T) {
 
 	t.Run("shouldSkipChannelWithExclusions with prefix matches", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		excludeChannels := []string{}
 		excludePrefixes := []string{"test-", "dev-"}
@@ -637,7 +668,8 @@ func TestChannelExclusionLogic(t *testing.T) {
 
 	t.Run("shouldSkipChannelWithExclusions with empty exclusions", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		result := client.shouldSkipChannelWithExclusions("any-channel", []string{}, []string{})
 		assert.False(t, result, "No exclusions should not skip any channels")
@@ -645,7 +677,8 @@ func TestChannelExclusionLogic(t *testing.T) {
 
 	t.Run("shouldSkipChannelWithExclusions with nil exclusions", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		result := client.shouldSkipChannelWithExclusions("any-channel", nil, nil)
 		assert.False(t, result, "Nil exclusions should not skip any channels")
@@ -657,9 +690,10 @@ func TestPostMessage(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		// Add the general channel that will be used for posting
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
-		err := client.PostMessage("#general", "Test message")
+		err = client.PostMessage("#general", "Test message")
 		assert.NoError(t, err)
 
 		messages := mockAPI.GetPostedMessages()
@@ -669,9 +703,10 @@ func TestPostMessage(t *testing.T) {
 
 	t.Run("Channel name validation", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
-		err := client.PostMessage("", "Test message")
+		err = client.PostMessage("", "Test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid channel name")
 	})
@@ -680,11 +715,12 @@ func TestPostMessage(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		// Add the general channel that will be used for posting
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetPostMessageError("missing_scope")
 
-		err := client.PostMessage("#general", "Test message")
+		err = client.PostMessage("#general", "Test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required permission")
 		assert.Contains(t, err.Error(), "chat:write")
@@ -692,11 +728,12 @@ func TestPostMessage(t *testing.T) {
 
 	t.Run("Channel not found error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetPostMessageError("channel_not_found")
 
-		err := client.PostMessage("#nonexistent", "Test message")
+		err = client.PostMessage("#nonexistent", "Test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "channel '#nonexistent' not found")
 	})
@@ -705,11 +742,12 @@ func TestPostMessage(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		// Add the private channel that will be used for posting
 		mockAPI.AddChannel("CPRIVATE", "private", time.Now().Add(-24*time.Hour), "Private channel")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetPostMessageError("not_in_channel")
 
-		err := client.PostMessage("#private", "Test message")
+		err = client.PostMessage("#private", "Test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "bot is not a member")
 	})
@@ -718,11 +756,12 @@ func TestPostMessage(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		// Add the general channel that will be used for posting
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		mockAPI.SetPostMessageError("some_other_error")
 
-		err := client.PostMessage("#general", "Test message")
+		err = client.PostMessage("#general", "Test message")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to post message to #general")
 		assert.Contains(t, err.Error(), "some_other_error")
@@ -732,7 +771,8 @@ func TestPostMessage(t *testing.T) {
 func TestGetChannelInfo(t *testing.T) {
 	t.Run("GetChannelInfo returns expected error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// This function is a stub used for permission testing
 		info, err := client.GetChannelInfo("C1234567890")
@@ -802,7 +842,8 @@ func TestTestAuth(t *testing.T) {
 
 func TestFormatInactiveChannelWarning(t *testing.T) {
 	mockAPI := NewMockSlackAPI()
-	client, _ := NewClientWithAPI(mockAPI)
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
 
 	channel := Channel{
 		ID:      "C1234567890",
@@ -814,9 +855,9 @@ func TestFormatInactiveChannelWarning(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		expectedParts  []string
 		warnSeconds    int
 		archiveSeconds int
-		expectedParts  []string
 	}{
 		{
 			name:           "Warning in seconds",
@@ -834,7 +875,7 @@ func TestFormatInactiveChannelWarning(t *testing.T) {
 			name:           "Warning in hours",
 			warnSeconds:    7200, // 2 hours
 			archiveSeconds: 3600, // 1 hour
-			expectedParts:  []string{"2 hours", "60 minutes", "🚨", "Inactive Channel Warning"},
+			expectedParts:  []string{"2 hours", "1 hour", "🚨", "Inactive Channel Warning"},
 		},
 		{
 			name:           "Single minute",
@@ -870,7 +911,8 @@ func TestFormatInactiveChannelWarning(t *testing.T) {
 
 func TestFormatChannelArchivalMessage(t *testing.T) {
 	mockAPI := NewMockSlackAPI()
-	client, _ := NewClientWithAPI(mockAPI)
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
 
 	channel := Channel{
 		ID:      "C1234567890",
@@ -899,22 +941,23 @@ func TestFormatChannelArchivalMessage(t *testing.T) {
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name     string
-		seconds  int
 		expected string
+		seconds  int
 	}{
-		{"Less than minute", 45, "45 seconds"},
-		{"Exactly one minute", 60, "1 minute"},
-		{"Multiple minutes", 300, "5 minutes"},
-		{"Exactly one hour", 3600, "1 hour"},
-		{"Multiple hours", 7200, "2 hours"},
-		{"Days", 86400, "1 day"},
-		{"Multiple days", 172800, "2 days"},
+		{"Less than minute", "45 seconds", 45},
+		{"Exactly one minute", "1 minute", 60},
+		{"Multiple minutes", "5 minutes", 300},
+		{"Exactly one hour", "1 hour", 3600},
+		{"Multiple hours", "2 hours", 7200},
+		{"Days", "1 day", 86400},
+		{"Multiple days", "2 days", 172800},
 	}
 
 	// We can't test formatDuration directly since it's not exported,
 	// but we can test it through FormatInactiveChannelWarning
 	mockAPI := NewMockSlackAPI()
-	client, _ := NewClientWithAPI(mockAPI)
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
 
 	channel := Channel{ID: "C123", Name: "test"}
 
@@ -929,7 +972,8 @@ func TestFormatDuration(t *testing.T) {
 func TestCheckOAuthScopes(t *testing.T) {
 	t.Run("Success - all scopes available", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		scopes, err := client.CheckOAuthScopes()
 		assert.NoError(t, err)
@@ -957,7 +1001,8 @@ func TestCheckOAuthScopes(t *testing.T) {
 
 func TestScopeTestFunctions(t *testing.T) {
 	mockAPI := NewMockSlackAPI()
-	client, _ := NewClientWithAPI(mockAPI)
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
 
 	t.Run("testChannelsReadScope - success", func(t *testing.T) {
 		result := client.testChannelsReadScope()
@@ -1002,7 +1047,8 @@ func TestScopeTestFunctions(t *testing.T) {
 func TestGetInactiveChannels(t *testing.T) {
 	t.Run("No inactive channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add an active channel (created 1 hour ago, no messages but recent creation)
 		now := time.Now()
@@ -1019,7 +1065,8 @@ func TestGetInactiveChannels(t *testing.T) {
 
 	t.Run("Channel needing warning", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add a channel created 3 hours ago (old enough to be inactive)
 		now := time.Now()
@@ -1046,7 +1093,8 @@ func TestGetInactiveChannels(t *testing.T) {
 
 	t.Run("Channel needing archival after warning", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add a channel created 4 hours ago
 		now := time.Now()
@@ -1088,7 +1136,8 @@ func TestGetInactiveChannels(t *testing.T) {
 
 	t.Run("Excluded channels are skipped", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add channels that should be excluded by default
 		now := time.Now()
@@ -1124,7 +1173,8 @@ func TestGetInactiveChannels(t *testing.T) {
 
 	t.Run("API error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return error on GetConversations
 		mockAPI.SetGetConversationsError(true)
@@ -1141,7 +1191,8 @@ func TestGetInactiveChannels(t *testing.T) {
 func TestGetChannelActivity(t *testing.T) {
 	t.Run("Channel with recent user activity", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		now := time.Now()
 		recentTime := now.Add(-30 * time.Minute)
@@ -1166,7 +1217,8 @@ func TestGetChannelActivity(t *testing.T) {
 
 	t.Run("Channel with bot warning message", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		now := time.Now()
 		oldUserTime := now.Add(-4 * time.Hour)
@@ -1202,7 +1254,8 @@ func TestGetChannelActivity(t *testing.T) {
 
 	t.Run("Channel with no messages", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Mock empty conversation history
 		mockAPI.SetChannelHistory("C1234567890", []MockHistoryMessage{})
@@ -1218,7 +1271,8 @@ func TestGetChannelActivity(t *testing.T) {
 
 	t.Run("Channel with only system messages", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		now := time.Now()
 		systemTime := now.Add(-1 * time.Hour)
@@ -1244,12 +1298,13 @@ func TestGetChannelActivity(t *testing.T) {
 
 	t.Run("API error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return error on GetConversationHistory
 		mockAPI.SetGetConversationHistoryError("C1234567890", true)
 
-		_, _, _, err := client.GetChannelActivity("C1234567890")
+		_, _, _, err = client.GetChannelActivity("C1234567890")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get channel history")
@@ -1369,14 +1424,15 @@ func TestSeemsActiveFromMetadata(t *testing.T) {
 func TestWarnInactiveChannel(t *testing.T) {
 	t.Run("Successfully warn inactive channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channel := Channel{
 			ID:   "C1234567890",
 			Name: "inactive-channel",
 		}
 
-		err := client.WarnInactiveChannel(channel, 7200, 3600) // 2 hours warn, 1 hour archive
+		err = client.WarnInactiveChannel(channel, 7200, 3600) // 2 hours warn, 1 hour archive
 
 		assert.NoError(t, err)
 
@@ -1391,7 +1447,8 @@ func TestWarnInactiveChannel(t *testing.T) {
 
 	t.Run("Failed to join channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to fail joining
 		mockAPI.SetJoinConversationErrorForChannel("C1234567890", true)
@@ -1401,7 +1458,7 @@ func TestWarnInactiveChannel(t *testing.T) {
 			Name: "private-channel",
 		}
 
-		err := client.WarnInactiveChannel(channel, 7200, 3600)
+		err = client.WarnInactiveChannel(channel, 7200, 3600)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to join channel")
@@ -1415,14 +1472,15 @@ func TestWarnInactiveChannel(t *testing.T) {
 func TestArchiveChannel(t *testing.T) {
 	t.Run("Successfully archive channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channel := Channel{
 			ID:   "C1234567890",
 			Name: "to-archive",
 		}
 
-		err := client.ArchiveChannelWithThresholds(channel, 7200, 3600)
+		err = client.ArchiveChannelWithThresholds(channel, 7200, 3600)
 
 		assert.NoError(t, err)
 
@@ -1440,7 +1498,8 @@ func TestArchiveChannel(t *testing.T) {
 
 	t.Run("Archive succeeds even if join fails", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to fail joining but allow archiving
 		mockAPI.SetJoinConversationErrorForChannel("C1234567890", true)
@@ -1450,7 +1509,7 @@ func TestArchiveChannel(t *testing.T) {
 			Name: "private-to-archive",
 		}
 
-		err := client.ArchiveChannelWithThresholds(channel, 7200, 3600)
+		err = client.ArchiveChannelWithThresholds(channel, 7200, 3600)
 
 		assert.NoError(t, err)
 
@@ -1460,7 +1519,8 @@ func TestArchiveChannel(t *testing.T) {
 
 	t.Run("Missing scope error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return missing scope error for archive
 		mockAPI.SetArchiveConversationErrorWithMessage("C1234567890", true, "missing_scope")
@@ -1470,7 +1530,7 @@ func TestArchiveChannel(t *testing.T) {
 			Name: "test-channel",
 		}
 
-		err := client.ArchiveChannelWithThresholds(channel, 7200, 3600)
+		err = client.ArchiveChannelWithThresholds(channel, 7200, 3600)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required permission to archive channels")
@@ -1479,7 +1539,8 @@ func TestArchiveChannel(t *testing.T) {
 
 	t.Run("Already archived channel", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Configure mock to return already archived error
 		mockAPI.SetArchiveConversationErrorWithMessage("C1234567890", true, "already_archived")
@@ -1489,31 +1550,31 @@ func TestArchiveChannel(t *testing.T) {
 			Name: "test-channel",
 		}
 
-		err := client.ArchiveChannelWithThresholds(channel, 7200, 3600)
+		err = client.ArchiveChannelWithThresholds(channel, 7200, 3600)
 
 		assert.NoError(t, err) // Should not error for already archived
 	})
 }
 
-// Helper function to format timestamp for mock messages
+// Helper function to format timestamp for mock messages.
 func formatTimestamp(t time.Time) string {
 	return fmt.Sprintf("%d.%06d", t.Unix(), t.Nanosecond()/1000)
 }
 
-// Test formatDuration function - direct testing of the function
+// Test formatDuration function - direct testing of the function.
 func TestFormatDurationDirect(t *testing.T) {
 	tests := []struct {
 		name     string
-		duration time.Duration
 		expected string
+		duration time.Duration
 	}{
-		{"Zero duration", 0, "0 seconds"},
-		{"One second", time.Second, "1 second"},
-		{"One minute exactly", time.Minute, "1 minute"},
-		{"One hour exactly", time.Hour, "1 hour"},
-		{"One day exactly", 24 * time.Hour, "1 day"},
-		{"Complex duration (1h30m)", time.Hour + 30*time.Minute, "1 hour"},
-		{"Very small duration", 500 * time.Millisecond, "0 seconds"},
+		{"Zero duration", "0 seconds", 0},
+		{"One second", "1 second", time.Second},
+		{"One minute exactly", "1 minute", time.Minute},
+		{"One hour exactly", "1 hour", time.Hour},
+		{"One day exactly", "1 day", 24 * time.Hour},
+		{"Complex duration (1h30m)", "1 hour", time.Hour + 30*time.Minute},
+		{"Very small duration", "0 seconds", 500 * time.Millisecond},
 	}
 
 	for _, tt := range tests {
@@ -1524,7 +1585,7 @@ func TestFormatDurationDirect(t *testing.T) {
 	}
 }
 
-// Test parseSlackRetryAfter function
+// Test parseSlackRetryAfter function.
 func TestParseSlackRetryAfter(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1549,7 +1610,7 @@ func TestParseSlackRetryAfter(t *testing.T) {
 	}
 }
 
-// Test showProgressBar function
+// Test showProgressBar function.
 func TestShowProgressBar(t *testing.T) {
 	// Capture output for testing - this is a UI function, so we test basic behavior
 	// without mocking complex console output since it's primarily for user feedback
@@ -1591,11 +1652,12 @@ func TestShowProgressBar(t *testing.T) {
 	// The function's core logic (duration handling, bounds checking) is covered above
 }
 
-// Test getUserMap function with mock API
+// Test getUserMap function with mock API.
 func TestGetUserMapUtility(t *testing.T) {
 	t.Run("Success with users", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add some test users to mock
 		mockAPI.AddUser("U123", "john.doe", "John Doe") // Has RealName - should use "John Doe"
@@ -1617,7 +1679,8 @@ func TestGetUserMapUtility(t *testing.T) {
 	t.Run("Missing scope error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.SetGetUsersError("missing_scope")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		userMap, err := client.GetUserMap()
 		assert.Error(t, err)
@@ -1627,7 +1690,8 @@ func TestGetUserMapUtility(t *testing.T) {
 
 	t.Run("Empty user list", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 		// Users slice is empty by default
 
 		userMap, err := client.GetUserMap()
@@ -1638,7 +1702,8 @@ func TestGetUserMapUtility(t *testing.T) {
 	t.Run("Generic error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.SetGetUsersError("api_error")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		userMap, err := client.GetUserMap()
 		assert.Error(t, err)
@@ -1650,7 +1715,8 @@ func TestGetUserMapUtility(t *testing.T) {
 func TestGetInactiveChannelsWithDetails(t *testing.T) {
 	t.Run("Basic functionality", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add channels with different activity levels
 		now := time.Now()
@@ -1684,7 +1750,8 @@ func TestGetInactiveChannelsWithDetails(t *testing.T) {
 	t.Run("API error handling", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.SetGetConversationsError(true)
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		userMap := map[string]string{}
 		toWarn, toArchive, err := client.GetInactiveChannelsWithDetails(600, 300, userMap, false)
@@ -1699,7 +1766,8 @@ func TestGetInactiveChannelsWithDetails(t *testing.T) {
 func TestGetInactiveChannelsWithDetailsAndExclusions(t *testing.T) {
 	t.Run("Channel exclusions", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		// Add channels
 		now := time.Now()
@@ -1735,7 +1803,8 @@ func TestGetInactiveChannelsWithDetailsAndExclusions(t *testing.T) {
 func TestArchiveChannelLegacyMethod(t *testing.T) {
 	t.Run("Legacy ArchiveChannel method", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channel := Channel{
 			ID:   "C1234567890",
@@ -1743,7 +1812,7 @@ func TestArchiveChannelLegacyMethod(t *testing.T) {
 		}
 
 		// Test the legacy method (should call ArchiveChannelWithThresholds with default values)
-		err := client.ArchiveChannel(channel)
+		err = client.ArchiveChannel(channel)
 
 		assert.NoError(t, err)
 
@@ -1767,7 +1836,8 @@ func TestGetChannelsWithMetadata(t *testing.T) {
 		mockAPI.AddChannel("C123", "test-channel", now.Add(-1*time.Hour), "Test channel")
 		mockAPI.AddChannel("C456", "another-channel", now.Add(-2*time.Hour), "Another channel")
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channels, err := client.GetChannelsWithMetadata()
 
@@ -1786,7 +1856,8 @@ func TestGetChannelsWithMetadata(t *testing.T) {
 	t.Run("API error", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.SetGetConversationsError(true)
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channels, err := client.GetChannelsWithMetadata()
 
@@ -1797,7 +1868,8 @@ func TestGetChannelsWithMetadata(t *testing.T) {
 
 	t.Run("No channels", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channels, err := client.GetChannelsWithMetadata()
 
@@ -1810,7 +1882,8 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 	t.Run("No duplicate when no previous messages", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
 
@@ -1825,7 +1898,8 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 		// Add a previous announcement from the bot (U0000000 is bot's user ID)
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
 
@@ -1840,7 +1914,8 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 		// Add a previous announcement for a different channel
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #other-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
 
@@ -1855,7 +1930,8 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 		// Add a message from a different user (not the bot)
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
 
@@ -1865,7 +1941,8 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 
 	t.Run("Returns false when channel not found", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#nonexistent", "New channel alert! #test-channel", []string{"test-channel"})
 
@@ -1879,7 +1956,8 @@ func TestCheckForDuplicateAnnouncement(t *testing.T) {
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		mockAPI.SetGetConversationHistoryError("C123", true)
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		isDuplicate, err := client.CheckForDuplicateAnnouncement("#general", "New channel alert! #test-channel", []string{"test-channel"})
 
@@ -1897,7 +1975,8 @@ func TestCheckForDuplicateAnnouncementWithDetails(t *testing.T) {
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #channel1 #channel2", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-2*time.Hour).Unix())))
 		mockAPI.AddMessageToHistory("C123", "New channel created: #channel3", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
 		isDuplicate, duplicateChannels, err := client.CheckForDuplicateAnnouncementWithDetails("#general", "New channel alert! #channel1 #channel4", []string{"channel1", "channel4"}, cutoffTime)
@@ -1916,7 +1995,8 @@ func TestCheckForDuplicateAnnouncementWithDetails(t *testing.T) {
 		oldTimestamp := time.Now().Add(-25 * time.Hour)
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(oldTimestamp.Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
 		isDuplicate, duplicateChannels, err := client.CheckForDuplicateAnnouncementWithDetails("#general", "New channel alert! #test-channel", []string{"test-channel"}, cutoffTime)
@@ -1937,7 +2017,8 @@ func TestCheckForDuplicateAnnouncementWithDetailsAndChannels(t *testing.T) {
 		// Add previous announcement
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
 		// Provide pre-fetched channel list
@@ -1965,7 +2046,8 @@ func TestCheckForDuplicateAnnouncementWithDetailsAndChannels(t *testing.T) {
 		// Add previous announcement
 		mockAPI.AddMessageToHistory("C123", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 		cutoffTime := time.Now().Add(-24 * time.Hour)
 
 		isDuplicate, duplicateChannels, err := client.CheckForDuplicateAnnouncementWithDetailsAndChannels("#general", "New channel alert! #test-channel", []string{"test-channel"}, cutoffTime, nil)
@@ -1982,7 +2064,8 @@ func TestGetAllChannelNameToIDMap(t *testing.T) {
 		mockAPI.AddChannel("C123", "general", time.Now().Add(-24*time.Hour), "General discussion")
 		mockAPI.AddChannel("C456", "random", time.Now().Add(-12*time.Hour), "Random stuff")
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channelMap, err := client.getAllChannelNameToIDMap()
 
@@ -1996,7 +2079,8 @@ func TestGetAllChannelNameToIDMap(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
 		mockAPI.SetGetConversationsError(true)
 
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channelMap, err := client.getAllChannelNameToIDMap()
 
@@ -2006,7 +2090,8 @@ func TestGetAllChannelNameToIDMap(t *testing.T) {
 
 	t.Run("Handles empty channel list", func(t *testing.T) {
 		mockAPI := NewMockSlackAPI()
-		client, _ := NewClientWithAPI(mockAPI)
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
 
 		channelMap, err := client.getAllChannelNameToIDMap()
 

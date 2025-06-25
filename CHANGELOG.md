@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-06-25
+
+### Fixed
+- **Code Quality**: Refactored test functions to reduce cyclomatic complexity below 15 threshold
+- **Test Reliability**: Fixed test expectations for duration formatting (1 hour vs 60 minutes)
+- **Code Structure**: Improved test organization with smaller, focused helper functions
+
+### Improved
+- **Test Maintenance**: Extracted complex test setup into reusable helper functions
+- **Code Readability**: Better separation of concerns in test validation and setup
+- **Quality Compliance**: Achieved 100% quality gate compliance with all checks passing
+
 ## [1.1.0] - 2025-06-25
 
 ### Added

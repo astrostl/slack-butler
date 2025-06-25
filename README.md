@@ -4,7 +4,7 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.1.1 - Stable Release** ✅
+**Version 1.1.2 - Stable Release** ✅
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk in production environments.
 
@@ -254,22 +254,25 @@ make coverage
 
 ### Development Commands
 ```bash
-# Install development and security tools
+# Install development and security tools (REQUIRED for quality/security targets)
 make install-tools
+
+# Add Go tools to PATH (REQUIRED for quality/security targets)
+export PATH=$PATH:~/go/bin
 
 # Quick development cycle (format + vet + test + build)
 make dev
 
-# Complete quality validation (security + format + vet + lint + complexity)
+# Complete quality validation (requires: make install-tools + PATH setup)
 make quality
 
-# Monthly maintenance (update dependencies + quality checks + test)
+# Monthly maintenance (requires: make install-tools + PATH setup)
 make maintenance
 
-# Full CI pipeline (clean + deps + quality + coverage + build)
+# Full CI pipeline (requires: make install-tools + PATH setup)
 make ci
 
-# Full release workflow with quality checks
+# Full release workflow (requires: make install-tools + PATH setup)
 make release-full
 
 # Install dependencies
@@ -290,22 +293,22 @@ make fmt-check
 # Vet code
 make vet
 
-# Lint code
+# Lint code (requires: make install-tools + export PATH=$PATH:~/go/bin)
 make lint
 
-# Check cyclomatic complexity
+# Check cyclomatic complexity (requires: make install-tools + export PATH=$PATH:~/go/bin)
 make complexity-check
 
-# Static security analysis
+# Static security analysis (requires: make install-tools + export PATH=$PATH:~/go/bin)
 make gosec
 
-# Check for vulnerabilities
+# Check for vulnerabilities (requires: make install-tools + export PATH=$PATH:~/go/bin)
 make vuln-check
 
 # Verify module integrity
 make mod-verify
 
-# Complete security analysis
+# Complete security analysis (requires: make install-tools + export PATH=$PATH:~/go/bin)
 make security
 ```
 

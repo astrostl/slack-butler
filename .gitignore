@@ -46,6 +46,7 @@ final_coverage.*
 health_coverage.*
 temp_coverage.*
 main_coverage_analysis.html
+main_debug.out
 
 # Security reports
 security-report.json

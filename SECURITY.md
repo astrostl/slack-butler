@@ -26,7 +26,7 @@ Instead:
 ### Scope
 
 This policy applies to vulnerabilities in:
-- The slack-buddy CLI tool itself
+- The slack-butler CLI tool itself
 - Dependencies and build processes
 - Security misconfigurations in the codebase
 

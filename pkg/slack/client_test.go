@@ -929,7 +929,7 @@ func TestFormatChannelArchivalMessage(t *testing.T) {
 			"📋 **Channel Archival Notice**",
 			"This channel is being archived",
 			"inactive for more than",
-			"slack-buddy bot",
+			"slack-butler bot",
 		}
 
 		for _, part := range expectedParts {

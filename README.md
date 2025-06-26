@@ -1,6 +1,6 @@
 # Slack Buddy AI
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-buddy-ai?v=1)](https://goreportcard.com/report/github.com/astrostl/slack-buddy-ai)
+[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-butler?v=1)](https://goreportcard.com/report/github.com/astrostl/slack-butler)
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
@@ -28,20 +28,16 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 ### Install via Go
 ```bash
-go install github.com/astrostl/slack-buddy-ai@latest
+go install github.com/astrostl/slack-butler@latest
 ```
 
-**Note:** This installs the binary as `slack-buddy-ai`. You can create an alias if you prefer:
-```bash
-# Add to your shell profile (.bashrc, .zshrc, etc.)
-alias slack-buddy='slack-buddy-ai'
-```
+**Note:** This installs the binary as `slack-butler`.
 
 ### Build from Source
 ```bash
-git clone https://github.com/astrostl/slack-buddy-ai.git
-cd slack-buddy-ai
-go build -o slack-buddy
+git clone https://github.com/astrostl/slack-butler.git
+cd slack-butler
+go build -o slack-butler
 ```
 
 ## Setup
@@ -71,7 +67,7 @@ Or set the environment variable directly:
 export SLACK_TOKEN=xoxb-your-bot-token-here
 ```
 
-**Note**: The `.env.example` file uses `export` statements to ensure environment variables are available to the slack-buddy binary when you `source .env`.
+**Note**: The `.env.example` file uses `export` statements to ensure environment variables are available to the slack-butler binary when you `source .env`.
 
 **Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels - without it, the tool will only detect public channels.
 
@@ -90,10 +86,10 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 ### Health Check
 ```bash
 # Basic health check
-./bin/slack-buddy health
+./bin/slack-butler health
 
 # Detailed health check with verbose output
-./bin/slack-buddy health --verbose
+./bin/slack-butler health --verbose
 ```
 
 ### Basic Channel Detection
@@ -102,40 +98,40 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 source .env
 
 # Detect new channels from the last 8 days (default)
-./bin/slack-buddy channels detect
+./bin/slack-butler channels detect
 
 # Detect from last week
-./bin/slack-buddy channels detect --since=7
+./bin/slack-butler channels detect --since=7
 ```
 
 ### Channel Archival Management
 ```bash
 # Dry run what channels would be warned/archived (default mode)
-./bin/slack-buddy channels archive
+./bin/slack-butler channels archive
 
 # Actually warn channels inactive for 5 minutes, archive after 1 minute grace period
-./bin/slack-buddy channels archive --warn-seconds=300 --archive-seconds=60 --commit
+./bin/slack-butler channels archive --warn-seconds=300 --archive-seconds=60 --commit
 
 # Exclude important channels from archival
-./bin/slack-buddy channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
+./bin/slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
 ```
 
 ### With Announcements
 ```bash
 # Detect and announce to #general
-./bin/slack-buddy channels detect --since=1 --announce-to=#general
+./bin/slack-butler channels detect --since=1 --announce-to=#general
 
 # Detect from last 3 days and announce to #announcements
-./bin/slack-buddy channels detect --since=3 --announce-to=#announcements
+./bin/slack-butler channels detect --since=3 --announce-to=#announcements
 ```
 
 ### Dry Run vs Commit Mode
 ```bash
 # Dry run what would be announced without posting (default)
-./bin/slack-buddy channels detect --since=7 --announce-to=#general
+./bin/slack-butler channels detect --since=7 --announce-to=#general
 
 # Actually post announcements
-./bin/slack-buddy channels detect --since=7 --announce-to=#general --commit
+./bin/slack-butler channels detect --since=7 --announce-to=#general --commit
 
 # The default behavior is safe dry run mode
 ```
@@ -143,7 +139,7 @@ source .env
 ### Using Token Flag
 ```bash
 # Use token directly without .env file
-./bin/slack-buddy channels detect --token=xoxb-your-token --since=7
+./bin/slack-butler channels detect --token=xoxb-your-token --since=7
 ```
 
 ### Time Format Examples
@@ -170,8 +166,8 @@ Check Slack connectivity and validate configuration.
 
 **Examples:**
 ```bash
-./bin/slack-buddy health
-./bin/slack-buddy health --verbose
+./bin/slack-butler health
+./bin/slack-butler health --verbose
 ```
 
 ### `channels detect`
@@ -185,8 +181,8 @@ Detect new channels created within a specified time period.
 
 **Examples:**
 ```bash
-./bin/slack-buddy channels detect --since=7 --announce-to=#general
-./bin/slack-buddy channels detect --since=1 --announce-to=#general --commit
+./bin/slack-butler channels detect --since=7 --announce-to=#general
+./bin/slack-butler channels detect --since=1 --announce-to=#general --commit
 ```
 
 ### `channels archive`
@@ -204,9 +200,9 @@ Manage inactive channel archival with automated warnings and grace periods.
 
 **Examples:**
 ```bash
-./bin/slack-buddy channels archive
-./bin/slack-buddy channels archive --warn-seconds=1800 --archive-seconds=300 --commit
-./bin/slack-buddy channels archive --exclude-channels="general,random" --commit
+./bin/slack-butler channels archive
+./bin/slack-butler channels archive --warn-seconds=1800 --archive-seconds=300 --commit
+./bin/slack-butler channels archive --exclude-channels="general,random" --commit
 ```
 
 **Required OAuth Scopes for Archive:**
@@ -220,7 +216,7 @@ Manage inactive channel archival with automated warnings and grace periods.
 
 ### Project Structure
 ```
-slack-buddy-ai/
+slack-butler/
 ├── main.go              # Entry point
 ├── cmd/                 # CLI commands and tests
 │   ├── root.go         # Root command and configuration
@@ -240,7 +236,7 @@ slack-buddy-ai/
 
 ### Building
 ```bash
-go build -o slack-buddy
+go build -o slack-butler
 ```
 
 ### Testing

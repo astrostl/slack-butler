@@ -26,44 +26,44 @@ func TestVersionVariables(t *testing.T) {
 func TestMainIntegration(t *testing.T) {
 	t.Run("CLI binary builds and runs", func(t *testing.T) {
 		// Build the binary
-		buildCmd := exec.Command("go", "build", "-o", "slack-buddy-test", ".")
+		buildCmd := exec.Command("go", "build", "-o", "slack-butler-test", ".")
 		buildCmd.Dir = "."
 		err := buildCmd.Run()
 		require.NoError(t, err, "Failed to build CLI binary")
 
 		// Clean up binary after test
 		defer func() {
-			if removeErr := os.Remove("./slack-buddy-test"); removeErr != nil {
+			if removeErr := os.Remove("./slack-butler-test"); removeErr != nil {
 				t.Logf("Failed to clean up test binary: %v", removeErr)
 			}
 		}()
 
 		// Test version flag
-		versionCmd := exec.Command("./slack-buddy-test", "--version")
+		versionCmd := exec.Command("./slack-butler-test", "--version")
 		output, err := versionCmd.Output()
 		require.NoError(t, err, "Version command failed")
 
 		outputStr := strings.TrimSpace(string(output))
-		assert.Contains(t, outputStr, "slack-buddy", "Version output should contain tool name")
+		assert.Contains(t, outputStr, "slack-butler", "Version output should contain tool name")
 		assert.Contains(t, outputStr, "dev", "Version output should contain version")
 	})
 
 	t.Run("Help command works", func(t *testing.T) {
 		// Build the binary
-		buildCmd := exec.Command("go", "build", "-o", "slack-buddy-test", ".")
+		buildCmd := exec.Command("go", "build", "-o", "slack-butler-test", ".")
 		buildCmd.Dir = "."
 		err := buildCmd.Run()
 		require.NoError(t, err, "Failed to build CLI binary")
 
 		// Clean up binary after test
 		defer func() {
-			if removeErr := os.Remove("./slack-buddy-test"); removeErr != nil {
+			if removeErr := os.Remove("./slack-butler-test"); removeErr != nil {
 				t.Logf("Failed to clean up test binary: %v", removeErr)
 			}
 		}()
 
 		// Test help flag
-		helpCmd := exec.Command("./slack-buddy-test", "--help")
+		helpCmd := exec.Command("./slack-butler-test", "--help")
 		output, err := helpCmd.Output()
 		require.NoError(t, err, "Help command failed")
 
@@ -76,20 +76,20 @@ func TestMainIntegration(t *testing.T) {
 
 	t.Run("Invalid command shows error", func(t *testing.T) {
 		// Build the binary
-		buildCmd := exec.Command("go", "build", "-o", "slack-buddy-test", ".")
+		buildCmd := exec.Command("go", "build", "-o", "slack-butler-test", ".")
 		buildCmd.Dir = "."
 		err := buildCmd.Run()
 		require.NoError(t, err, "Failed to build CLI binary")
 
 		// Clean up binary after test
 		defer func() {
-			if removeErr := os.Remove("./slack-buddy-test"); removeErr != nil {
+			if removeErr := os.Remove("./slack-butler-test"); removeErr != nil {
 				t.Logf("Failed to clean up test binary: %v", removeErr)
 			}
 		}()
 
 		// Test invalid command
-		invalidCmd := exec.Command("./slack-buddy-test", "nonexistent-command")
+		invalidCmd := exec.Command("./slack-butler-test", "nonexistent-command")
 		output, err := invalidCmd.CombinedOutput()
 
 		// Should exit with non-zero code

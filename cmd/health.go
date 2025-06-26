@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
+	"github.com/astrostl/slack-butler/pkg/logger"
+	"github.com/astrostl/slack-butler/pkg/slack"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

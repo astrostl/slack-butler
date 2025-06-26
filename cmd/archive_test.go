@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
+	"github.com/astrostl/slack-butler/pkg/slack"
 )
 
 type archiveTestCase struct {

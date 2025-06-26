@@ -1,4 +1,4 @@
-# Makefile for slack-buddy-ai
+# Makefile for slack-butler
 # 
 # Main workflows:
 #   make dev      - Quick development cycle
@@ -6,9 +6,9 @@
 #   make ci       - Full CI pipeline
 
 # Variables
-BINARY_NAME=slack-buddy
+BINARY_NAME=slack-butler
 BINARY_PATH=./bin/$(BINARY_NAME)
-MODULE_NAME=slack-buddy-ai
+MODULE_NAME=slack-butler
 GO_VERSION=1.24.4
 
 # Build directories
@@ -282,7 +282,7 @@ release-full: ci release
 # Show available targets
 .PHONY: help
 help:
-	@echo "slack-buddy-ai Makefile (Go $(GO_VERSION))"
+	@echo "slack-butler Makefile (Go $(GO_VERSION))"
 	@echo "Version: $(VERSION) | Commit: $(GIT_COMMIT)"
 	@echo ""
 	@echo "🚀 Main workflows:"

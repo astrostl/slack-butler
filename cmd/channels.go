@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
-	"github.com/astrostl/slack-buddy-ai/pkg/slack"
+	"github.com/astrostl/slack-butler/pkg/logger"
+	"github.com/astrostl/slack-butler/pkg/slack"
 
 	slackapi "github.com/slack-go/slack"
 	"github.com/spf13/cobra"

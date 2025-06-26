@@ -37,7 +37,7 @@ func TestVersionCommand(t *testing.T) {
 	output := buf.String()
 
 	// Check output contains expected information
-	if !strings.Contains(output, "slack-buddy version 1.0.0-test") {
+	if !strings.Contains(output, "slack-butler version 1.0.0-test") {
 		t.Errorf("Expected version in output, got: %s", output)
 	}
 
@@ -80,7 +80,7 @@ func TestVersionCommandDefaults(t *testing.T) {
 	output := buf.String()
 
 	// Check output contains version but not unknown values
-	if !strings.Contains(output, "slack-buddy version dev") {
+	if !strings.Contains(output, "slack-butler version dev") {
 		t.Errorf("Expected version in output, got: %s", output)
 	}
 

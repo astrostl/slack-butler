@@ -178,7 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Channel Access Validation**: Specific messages for bot membership requirements
 
 ### Features
-- `slack-buddy channels detect` command with the following options:
+- `slack-butler channels detect` command with the following options:
   - `--since` flag for time period specification (default: 24h)
   - `--announce-to` flag for target announcement channel
   - `--token` flag for direct token specification
@@ -187,8 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error handling for API failures and authentication issues
 
 ### Technical Details
-- Go module: `slack-buddy-ai`
-- CLI tool name: `slack-buddy`
+- Go module: `slack-butler`
+- CLI tool name: `slack-butler`
 - Dependencies:
   - `github.com/spf13/cobra` - CLI framework
   - `github.com/slack-go/slack` - Slack API client

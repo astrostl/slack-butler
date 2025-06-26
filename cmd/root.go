@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
+	"github.com/astrostl/slack-butler/pkg/logger"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -22,14 +22,14 @@ var (
 const unknownValue = "unknown"
 
 var rootCmd = &cobra.Command{
-	Use:   "slack-buddy",
+	Use:   "slack-butler",
 	Short: "A CLI tool to help manage Slack workspaces",
-	Long:  `Slack Buddy is a CLI tool that helps make Slack workspaces more useful and tidy.`,
+	Long:  `Slack Butler is a CLI tool that helps make Slack workspaces more useful and tidy.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Handle --version flag when no subcommand is specified
 		versionFlag, err := cmd.Flags().GetBool("version")
 		if err == nil && versionFlag {
-			fmt.Printf("slack-buddy version %s\n", version)
+			fmt.Printf("slack-butler version %s\n", version)
 			if buildTime != unknownValue {
 				fmt.Printf("Built: %s\n", buildTime)
 			}

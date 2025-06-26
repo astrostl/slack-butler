@@ -31,7 +31,7 @@ func TestExecuteFunction(t *testing.T) {
 func TestRootCommand(t *testing.T) {
 	t.Run("Root command exists", func(t *testing.T) {
 		assert.NotNil(t, rootCmd)
-		assert.Equal(t, "slack-buddy", rootCmd.Use)
+		assert.Equal(t, "slack-butler", rootCmd.Use)
 	})
 }
 

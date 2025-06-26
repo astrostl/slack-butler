@@ -95,7 +95,7 @@ make lint
 make dev
 
 # Test with real Slack workspace (optional)
-./slack-buddy health --verbose
+./slack-butler health --verbose
 
 # Run full CI-like checks
 make ci

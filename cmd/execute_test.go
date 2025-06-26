@@ -19,7 +19,7 @@ func TestExecuteErrorPaths(t *testing.T) {
 		defer func() { os.Args = originalArgs }()
 
 		// Set help command which won't call os.Exit
-		os.Args = []string{"slack-buddy", "--help"}
+		os.Args = []string{"slack-butler", "--help"}
 
 		assert.NotPanics(t, func() {
 			Execute("dev", "unknown", "unknown")

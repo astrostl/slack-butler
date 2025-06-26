@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/astrostl/slack-buddy-ai/cmd"
+	"github.com/astrostl/slack-butler/cmd"
 )
 
 // Version information injected at build time via GoReleaser.

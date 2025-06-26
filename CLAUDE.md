@@ -1,10 +1,10 @@
 # CLAUDE.md - Development Notes
 
 ## Project Overview
-**slack-buddy-ai** - A Go CLI tool to help Slack workspaces be more useful and tidy.
+**slack-butler** - A Go CLI tool to help Slack workspaces be more useful and tidy.
 
-- **Repository Name**: `slack-buddy-ai`
-- **CLI Tool Name**: `slack-buddy`
+- **Repository Name**: `slack-butler`
+- **CLI Tool Name**: `slack-butler`
 - **Language**: Go
 - **Purpose**: Workspace management and automation for Slack
 
@@ -28,30 +28,30 @@
 source .env
 
 # Health check with basic output
-./bin/slack-buddy health
+./bin/slack-butler health
 
 # Health check with detailed information
-./bin/slack-buddy health --verbose
+./bin/slack-butler health --verbose
 
 # Basic channel detection (last 8 days - default)
-./bin/slack-buddy channels detect
+./bin/slack-butler channels detect
 
 # Custom time period with announcement (last 7 days)
-./bin/slack-buddy channels detect --since=7 --announce-to=#general
+./bin/slack-butler channels detect --since=7 --announce-to=#general
 
 # Using token flag directly (last 3 days)
-./bin/slack-buddy channels detect --token=xoxb-your-token --since=3
+./bin/slack-butler channels detect --token=xoxb-your-token --since=3
 
 # Dry run announcements without posting (default)
-./bin/slack-buddy channels detect --since=7 --announce-to=#general
+./bin/slack-butler channels detect --since=7 --announce-to=#general
 
 # Actually post announcements
-./bin/slack-buddy channels detect --since=7 --announce-to=#general --commit
+./bin/slack-butler channels detect --since=7 --announce-to=#general --commit
 
 # Channel archival management (dry run mode by default)
-./bin/slack-buddy channels archive
-./bin/slack-buddy channels archive --warn-seconds=300 --archive-seconds=60 --commit
-./bin/slack-buddy channels archive --exclude-channels="general,announcements" --commit
+./bin/slack-butler channels archive
+./bin/slack-butler channels archive --warn-seconds=300 --archive-seconds=60 --commit
+./bin/slack-butler channels archive --exclude-channels="general,announcements" --commit
 ```
 
 ## Required Slack Permissions
@@ -64,7 +64,7 @@ source .env
 
 ## Project Structure
 ```
-slack-buddy-ai/
+slack-butler/
 ├── main.go              # Entry point
 ├── cmd/                 # CLI commands and tests
 │   ├── root.go         # Root command and configuration
@@ -178,8 +178,8 @@ make release         # Create release with GoReleaser (standalone)
 make help
 
 # Test CLI help output
-./bin/slack-buddy --help
-./bin/slack-buddy channels detect --help
+./bin/slack-butler --help
+./bin/slack-butler channels detect --help
 ```
 
 ## Git Repository

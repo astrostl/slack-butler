@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astrostl/slack-buddy-ai/pkg/logger"
+	"github.com/astrostl/slack-butler/pkg/logger"
 
 	"github.com/slack-go/slack"
 )
@@ -1729,7 +1729,7 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 	builder.WriteString("• Post a message in this channel\n")
 	builder.WriteString("• Or contact an admin if this channel should remain active\n\n")
 
-	builder.WriteString("_This is an automated message from slack-buddy bot._\n")
+	builder.WriteString("_This is an automated message from slack-butler bot._\n")
 	builder.WriteString("<!-- inactive channel warning -->")
 
 	return builder.String()
@@ -1753,7 +1753,7 @@ func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, arch
 
 	builder.WriteString("If this channel should not have been archived, please contact a workspace admin.\n\n")
 
-	builder.WriteString("_This is an automated action by slack-buddy bot._\n")
+	builder.WriteString("_This is an automated action by slack-butler bot._\n")
 	builder.WriteString("<!-- channel archival notice -->")
 
 	return builder.String()

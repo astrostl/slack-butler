@@ -35,7 +35,7 @@ linters-settings:
     simplify: true
   
   goimports:
-    local-prefixes: github.com/astrostl/slack-buddy-ai
+    local-prefixes: github.com/astrostl/slack-butler
   
   # Complexity linters
   cyclop:

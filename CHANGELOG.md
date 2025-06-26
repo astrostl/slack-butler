@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2025-06-26
+
+### Fixed
+- **Code Quality**: Fixed gofmt -s formatting issues in cmd/root.go to ensure 100% quality compliance
+- **Documentation**: Updated README.md for better clarity and consistency
+  - Changed "basic channel detection" to "new channel detection" 
+  - Changed "channel archival management" to "warning and archiving inactive channels"
+  - Updated archive examples to use days instead of seconds for practical usage
+  - Removed redundant sections and duplicate OAuth scope documentation
+  - Added security warning about --token flag exposure in shell history
+  - Removed "bulk channel operations" from roadmap (not planned)
+
+### Added
+- **Roadmap**: Added new channel detection as completed feature in roadmap
+
 ## [1.1.4] - 2025-06-26
 
 ### Fixed

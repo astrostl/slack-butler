@@ -46,11 +46,11 @@ go build -o slack-butler
 1. Go to [Slack API](https://api.slack.com/apps)
 2. Create a new app for your workspace
 3. Add the following OAuth scopes:
-   - `channels:read` - To list public channels (**required**)
-   - `channels:join` - To join public channels for message checks and announcements (**required for archive**)
-   - `channels:manage` - To archive channels (**required for archive**)
-   - `chat:write` - To post announcements and warnings (**required**)
-   - `users:read` - To resolve user names in messages (**required for enhanced features**)
+   - `channels:read` - To list public channels
+   - `channels:join` - To join public channels for message checks and announcements
+   - `channels:manage` - To archive channels
+   - `chat:write` - To post announcements and warnings
+   - `users:read` - To resolve user names in messages
    - `groups:read` - To list private channels (*optional*)
 4. Install the app to your workspace and copy the Bot User OAuth Token
 

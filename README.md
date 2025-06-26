@@ -1,6 +1,6 @@
 # Slack Buddy AI
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-butler?v=1)](https://goreportcard.com/report/github.com/astrostl/slack-butler)
+[![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-butler?v=2)](https://goreportcard.com/report/github.com/astrostl/slack-butler)
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 

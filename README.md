@@ -347,6 +347,7 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security
 
 ## Roadmap
 
+- [x] New channel detection - **Implemented**
 - [x] Channel cleanup detection (inactive channels) - **Implemented**
 - [ ] Multi-workspace support
 - [ ] Configurable warning message templates

@@ -19,7 +19,7 @@ var healthCmd = &cobra.Command{
 This command verifies:
 - Token validity and format
 - Slack API connectivity  
-- Required OAuth scopes and permissions (channels:read, channels:join, chat:write, channels:manage, users:read)
+- Required OAuth scopes and permissions (channels:read, channels:join, channels:manage, channels:history, chat:write, users:read)
 - Bot user information
 - Basic API functionality`,
 	SilenceUsage: true, // Don't show usage on errors
@@ -138,9 +138,9 @@ func testAPIConnectivity(client *slack.Client) (*slack.AuthInfo, error) {
 
 // validateOAuthScopes validates required and optional OAuth scopes.
 func validateOAuthScopes(client *slack.Client) error {
-	fmt.Print("✓ OAuth scope validation (channels:read, channels:join, chat:write, channels:manage, users:read)... ")
+	fmt.Print("✓ OAuth scope validation (channels:read, channels:join, channels:manage, channels:history, chat:write, users:read)... ")
 	if healthVerbose {
-		fmt.Printf("\n  Testing required scopes: channels:read, channels:join, chat:write, channels:manage, users:read\n")
+		fmt.Printf("\n  Testing required scopes: channels:read, channels:join, channels:manage, channels:history, chat:write, users:read\n")
 		fmt.Printf("  Testing optional scopes: groups:read\n")
 		fmt.Print("  Validation result: ")
 	}
@@ -153,11 +153,12 @@ func validateOAuthScopes(client *slack.Client) error {
 	}
 
 	requiredScopes := map[string]bool{
-		"channels:read":   true, // Required - list channels
-		"channels:join":   true, // Required - join channels for warnings
-		"chat:write":      true, // Required - post warning messages
-		"channels:manage": true, // Required - archive channels
-		"users:read":      true, // Required - resolve user names for message authors
+		"channels:read":    true, // Required - list channels
+		"channels:join":    true, // Required - join channels for warnings
+		"channels:manage":  true, // Required - archive channels
+		"channels:history": true, // Required - check for activity and announcements
+		"chat:write":       true, // Required - post warning messages
+		"users:read":       true, // Required - resolve user names for message authors
 	}
 	optionalScopes := map[string]bool{
 		"groups:read": false, // Optional - access private channels
@@ -255,6 +256,8 @@ func getScopeTestMethod(scope string) string {
 		return "tested with PostMessage()"
 	case "channels:manage":
 		return "tested with ArchiveConversation()"
+	case "channels:history":
+		return "tested with GetConversationHistory()"
 	case "users:read":
 		return "tested with GetUsers()"
 	case "groups:read":

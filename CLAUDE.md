@@ -183,10 +183,10 @@ make help
 ```
 
 ## Git Repository
-- **Version**: 1.1.5 - Stable Release
+- **Version**: 1.1.6 - Stable Release
 - **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Fixed code formatting and documentation improvements for better clarity and 100% quality compliance (v1.1.5)
+- **Recent Updates**: Enhanced OAuth scope validation and documentation consistency, added channels:history scope support (v1.1.6)
 - **Branches**: 
   - `main` - Stable release branch
 

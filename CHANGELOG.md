@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6] - 2025-06-26
+
+### Fixed
+- **OAuth Scope Validation**: Added missing channels:history scope to health check validation to match README requirements
+- **Documentation Consistency**: Synchronized OAuth scope requirements between README.md and health check command
+
+### Improved
+- **Setup Requirements**: Simplified OAuth scope documentation by removing redundant (required) annotations
+- **Scope Coverage**: Health check now validates all 6 required scopes: channels:read, channels:join, channels:manage, channels:history, chat:write, users:read
+- **Documentation Clarity**: Updated channels:join description to include message checks and announcements
+
+### Removed
+- **Optional Scopes**: Removed groups:read from OAuth requirements as it's not needed for core functionality
+
 ## [1.1.5] - 2025-06-26
 
 ### Fixed

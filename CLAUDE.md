@@ -163,16 +163,17 @@ make test
 make coverage
 ```
 
-### Build and Release
+### Build and Version Management
 ```bash
 # Build the tool
 make build           # Build binary with embedded version info
 
-# Release management
-make build           # Build binary for local platform
-git tag v1.x.x       # Create release tag
-gh release create    # Create GitHub release
+# Version management (git tags only - no GitHub releases)
+git tag v1.x.x       # Create version tag for reference
+git push origin main --tags  # Push tags to remote
 ```
+
+**Note**: This project uses git tags for version tracking but does NOT use GitHub releases.
 
 ### Help and Documentation
 ```bash
@@ -314,17 +315,20 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
 - ❌ **NEVER** push releases with build failures
 - ❌ **NEVER** skip quality checks "just this once"
 
-**Release Command Sequence (MANDATORY):**
+**Version Tagging Sequence (MANDATORY):**
 ```bash
-# Required sequence before ANY release
+# Required sequence before ANY version tag
 make clean && make deps && make quality && make test && make coverage && make build
 
-# Only proceed to release if ALL commands succeed
+# Only proceed to tag if ALL commands succeed
 git tag v1.x.x && git push origin main --tags
-gh release create v1.x.x --title "Release v1.x.x" --notes-from-tag
 ```
 
-**Rationale**: Quality is non-negotiable. Users depend on stable, secure releases. Every release represents the project's commitment to excellence.
+**Distribution Policy**: This project does NOT use GitHub releases. Users should:
+- Install via `go install github.com/astrostl/slack-butler@latest`
+- Build from source using git tags: `git checkout v1.x.x && go build`
+
+**Rationale**: Quality is non-negotiable. Users depend on stable, secure code. Every version tag represents the project's commitment to excellence.
 
 #### Testing Excellence
 **MANDATORY**: Maintain comprehensive testing without artificial shortcuts.

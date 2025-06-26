@@ -295,22 +295,31 @@ make mod-verify
 make security
 ```
 
-### Release Management
+### Version Management
 
-#### Release Process
+This project uses git tags for version tracking but does NOT use GitHub releases.
+
+#### Installing Specific Versions
 ```bash
-# Create and push release tags
-git tag v1.x.x
-git push origin main --tags
+# Install latest version
+go install github.com/astrostl/slack-butler@latest
 
-# Create GitHub release
-gh release create v1.x.x --title "Release v1.x.x" --notes-from-tag
+# Install specific version
+go install github.com/astrostl/slack-butler@v1.1.7
+
+# Build from specific version
+git clone https://github.com/astrostl/slack-butler.git
+cd slack-butler
+git checkout v1.1.7
+go build -o slack-butler
 ```
 
-#### Release Features
-- **Simple tagging**: Git tags for version management
-- **GitHub releases**: Manual release creation with GitHub CLI
-- **Source distribution**: Source code archives automatically generated
+#### For Developers: Version Tagging
+```bash
+# Tag new versions (maintainers only)
+git tag v1.x.x
+git push origin main --tags
+```
 
 ## Contributing
 

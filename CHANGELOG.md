@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Documentation**: Updated README.md for better clarity and consistency
   - Changed "basic channel detection" to "new channel detection" 
   - Changed "channel archival management" to "warning and archiving inactive channels"
-  - Updated archive examples to use days instead of seconds for practical usage
+  - Updated archive examples to use days for practical usage
   - Removed redundant sections and duplicate OAuth scope documentation
   - Added security warning about --token flag exposure in shell history
   - Removed "bulk channel operations" from roadmap (not planned)

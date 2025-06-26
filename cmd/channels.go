@@ -48,7 +48,7 @@ The bot will automatically join public channels to send warning messages. Requir
 
 Use --commit to actually warn and archive channels (default is dry run mode).
 
-NOTE: Archive timing is configured in seconds for precise control.`,
+NOTE: Archive timing is configured in days with decimal precision for flexible control (e.g., 0.0003 days = ~26 seconds).`,
 	SilenceUsage: true, // Don't show usage on errors
 	RunE:         runArchive,
 }
@@ -57,8 +57,8 @@ var (
 	since           string
 	announceTo      string
 	commit          bool
-	warnSeconds     int
-	archiveSeconds  int
+	warnDays        float64
+	archiveDays     float64
 	excludeChannels string
 	excludePrefixes string
 )
@@ -72,8 +72,8 @@ func init() {
 	detectCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce new channels to (e.g., #general) [REQUIRED]")
 	detectCmd.Flags().BoolVar(&commit, "commit", false, "Actually post messages (default is dry run mode)")
 
-	archiveCmd.Flags().IntVar(&warnSeconds, "warn-seconds", 300, "Number of seconds of inactivity before warning (default: 300 = 5 minutes)")
-	archiveCmd.Flags().IntVar(&archiveSeconds, "archive-seconds", 60, "Number of seconds after warning (with no new activity) before archiving (default: 60 = 1 minute)")
+	archiveCmd.Flags().Float64Var(&warnDays, "warn-days", 30.0, "Number of days of inactivity before warning (supports decimal precision, e.g., 0.0003)")
+	archiveCmd.Flags().Float64Var(&archiveDays, "archive-days", 30.0, "Number of days after warning (with no new activity) before archiving (supports decimal precision, e.g., 0.0003)")
 	archiveCmd.Flags().BoolVar(&commit, "commit", false, "Actually warn and archive channels (default is dry run mode)")
 	archiveCmd.Flags().StringVar(&excludeChannels, "exclude-channels", "", "Comma-separated list of channel names to exclude (with or without # prefix, e.g., 'general,random,#important')")
 	archiveCmd.Flags().StringVar(&excludePrefixes, "exclude-prefixes", "", "Comma-separated list of channel prefixes to exclude (with or without # prefix, e.g., 'prod-,#temp-,admin')")
@@ -269,13 +269,17 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("slack token is required. Set SLACK_TOKEN environment variable or use --token flag")
 	}
 
-	if warnSeconds <= 0 {
-		return fmt.Errorf("warn-seconds must be positive, got %d", warnSeconds)
+	if warnDays <= 0 {
+		return fmt.Errorf("warn-days must be positive, got %g", warnDays)
 	}
 
-	if archiveSeconds <= 0 {
-		return fmt.Errorf("archive-seconds must be positive, got %d", archiveSeconds)
+	if archiveDays <= 0 {
+		return fmt.Errorf("archive-days must be positive, got %g", archiveDays)
 	}
+
+	// Convert days to seconds for internal use
+	warnSeconds := int(warnDays * 24 * 60 * 60)
+	archiveSeconds := int(archiveDays * 24 * 60 * 60)
 
 	client, err := slack.NewClient(token)
 	if err != nil {

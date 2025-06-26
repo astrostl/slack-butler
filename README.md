@@ -109,8 +109,8 @@ source .env
 # Dry run what channels would be warned/archived (default mode)
 ./bin/slack-butler channels archive
 
-# Actually warn channels inactive for 30 days, archive after 7 days grace period
-./bin/slack-butler channels archive --warn-days=30 --archive-days=7 --commit
+# Actually warn channels inactive for 30 days, archive after 30 days grace period
+./bin/slack-butler channels archive --warn-days=30 --archive-days=30 --commit
 
 # Exclude important channels from archival
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit

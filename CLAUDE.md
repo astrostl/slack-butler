@@ -50,7 +50,7 @@ source .env
 
 # Channel archival management (dry run mode by default)
 ./bin/slack-butler channels archive
-./bin/slack-butler channels archive --warn-seconds=300 --archive-seconds=60 --commit
+./bin/slack-butler channels archive --warn-days=30 --archive-days=30 --commit
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --commit
 ```
 

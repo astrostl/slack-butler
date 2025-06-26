@@ -1,6 +1,6 @@
-# Contributing to Slack Buddy AI
+# Contributing to Slack Butler
 
-Thank you for your interest in contributing to Slack Buddy AI! We welcome contributions from the community.
+Thank you for your interest in contributing to Slack Butler! We welcome contributions from the community.
 
 ## ⚠️ Project Status
 
@@ -144,7 +144,7 @@ By contributing, you agree that your contributions will be licensed under the sa
 
 ## 🙏 Recognition
 
-All contributors will be recognized in release notes and changelogs. Thank you for helping make Slack Buddy AI better!
+All contributors will be recognized in release notes and changelogs. Thank you for helping make Slack Butler better!
 
 ---
 

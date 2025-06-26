@@ -432,14 +432,14 @@ func TestRunArchive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set global variables
-			oldWarnSeconds := warnSeconds
-			oldArchiveSeconds := archiveSeconds
-			warnSeconds = tt.warnSeconds
-			archiveSeconds = tt.archiveSeconds
+			// Set global variables (convert test seconds to days for new API)
+			oldWarnDays := warnDays
+			oldArchiveDays := archiveDays
+			warnDays = float64(tt.warnSeconds) / (24 * 60 * 60)
+			archiveDays = float64(tt.archiveSeconds) / (24 * 60 * 60)
 			defer func() {
-				warnSeconds = oldWarnSeconds
-				archiveSeconds = oldArchiveSeconds
+				warnDays = oldWarnDays
+				archiveDays = oldArchiveDays
 			}()
 
 			// Initialize viper configuration for the test

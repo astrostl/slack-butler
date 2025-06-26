@@ -47,7 +47,7 @@ go build -o slack-butler
 2. Create a new app for your workspace
 3. Add the following OAuth scopes:
    - `channels:read` - To list public channels (**required**)
-   - `channels:join` - To join public channels for warnings (**required for archive**)
+   - `channels:join` - To join public channels for message checks and announcements (**required for archive**)
    - `channels:manage` - To archive channels (**required for archive**)
    - `chat:write` - To post announcements and warnings (**required**)
    - `users:read` - To resolve user names in messages (**required for enhanced features**)

@@ -90,7 +90,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 	logger.WithField("since", since.Format("2006-01-02 15:04:05")).Debug("Fetching channels from Slack API")
 
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel"},
+		Types: []string{"public_channel"},
 		Limit: 1000,
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
 
 		if strings.Contains(errStr, "missing_scope") {
 			logger.Error("Missing OAuth scopes for channel access")
-			return nil, fmt.Errorf("missing required permissions. Your bot needs these OAuth scopes:\n  - channels:read (to list public channels) - REQUIRED\n  - groups:read (to list private channels) - OPTIONAL\n\nPlease add these scopes in your Slack app settings at https://api.slack.com/apps")
+			return nil, fmt.Errorf("missing required permissions. Your bot needs this OAuth scope:\n  - channels:read (to list public channels) - REQUIRED\n\nPlease add this scope in your Slack app settings at https://api.slack.com/apps")
 		}
 		if strings.Contains(errStr, "invalid_auth") {
 			logger.Error("Invalid Slack authentication token")
@@ -146,7 +146,7 @@ func (c *Client) GetNewChannelsWithAllChannels(since time.Time) ([]Channel, []sl
 	logger.WithField("since", since.Format("2006-01-02 15:04:05")).Debug("Fetching channels from Slack API")
 
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel"},
+		Types: []string{"public_channel"},
 		Limit: 1000,
 	})
 	if err != nil {
@@ -442,7 +442,7 @@ func (c *Client) getAllChannelNameToIDMap() (map[string]string, error) {
 
 	// Get all channels in one API call
 	params := &slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel"},
+		Types: []string{"public_channel"},
 		Limit: 1000,
 	}
 
@@ -542,10 +542,10 @@ func (c *Client) CheckOAuthScopes() (map[string]bool, error) {
 	// Test each required scope individually by trying operations that require them
 	scopeResults["channels:read"] = c.testChannelsReadScope()
 	scopeResults["channels:join"] = c.testChannelsJoinScope()
+	scopeResults["channels:history"] = c.testChannelsHistoryScope()
 	scopeResults["chat:write"] = c.testChatWriteScope()
 	scopeResults["channels:manage"] = c.testChannelsManageScope()
 	scopeResults["users:read"] = c.testUsersReadScope()
-	scopeResults["groups:read"] = c.testGroupsReadScope() // Optional for private channels
 
 	return scopeResults, nil
 }
@@ -570,6 +570,32 @@ func (c *Client) testChannelsJoinScope() bool {
 	return true
 }
 
+func (c *Client) testChannelsHistoryScope() bool {
+	// Try to get conversation history - this requires channels:history
+	// We'll try to get conversations first to find a channel to test with
+	conversations, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
+		Types: []string{"public_channel"},
+		Limit: 1,
+	})
+
+	if err != nil || len(conversations) == 0 {
+		// If we can't get conversations, assume scope is available
+		// This will be tested when actually reading history
+		return true
+	}
+
+	// Try to get history from the first channel
+	_, err = c.api.GetConversationHistory(&slack.GetConversationHistoryParameters{
+		ChannelID: conversations[0].ID,
+		Limit:     1,
+	})
+
+	if err != nil && strings.Contains(err.Error(), "missing_scope") {
+		return false
+	}
+	return true
+}
+
 func (c *Client) testChatWriteScope() bool {
 	// We can't test this without actually posting a message
 	// For now, we'll assume it's available - it will be tested when actually posting
@@ -579,19 +605,6 @@ func (c *Client) testChatWriteScope() bool {
 func (c *Client) testChannelsManageScope() bool {
 	// We can't test this without actually trying to archive a channel
 	// For now, we'll assume it's available - it will be tested when actually archiving
-	return true
-}
-
-func (c *Client) testGroupsReadScope() bool {
-	// Try to get private channels - this requires groups:read (optional)
-	_, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types: []string{"private_channel"},
-		Limit: 1,
-	})
-
-	if err != nil && strings.Contains(err.Error(), "missing_scope") {
-		return false
-	}
 	return true
 }
 
@@ -618,7 +631,7 @@ func (c *Client) ResolveChannelNameToID(channelName string) (string, error) {
 
 	// Get all channels to find the matching one
 	params := &slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel"},
+		Types: []string{"public_channel"},
 		Limit: 1000,
 	}
 
@@ -1830,7 +1843,7 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 	// Rate limit before API call
 
 	channels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types: []string{"public_channel", "private_channel"},
+		Types: []string{"public_channel"},
 		Limit: 1000,
 	})
 	if err != nil {
@@ -1847,7 +1860,7 @@ func (c *Client) GetChannelsWithMetadata() ([]Channel, error) {
 
 		if strings.Contains(errStr, "missing_scope") {
 			logger.Error("Missing OAuth scopes for channel access")
-			return nil, fmt.Errorf("missing required permissions. Your bot needs these OAuth scopes:\\n  - channels:read (to list public channels) - REQUIRED\\n  - groups:read (to list private channels) - OPTIONAL\\n\\nPlease add these scopes in your Slack app settings at https://api.slack.com/apps")
+			return nil, fmt.Errorf("missing required permissions. Your bot needs these OAuth scopes:\\n  - channels:read (to list public channels)\\n\\nPlease add these scopes in your Slack app settings at https://api.slack.com/apps")
 		}
 		if strings.Contains(errStr, "invalid_auth") {
 			logger.Error("Invalid Slack authentication token")

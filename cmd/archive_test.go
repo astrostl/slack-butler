@@ -419,14 +419,14 @@ func TestRunArchive(t *testing.T) {
 			warnSeconds:    0,
 			archiveSeconds: 7,
 			token:          "xoxb-validtoken123456789012345678901234567890",
-			expectedErr:    "warn-seconds must be positive, got 0",
+			expectedErr:    "warn-days must be positive, got 0",
 		},
 		{
 			name:           "Invalid archive seconds with valid token",
 			warnSeconds:    30,
 			archiveSeconds: -5,
 			token:          "xoxb-validtoken123456789012345678901234567890",
-			expectedErr:    "archive-seconds must be positive, got -5",
+			expectedErr:    "archive-days must be positive, got",
 		},
 	}
 

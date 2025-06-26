@@ -209,10 +209,6 @@ install-tools:
 	@echo "Installing development tools from go.mod versions..."
 	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck"
 	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
-	@echo "Installing standalone tools separately..."
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	@go install github.com/securego/gosec/v2/cmd/gosec@latest
-	@go install golang.org/x/vuln/cmd/govulncheck@latest
 	@echo "✅ All development tools installed successfully!"
 
 # Build release binary with version info

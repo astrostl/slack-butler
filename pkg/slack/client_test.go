@@ -394,7 +394,6 @@ func TestGetNewChannels(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing required permissions")
 		assert.Contains(t, err.Error(), "channels:read")
-		assert.Contains(t, err.Error(), "groups:read")
 	})
 
 	t.Run("Invalid auth error", func(t *testing.T) {
@@ -528,7 +527,6 @@ func TestGetNewChannelsErrorHandling(t *testing.T) {
 		assert.Nil(t, channels)
 		assert.Contains(t, err.Error(), "missing required permissions")
 		assert.Contains(t, err.Error(), "channels:read")
-		assert.Contains(t, err.Error(), "groups:read")
 	})
 
 	t.Run("Invalid auth error handling", func(t *testing.T) {
@@ -980,7 +978,7 @@ func TestCheckOAuthScopes(t *testing.T) {
 		assert.NotNil(t, scopes)
 
 		// Check that all expected scopes are tested
-		expectedScopes := []string{"channels:read", "channels:join", "chat:write", "channels:manage", "users:read", "groups:read"}
+		expectedScopes := []string{"channels:read", "channels:join", "chat:write", "channels:manage", "users:read"}
 		for _, scope := range expectedScopes {
 			_, exists := scopes[scope]
 			assert.True(t, exists, "Scope %s should be tested", scope)
@@ -1038,10 +1036,6 @@ func TestScopeTestFunctions(t *testing.T) {
 		assert.True(t, result)
 	})
 
-	t.Run("testGroupsReadScope - always returns true", func(t *testing.T) {
-		result := client.testGroupsReadScope()
-		assert.True(t, result)
-	})
 }
 
 func TestGetInactiveChannels(t *testing.T) {
@@ -2097,5 +2091,378 @@ func TestGetAllChannelNameToIDMap(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, channelMap, 0)
+	})
+}
+
+func TestIsRateLimitError(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		errStr   string
+		expected bool
+	}{
+		{"Rate limited error", "rate_limited", true},
+		{"Rate limit error", "rate limit exceeded", true},
+		{"Generic error", "something else", false},
+		{"Empty error", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := fmt.Errorf("%s", tt.errStr)
+			result := client.isRateLimitError(err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFormatNewChannelAnnouncementDryRun(t *testing.T) {
+	t.Run("Single channel with user resolution", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add a test user
+		mockAPI.AddUser("U1234567", "testuser", "Test User")
+
+		channels := []Channel{
+			{
+				ID:          "C123",
+				Name:        "test-channel",
+				Creator:     "U1234567",
+				Purpose:     "Test purpose",
+				Created:     time.Now().Add(-1 * time.Hour),
+				MemberCount: 5,
+			},
+		}
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		result := client.FormatNewChannelAnnouncementDryRun(channels, cutoffTime)
+
+		assert.Contains(t, result, "New channel alert!")
+		assert.Contains(t, result, "#test-channel")
+		assert.Contains(t, result, "Test User")
+		assert.Contains(t, result, "Test purpose")
+	})
+
+	t.Run("Multiple channels with user resolution", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add test users
+		mockAPI.AddUser("U1234567", "user1", "User One")
+		mockAPI.AddUser("U7654321", "user2", "User Two")
+
+		channels := []Channel{
+			{
+				ID:          "C123",
+				Name:        "test-channel-1",
+				Creator:     "U1234567",
+				Purpose:     "First purpose",
+				Created:     time.Now().Add(-1 * time.Hour),
+				MemberCount: 3,
+			},
+			{
+				ID:          "C456",
+				Name:        "test-channel-2",
+				Creator:     "U7654321",
+				Purpose:     "Second purpose",
+				Created:     time.Now().Add(-30 * time.Minute),
+				MemberCount: 8,
+			},
+		}
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		result := client.FormatNewChannelAnnouncementDryRun(channels, cutoffTime)
+
+		assert.Contains(t, result, "2 new channels created!")
+		assert.Contains(t, result, "#test-channel-1")
+		assert.Contains(t, result, "#test-channel-2")
+		assert.Contains(t, result, "User One")
+		assert.Contains(t, result, "User Two")
+	})
+
+	t.Run("Falls back to regular format when user map fails", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Simulate user fetch error
+		mockAPI.SetGetUsersError("failed to get users")
+
+		channels := []Channel{
+			{
+				ID:          "C123",
+				Name:        "test-channel",
+				Creator:     "U1234567",
+				Purpose:     "Test purpose",
+				Created:     time.Now().Add(-1 * time.Hour),
+				MemberCount: 5,
+			},
+		}
+
+		cutoffTime := time.Now().Add(-2 * time.Hour)
+		result := client.FormatNewChannelAnnouncementDryRun(channels, cutoffTime)
+
+		// Should contain the expected content from fallback format
+		assert.Contains(t, result, "New channel alert!")
+		assert.Contains(t, result, "<#C123>") // Uses channel ID format in fallback
+		assert.Contains(t, result, "Test purpose")
+	})
+}
+
+func TestShouldArchiveChannel(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		warningTimeAgo    time.Duration
+		archiveSeconds    int
+		expectedToArchive bool
+	}{
+		{
+			name:              "Warning sent long ago, should archive",
+			warningTimeAgo:    2 * time.Hour,
+			archiveSeconds:    3600, // 1 hour
+			expectedToArchive: true,
+		},
+		{
+			name:              "Warning sent recently, should not archive",
+			warningTimeAgo:    30 * time.Minute,
+			archiveSeconds:    3600, // 1 hour
+			expectedToArchive: false,
+		},
+		{
+			name:              "Warning sent exactly at threshold, should archive",
+			warningTimeAgo:    1*time.Hour + 1*time.Second, // Slightly over threshold to ensure > comparison works
+			archiveSeconds:    3600,                        // 1 hour
+			expectedToArchive: true,
+		},
+		{
+			name:              "Warning sent just under threshold, should not archive",
+			warningTimeAgo:    59 * time.Minute,
+			archiveSeconds:    3600, // 1 hour
+			expectedToArchive: false,
+		},
+		{
+			name:              "Very short archive threshold",
+			warningTimeAgo:    2 * time.Minute,
+			archiveSeconds:    60, // 1 minute
+			expectedToArchive: true,
+		},
+		{
+			name:              "Zero archive threshold (edge case)",
+			warningTimeAgo:    1 * time.Second,
+			archiveSeconds:    0,
+			expectedToArchive: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warningTime := time.Now().Add(-tt.warningTimeAgo)
+			result := client.shouldArchiveChannel(warningTime, tt.archiveSeconds)
+			assert.Equal(t, tt.expectedToArchive, result,
+				"Warning time: %v ago, archive threshold: %d seconds, expected: %v, got: %v",
+				tt.warningTimeAgo, tt.archiveSeconds, tt.expectedToArchive, result)
+		})
+	}
+}
+
+func TestShouldRetryOnRateLimit(t *testing.T) {
+	tests := []struct {
+		name       string
+		errStr     string
+		channel    string
+		attempt    int
+		maxRetries int
+		expected   bool
+	}{
+		{
+			name:       "Should not retry on rate_limited error with invalid duration",
+			errStr:     "rate_limited: retry after invalid",
+			attempt:    1,
+			maxRetries: 3,
+			channel:    "test-channel",
+			expected:   false,
+		},
+		{
+			name:       "Should not retry on rate limit error with no duration",
+			errStr:     "rate limit exceeded",
+			attempt:    2,
+			maxRetries: 3,
+			channel:    "test-channel",
+			expected:   false,
+		},
+		{
+			name:       "Should not retry on max attempts reached",
+			errStr:     "rate_limited: retry after invalid",
+			attempt:    3,
+			maxRetries: 3,
+			channel:    "test-channel",
+			expected:   false,
+		},
+		{
+			name:       "Should not retry on non-rate-limit error",
+			errStr:     "invalid_auth",
+			attempt:    1,
+			maxRetries: 3,
+			channel:    "test-channel",
+			expected:   false,
+		},
+		{
+			name:       "Should not retry on rate limit error without duration",
+			errStr:     "rate_limited",
+			attempt:    1,
+			maxRetries: 3,
+			channel:    "test-channel",
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := shouldRetryOnRateLimit(tt.errStr, tt.attempt, tt.maxRetries, tt.channel)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestShouldRetryOnRateLimitSimple(t *testing.T) {
+	tests := []struct {
+		name       string
+		errStr     string
+		attempt    int
+		maxRetries int
+		expected   bool
+	}{
+		{
+			name:       "Should retry on rate_limited error without duration",
+			errStr:     "rate_limited",
+			attempt:    1,
+			maxRetries: 3,
+			expected:   true,
+		},
+		{
+			name:       "Should retry on rate limit error without duration",
+			errStr:     "rate limit exceeded",
+			attempt:    2,
+			maxRetries: 3,
+			expected:   true,
+		},
+		{
+			name:       "Should not retry on max attempts reached",
+			errStr:     "rate_limited: retry after invalid",
+			attempt:    3,
+			maxRetries: 3,
+			expected:   false,
+		},
+		{
+			name:       "Should not retry on non-rate-limit error",
+			errStr:     "invalid_auth",
+			attempt:    1,
+			maxRetries: 3,
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := shouldRetryOnRateLimitSimple(tt.errStr, tt.attempt, tt.maxRetries)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHandleRateLimit(t *testing.T) {
+	t.Run("Handles rate limit with retry after duration", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Test with a rate limit error that contains retry-after but parsing fails
+		err = fmt.Errorf("rate_limited: retry after invalid")
+
+		// This should not panic and should handle the error gracefully
+		assert.NotPanics(t, func() {
+			client.handleRateLimit(err, 1, 3)
+		})
+	})
+
+	t.Run("Handles rate limit without duration", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Test with a rate limit error without duration
+		err = fmt.Errorf("rate_limited")
+
+		// This should not panic and should handle the error gracefully
+		assert.NotPanics(t, func() {
+			client.handleRateLimit(err, 1, 3)
+		})
+	})
+}
+
+func TestGetNewChannelsWithAllChannels(t *testing.T) {
+	t.Run("Success with new channels", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add channels - one old, one new
+		oldTime := time.Now().Add(-48 * time.Hour)
+		newTime := time.Now().Add(-1 * time.Hour)
+
+		mockAPI.AddChannelWithCreator("old-channel", "Old Channel", oldTime, "Old Purpose", "U123")
+		mockAPI.AddChannelWithCreator("new-channel", "New Channel", newTime, "New Purpose", "U456")
+
+		since := time.Now().Add(-24 * time.Hour)
+		newChannels, allChannels, err := client.GetNewChannelsWithAllChannels(since)
+
+		assert.NoError(t, err)
+		assert.Len(t, newChannels, 1)
+		assert.Len(t, allChannels, 2)
+		assert.Equal(t, "New Channel", newChannels[0].Name)
+	})
+
+	t.Run("No new channels", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add only old channels
+		oldTime := time.Now().Add(-48 * time.Hour)
+		mockAPI.AddChannelWithCreator("old-channel", "Old Channel", oldTime, "Old Purpose", "U123")
+
+		since := time.Now().Add(-24 * time.Hour)
+		newChannels, allChannels, err := client.GetNewChannelsWithAllChannels(since)
+
+		assert.NoError(t, err)
+		assert.Len(t, newChannels, 0)
+		assert.Len(t, allChannels, 1)
+	})
+
+	t.Run("API error", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Set up API error
+		mockAPI.SetGetConversationsError(true)
+
+		since := time.Now().Add(-24 * time.Hour)
+		newChannels, allChannels, err := client.GetNewChannelsWithAllChannels(since)
+
+		assert.Error(t, err)
+		assert.Nil(t, newChannels)
+		assert.Nil(t, allChannels)
+		assert.Contains(t, err.Error(), "failed to get conversations")
 	})
 }

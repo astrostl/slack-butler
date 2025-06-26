@@ -1,7 +1,6 @@
 # Binaries
-slack-buddy
-slack-buddy.exe
-slack-buddy-ai
+slack-butler
+slack-butler.exe
 
 # Build artifacts and reports
 build/

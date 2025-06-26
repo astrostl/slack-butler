@@ -23,6 +23,8 @@
 - **Configuration Management**: Viper for environment variables and flags
 
 ## Usage Examples
+
+### Development Usage (from source)
 ```bash
 # Set token via environment
 source .env
@@ -54,13 +56,16 @@ source .env
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --commit
 ```
 
+### Installed Usage
+Replace `./bin/slack-butler` with `slack-butler` when using the installed version.
+
 ## Required Slack Permissions
 - `channels:read` - To list public channels (**required**)
+- `channels:history` - To read channel messages for activity detection (**required**)
 - `chat:write` - To post announcements and warnings (**required**)
 - `channels:join` - To join public channels for warnings (**required for archive**)
 - `channels:manage` - To archive channels (**required for archive**)
 - `users:read` - To resolve user names in messages (**required for enhanced features**)
-- `groups:read` - To list private channels (*optional*)
 
 ## Project Structure
 ```
@@ -73,7 +78,6 @@ slack-butler/
 ├── pkg/                 # Core packages
 │   ├── logger/         # Structured logging
 │   └── slack/          # Slack API wrapper and client
-├── docs/               # Documentation
 ├── bin/                # Build outputs
 ├── build/              # Build artifacts (coverage, reports)
 ├── .env                # Token storage (git-ignored)
@@ -180,29 +184,33 @@ git push origin main --tags  # Push tags to remote
 # Show all available targets
 make help
 
-# Test CLI help output
+# Test CLI help output (development)
 ./bin/slack-butler --help
 ./bin/slack-butler channels detect --help
+
+# Test CLI help output (installed)
+slack-butler --help
+slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.7 - Stable Release
-- **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
+- **Version**: 1.1.8 - Current stable release
+- **Status**: ✅ **STABLE** - Clean working directory
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Improved command usability with days-based timing, simplified documentation, consistent project branding (v1.1.7)
+- **Recent Updates**: Improved command usability with days-based timing, simplified documentation, consistent project branding
 - **Branches**: 
   - `main` - Stable release branch
 
 ## Testing Results
-- **Workspace**: Successfully tested with "Vibe Coding, Inc." Slack workspace
-- **Authentication**: ✅ Connected as `slack_buddy` bot user
-- **Channel Detection**: ✅ Found 4 new channels in last 24h
-- **Announcement Feature**: ✅ Posted formatted message to #announcements
-- **Error Handling**: ✅ Provides clear, actionable error messages for:
-  - Missing OAuth scopes (channels:read, chat:write; groups:read optional)
+- **Workspace**: Successfully tested with real Slack workspaces
+- **Authentication**: ✅ Proper bot authentication and connection
+- **Channel Detection**: ✅ Reliable detection of new channels across time periods
+- **Announcement Feature**: ✅ Formatted message posting with duplicate prevention
+- **Error Handling**: ✅ Clear, actionable error messages for common issues:
+  - Missing OAuth scopes
   - Invalid tokens
-  - Bot not in channel
-  - Channel not found
+  - Bot permissions
+  - Channel access issues
 
 
 ## Test Coverage
@@ -377,8 +385,12 @@ git tag v1.x.x && git push origin main --tags
 - **Code Quality**: ✅ **IMPROVED** - Fixed gosec G104 unhandled error warning
 - **Compliance**: ✅ **BASIC** - No known GPL dependencies
 
-## Next Features (Ideas)
-- Bulk channel operations
-- Multi-workspace support
-- Configurable warning message templates
-- Scheduled archival policies
+## Development Policy
+
+### Feature Planning
+- **Roadmap Location**: Maintain project roadmap ONLY in README.md - do not create separate TODO files or duplicate roadmaps
+- **Single Source**: README.md roadmap section is the authoritative source for planned features and development priorities
+- **No Duplicate Planning**: Avoid creating separate TODO.md, BACKLOG.md, or other planning files that would diverge from README.md
+
+### Next Features (Ideas)
+See [README.md roadmap](README.md#roadmap) for planned features and development roadmap.

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -101,7 +102,6 @@ func TestCheckOAuthScopes(t *testing.T) {
 		assert.True(t, scopes["chat:write"])
 		assert.True(t, scopes["channels:manage"])
 		assert.True(t, scopes["users:read"])
-		assert.True(t, scopes["groups:read"])
 	})
 
 	t.Run("Missing users:read scope", func(t *testing.T) {
@@ -291,19 +291,6 @@ func TestHealthCheckScopesErrorPaths(t *testing.T) {
 		assert.False(t, scopes["channels:read"])
 	})
 
-	t.Run("Missing groups:read scope", func(t *testing.T) {
-		mockAPI := slack.NewMockSlackAPI()
-		mockAPI.SetGetUsersError("missing_scope")
-		client, err := slack.NewClientWithAPI(mockAPI)
-		require.NoError(t, err)
-
-		scopes, err := client.CheckOAuthScopes()
-		require.NoError(t, err)
-
-		// groups:read affects users, so users:read should be false
-		assert.False(t, scopes["users:read"])
-	})
-
 	t.Run("API connectivity failure", func(t *testing.T) {
 		mockAPI := slack.NewMockSlackAPI()
 		mockAPI.SetAuthError(true)
@@ -326,7 +313,7 @@ func TestHealthVerboseOutput(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that all expected scopes are present in the result
-		expectedScopes := []string{"channels:read", "chat:write", "channels:join", "channels:manage", "users:read", "groups:read"}
+		expectedScopes := []string{"channels:read", "chat:write", "channels:join", "channels:manage", "users:read"}
 		for _, scope := range expectedScopes {
 			_, exists := scopes[scope]
 			assert.True(t, exists, "Expected scope %s to be checked", scope)
@@ -450,6 +437,368 @@ func TestRunHealthStructure(t *testing.T) {
 	})
 }
 
+func TestAPIConnectivityAndScopes(t *testing.T) {
+	t.Run("testAPIConnectivity success", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		authInfo, err := testAPIConnectivity(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		require.NoError(t, err)
+		assert.NotNil(t, authInfo)
+		assert.NotEmpty(t, authInfo.User)
+		assert.NotEmpty(t, authInfo.Team)
+	})
+
+	t.Run("testAPIConnectivity with verbose output", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Enable verbose mode
+		healthVerbose = true
+		defer func() { healthVerbose = false }()
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		authInfo, err := testAPIConnectivity(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		require.NoError(t, err)
+		assert.NotNil(t, authInfo)
+	})
+
+	t.Run("testAPIConnectivity failure", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Set error after client creation
+		mockAPI.SetAuthError(true)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		authInfo, err := testAPIConnectivity(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		assert.Error(t, err)
+		assert.Nil(t, authInfo)
+		assert.Contains(t, err.Error(), "API connectivity failed")
+	})
+
+	t.Run("validateOAuthScopes success", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		err = validateOAuthScopes(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("validateOAuthScopes with verbose output", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Enable verbose mode
+		healthVerbose = true
+		defer func() { healthVerbose = false }()
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		err = validateOAuthScopes(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("validateOAuthScopes with missing scopes", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetMissingScopeError(true)
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		err = validateOAuthScopes(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing required OAuth scopes")
+	})
+
+	t.Run("validateOAuthScopes API error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Set error after client creation
+		mockAPI.SetAuthError(true)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		err = validateOAuthScopes(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "scope validation failed")
+	})
+}
+
+func TestScopeHelperFunctions(t *testing.T) {
+	t.Run("checkMissingScopes with no missing scopes", func(t *testing.T) {
+		availableScopes := map[string]bool{
+			"channels:read":    true,
+			"channels:join":    true,
+			"channels:manage":  true,
+			"channels:history": true,
+			"chat:write":       true,
+			"users:read":       true,
+		}
+		requiredScopes := map[string]bool{
+			"channels:read":    true,
+			"channels:join":    true,
+			"channels:manage":  true,
+			"channels:history": true,
+			"chat:write":       true,
+			"users:read":       true,
+		}
+		optionalScopes := map[string]bool{}
+
+		missingRequired, missingOptional := checkMissingScopes(availableScopes, requiredScopes, optionalScopes)
+
+		assert.Empty(t, missingRequired)
+		assert.Empty(t, missingOptional)
+	})
+
+	t.Run("checkMissingScopes with missing required scopes", func(t *testing.T) {
+		availableScopes := map[string]bool{
+			"channels:read": true,
+			"chat:write":    true,
+		}
+		requiredScopes := map[string]bool{
+			"channels:read":    true,
+			"channels:join":    true,
+			"channels:manage":  true,
+			"channels:history": true,
+			"chat:write":       true,
+			"users:read":       true,
+		}
+		optionalScopes := map[string]bool{}
+
+		missingRequired, missingOptional := checkMissingScopes(availableScopes, requiredScopes, optionalScopes)
+
+		assert.NotEmpty(t, missingRequired)
+		assert.Contains(t, missingRequired, "channels:join")
+		assert.Contains(t, missingRequired, "channels:manage")
+		assert.Contains(t, missingRequired, "channels:history")
+		assert.Contains(t, missingRequired, "users:read")
+		assert.Empty(t, missingOptional)
+	})
+
+	t.Run("displayScopeErrors", func(t *testing.T) {
+		missingRequired := []string{"channels:read", "chat:write"}
+		missingOptional := []string{"users:read"}
+
+		// Capture output
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displayScopeErrors(missingRequired, missingOptional)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		buf := make([]byte, 1024)
+		n, _ := r.Read(buf) // nolint:errcheck
+		output := string(buf[:n])
+
+		assert.Contains(t, output, "channels:read")
+		assert.Contains(t, output, "chat:write")
+	})
+
+	t.Run("displayScopeDetails", func(t *testing.T) {
+		availableScopes := map[string]bool{
+			"channels:read":    true,
+			"channels:join":    true,
+			"channels:manage":  true,
+			"channels:history": true,
+			"chat:write":       true,
+			"users:read":       true,
+		}
+		requiredScopes := map[string]bool{
+			"channels:read":    true,
+			"channels:join":    true,
+			"channels:manage":  true,
+			"channels:history": true,
+			"chat:write":       true,
+			"users:read":       true,
+		}
+		optionalScopes := map[string]bool{}
+
+		// Capture output
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displayScopeDetails(availableScopes, requiredScopes, optionalScopes)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		buf := make([]byte, 2048)
+		n, _ := r.Read(buf) // nolint:errcheck
+		output := string(buf[:n])
+
+		assert.Contains(t, output, "channels:read")
+		assert.Contains(t, output, "chat:write")
+	})
+
+	t.Run("getScopeTestMethod", func(t *testing.T) {
+		tests := []struct {
+			scope    string
+			expected string
+		}{
+			{"channels:read", "tested with GetConversations()"},
+			{"channels:join", "tested with JoinConversation()"},
+			{"channels:manage", "tested with ArchiveConversation()"},
+			{"channels:history", "tested with GetConversationHistory()"},
+			{"chat:write", "tested with PostMessage()"},
+			{"users:read", "tested with GetUsers()"},
+			{"unknown:scope", "unknown test method"},
+		}
+
+		for _, test := range tests {
+			result := getScopeTestMethod(test.scope)
+			assert.Equal(t, test.expected, result)
+		}
+	})
+
+	t.Run("testBasicFunctionalityAndReport", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		testBasicFunctionalityAndReport(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Function doesn't return error, just captures output
+	})
+
+	t.Run("testBasicFunctionalityAndReport with error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetConversationsError(true)
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Capture output
+		oldStdout := os.Stdout
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		testBasicFunctionalityAndReport(client)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Function doesn't return error, but will show warning in output
+	})
+
+	t.Run("displaySuccessSummary", func(t *testing.T) {
+		// Create mock auth info
+		authInfo := &slack.AuthInfo{
+			User:   "test-user",
+			Team:   "test-team",
+			UserID: "U123456",
+			TeamID: "T123456",
+		}
+
+		// Capture output
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displaySuccessSummary(authInfo)
+
+		w.Close() // nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		buf := make([]byte, 512)
+		n, _ := r.Read(buf) // nolint:errcheck
+		output := string(buf[:n])
+
+		assert.Contains(t, output, "Health check completed successfully")
+		assert.Contains(t, output, "test-user")
+		assert.Contains(t, output, "test-team")
+	})
+}
+
 func TestRunHealthErrors(t *testing.T) {
 	t.Run("No token configured", func(t *testing.T) {
 		// Clear any environment token and viper setting
@@ -554,28 +903,6 @@ func TestRunHealthWithMockSuccess(t *testing.T) {
 }
 
 func TestRunHealthWithMissingScopeScenarios(t *testing.T) {
-	t.Run("Health check with missing optional groups:read scope", func(t *testing.T) {
-		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
-		initConfig()
-
-		// Create mock that simulates missing groups:read scope specifically
-		mockAPI := slack.NewMockSlackAPI()
-		// Set error specifically for private_channel type conversation requests
-		mockAPI.SetGetConversationsErrorWithMessage(true, "missing_scope")
-
-		client, err := slack.NewClientWithAPI(mockAPI)
-		require.NoError(t, err)
-
-		scopes, err := client.CheckOAuthScopes()
-		assert.NoError(t, err)
-
-		// Should still pass required scopes (chat:write defaults to true in mock)
-		assert.True(t, scopes["chat:write"])
-		assert.True(t, scopes["channels:manage"])
-
-		// But groups:read should be false due to the missing_scope error
-		assert.False(t, scopes["groups:read"])
-	})
 
 	t.Run("Health check with missing users:read scope", func(t *testing.T) {
 		t.Setenv("SLACK_TOKEN", "test-token-for-testing-purposes-only")
@@ -738,7 +1065,6 @@ func TestRunHealthIntegrationSuccess(t *testing.T) {
 		assert.True(t, scopes["chat:write"])
 		assert.True(t, scopes["channels:manage"])
 		assert.True(t, scopes["users:read"])
-		assert.True(t, scopes["groups:read"])
 
 		// Test basic functionality
 		err = testBasicFunctionality(client)
@@ -934,9 +1260,7 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 			"channels:manage": true,
 			"users:read":      true,
 		}
-		optionalScopes := map[string]bool{
-			"groups:read": false,
-		}
+		optionalScopes := map[string]bool{}
 
 		// Simulate successful scopes
 		scopes := map[string]bool{
@@ -945,7 +1269,6 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 			"chat:write":      true,
 			"channels:manage": true,
 			"users:read":      true,
-			"groups:read":     true,
 		}
 
 		var missingRequired []string
@@ -970,9 +1293,7 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 
 	t.Run("Missing optional scopes display logic", func(t *testing.T) {
 		// Test case where optional scopes are missing
-		optionalScopes := map[string]bool{
-			"groups:read": false,
-		}
+		optionalScopes := map[string]bool{}
 
 		// Simulate missing optional scope
 		scopes := map[string]bool{
@@ -981,7 +1302,6 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 			"chat:write":      true,
 			"channels:manage": true,
 			"users:read":      true,
-			"groups:read":     false, // Missing optional scope
 		}
 
 		var missingOptional []string
@@ -991,8 +1311,7 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 			}
 		}
 
-		// Should detect missing optional scope
-		assert.Contains(t, missingOptional, "groups:read")
-		assert.Len(t, missingOptional, 1)
+		// Should detect no missing optional scopes (since there are none)
+		assert.Len(t, missingOptional, 0)
 	})
 }

@@ -141,7 +141,6 @@ func validateOAuthScopes(client *slack.Client) error {
 	fmt.Print("✓ OAuth scope validation (channels:read, channels:join, channels:manage, channels:history, chat:write, users:read)... ")
 	if healthVerbose {
 		fmt.Printf("\n  Testing required scopes: channels:read, channels:join, channels:manage, channels:history, chat:write, users:read\n")
-		fmt.Printf("  Testing optional scopes: groups:read\n")
 		fmt.Print("  Validation result: ")
 	}
 
@@ -160,9 +159,7 @@ func validateOAuthScopes(client *slack.Client) error {
 		"chat:write":       true, // Required - post warning messages
 		"users:read":       true, // Required - resolve user names for message authors
 	}
-	optionalScopes := map[string]bool{
-		"groups:read": false, // Optional - access private channels
-	}
+	optionalScopes := map[string]bool{}
 
 	missingRequired, missingOptional := checkMissingScopes(scopes, requiredScopes, optionalScopes)
 
@@ -260,8 +257,6 @@ func getScopeTestMethod(scope string) string {
 		return "tested with GetConversationHistory()"
 	case "users:read":
 		return "tested with GetUsers()"
-	case "groups:read":
-		return "tested with GetConversations(private_channel)"
 	default:
 		return "unknown test method"
 	}

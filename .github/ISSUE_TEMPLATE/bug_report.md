@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a report to help us improve slack-buddy
+about: Create a report to help us improve slack-butler
 title: '[BUG] '
 labels: 'bug'
 assignees: ''
@@ -12,7 +12,7 @@ A clear and concise description of what the bug is.
 
 **To Reproduce**
 Steps to reproduce the behavior:
-1. Run command: `slack-buddy ...`
+1. Run command: `slack-butler ...`
 2. With configuration: `...`
 3. See error: `...`
 
@@ -24,7 +24,7 @@ Please include the full command you ran and any error output:
 
 ```bash
 # Command run:
-slack-buddy channels detect --since=7
+slack-butler channels detect --since=7
 
 # Error output:
 Error: ...
@@ -33,7 +33,7 @@ Error: ...
 **Environment (please complete the following information):**
  - OS: [e.g. macOS 13.0, Ubuntu 20.04, Windows 11]
  - Go Version: [e.g. 1.24.4] (run `go version`)
- - slack-buddy Version: [e.g. 1.0.4] (run `slack-buddy version`)
+ - slack-butler Version: [e.g. 1.0.4] (run `slack-butler version`)
  - Slack Workspace: [e.g. Small team workspace, Enterprise Grid]
 
 **Slack Configuration**

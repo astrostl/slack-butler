@@ -24,10 +24,10 @@ var channelsCmd = &cobra.Command{
 var detectCmd = &cobra.Command{
 	Use:   "detect",
 	Short: "Detect new channels created in a time period",
-	Long: `Detect new channels created during a specified time period and announce them to another channel.
+	Long: `Detect new channels created during a specified time period and optionally announce them to another channel.
 
-The --announce-to flag is required to specify the target channel.
-Use --commit to actually post messages (default is dry run mode).`,
+When --announce-to is specified, shows a preview of the announcement message.
+Use --commit with --announce-to to actually post messages (default is dry run mode).`,
 	SilenceUsage: true, // Don't show usage on errors
 	RunE:         runDetect,
 }
@@ -69,7 +69,7 @@ func init() {
 	channelsCmd.AddCommand(archiveCmd)
 
 	detectCmd.Flags().StringVar(&since, "since", "8", "Number of days to look back (e.g., 1, 7, 30)")
-	detectCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce new channels to (e.g., #general) [REQUIRED]")
+	detectCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce new channels to (e.g., #general). Required when using --commit")
 	detectCmd.Flags().BoolVar(&commit, "commit", false, "Actually post messages (default is dry run mode)")
 
 	archiveCmd.Flags().Float64Var(&warnDays, "warn-days", 30.0, "Number of days of inactivity before warning (supports decimal precision, e.g., 0.0003)")
@@ -85,9 +85,9 @@ func runDetect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("slack token is required. Set SLACK_TOKEN environment variable or use --token flag")
 	}
 
-	// announce-to is mandatory
-	if announceTo == "" {
-		return fmt.Errorf("--announce-to is required")
+	// announce-to is mandatory when committing changes
+	if announceTo == "" && commit {
+		return fmt.Errorf("--announce-to is required when using --commit")
 	}
 
 	days, err := strconv.ParseFloat(since, 64)
@@ -107,10 +107,12 @@ func runDetect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create Slack client: %w", err)
 	}
 
-	// Validate that the announce-to channel exists
-	_, err = client.ResolveChannelNameToID(announceTo)
-	if err != nil {
-		return fmt.Errorf("announce-to channel '%s' not found: %w", announceTo, err)
+	// Validate that the announce-to channel exists (if specified)
+	if announceTo != "" {
+		_, err = client.ResolveChannelNameToID(announceTo)
+		if err != nil {
+			return fmt.Errorf("announce-to channel '%s' not found: %w", announceTo, err)
+		}
 	}
 
 	return runDetectWithClient(client, cutoffTime, announceTo, !commit)

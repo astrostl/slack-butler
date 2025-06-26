@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -538,5 +541,372 @@ func TestDuplicateAnnouncementIntegration(t *testing.T) {
 		messages := mockAPI.GetPostedMessages()
 		assert.Len(t, messages, 1)
 		assert.Equal(t, "CGENERAL", messages[0].ChannelID)
+	})
+}
+
+func TestFilterChannelsByNames(t *testing.T) {
+	channels := []slack.Channel{
+		{Name: "general"},
+		{Name: "random"},
+		{Name: "development"},
+		{Name: "marketing"},
+	}
+
+	t.Run("Filter matching channels", func(t *testing.T) {
+		names := []string{"general", "development"}
+		result := filterChannelsByNames(channels, names)
+		assert.Len(t, result, 2)
+		assert.Equal(t, "general", result[0].Name)
+		assert.Equal(t, "development", result[1].Name)
+	})
+
+	t.Run("Filter with no matches", func(t *testing.T) {
+		names := []string{"nonexistent"}
+		result := filterChannelsByNames(channels, names)
+		assert.Empty(t, result)
+	})
+
+	t.Run("Filter with empty names", func(t *testing.T) {
+		names := []string{}
+		result := filterChannelsByNames(channels, names)
+		assert.Empty(t, result)
+	})
+}
+
+func TestDisplayAnnouncingChannels(t *testing.T) {
+	// Capture stdout for testing
+	oldStdout := os.Stdout
+
+	tests := []struct {
+		name         string
+		expectedOut  string
+		channelNames []string
+		skippedCount int
+	}{
+		{
+			name:         "Single channel, no skipped",
+			channelNames: []string{"test-channel"},
+			skippedCount: 0,
+			expectedOut:  "Announcing channels: #test-channel (skipped 0 already announced)",
+		},
+		{
+			name:         "Multiple channels, some skipped",
+			channelNames: []string{"channel1", "channel2", "channel3"},
+			skippedCount: 2,
+			expectedOut:  "Announcing channels: #channel1, #channel2, #channel3 (skipped 2 already announced)",
+		},
+		{
+			name:         "No channels, some skipped",
+			channelNames: []string{},
+			skippedCount: 5,
+			expectedOut:  "Announcing channels:  (skipped 5 already announced)",
+		},
+		{
+			name:         "Single channel with special characters",
+			channelNames: []string{"test-channel_2023"},
+			skippedCount: 1,
+			expectedOut:  "Announcing channels: #test-channel_2023 (skipped 1 already announced)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create new pipe for this test
+			r, w, err := os.Pipe()
+			require.NoError(t, err)
+			os.Stdout = w
+
+			// Call the function
+			displayAnnouncingChannels(tt.channelNames, tt.skippedCount)
+
+			// Close writer and restore stdout
+			err = w.Close()
+			require.NoError(t, err)
+			os.Stdout = oldStdout
+
+			// Read the captured output
+			output, err := io.ReadAll(r)
+			require.NoError(t, err)
+			outputStr := strings.TrimSpace(string(output))
+
+			assert.Equal(t, tt.expectedOut, outputStr)
+		})
+	}
+
+	// Restore stdout at the end
+	os.Stdout = oldStdout
+}
+
+func TestParseExclusionLists(t *testing.T) {
+	t.Run("Parse channels with # prefix", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("#general,#random", "")
+		assert.Equal(t, []string{"general", "random"}, channels)
+		assert.Empty(t, prefixes)
+	})
+
+	t.Run("Parse channels without # prefix", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("general,random", "")
+		assert.Equal(t, []string{"general", "random"}, channels)
+		assert.Empty(t, prefixes)
+	})
+
+	t.Run("Parse prefixes with # prefix", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("", "#test-,#dev-")
+		assert.Empty(t, channels)
+		assert.Equal(t, []string{"test-", "dev-"}, prefixes)
+	})
+
+	t.Run("Parse prefixes without # prefix", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("", "test-,dev-")
+		assert.Empty(t, channels)
+		assert.Equal(t, []string{"test-", "dev-"}, prefixes)
+	})
+
+	t.Run("Parse mixed channels and prefixes", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("#general, random , announcements", "test-, #dev-, bot-")
+		assert.Equal(t, []string{"general", "random", "announcements"}, channels)
+		assert.Equal(t, []string{"test-", "dev-", "bot-"}, prefixes)
+	})
+
+	t.Run("Parse empty strings", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("", "")
+		assert.Empty(t, channels)
+		assert.Empty(t, prefixes)
+	})
+
+	t.Run("Parse with empty elements", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("general,,random", "test-,,dev-")
+		assert.Equal(t, []string{"general", "random"}, channels)
+		assert.Equal(t, []string{"test-", "dev-"}, prefixes)
+	})
+
+	t.Run("Parse with only # characters", func(t *testing.T) {
+		channels, prefixes := parseExclusionLists("#,##", "#,##")
+		// Note: TrimPrefix only removes one #, so ## becomes #, which is not empty
+		assert.Equal(t, []string{"#"}, channels)
+		assert.Equal(t, []string{"#"}, prefixes)
+	})
+}
+
+func TestDisplayExclusionInfo(t *testing.T) {
+	oldStdout := os.Stdout
+
+	t.Run("Display channels and prefixes", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displayExclusionInfo([]string{"general", "random"}, []string{"test-", "dev-"})
+
+		err = w.Close()
+		require.NoError(t, err)
+		os.Stdout = oldStdout
+
+		output, err := io.ReadAll(r)
+		require.NoError(t, err)
+		outputStr := string(output)
+
+		assert.Contains(t, outputStr, "📋 Channel exclusions configured:")
+		assert.Contains(t, outputStr, "Excluded channels: general, random")
+		assert.Contains(t, outputStr, "Excluded prefixes: test-, dev-")
+	})
+
+	t.Run("Display only channels", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displayExclusionInfo([]string{"general"}, []string{})
+
+		err = w.Close()
+		require.NoError(t, err)
+		os.Stdout = oldStdout
+
+		output, err := io.ReadAll(r)
+		require.NoError(t, err)
+		outputStr := string(output)
+
+		assert.Contains(t, outputStr, "📋 Channel exclusions configured:")
+		assert.Contains(t, outputStr, "Excluded channels: general")
+		assert.NotContains(t, outputStr, "Excluded prefixes:")
+	})
+
+	t.Run("Display only prefixes", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displayExclusionInfo([]string{}, []string{"test-"})
+
+		err = w.Close()
+		require.NoError(t, err)
+		os.Stdout = oldStdout
+
+		output, err := io.ReadAll(r)
+		require.NoError(t, err)
+		outputStr := string(output)
+
+		assert.Contains(t, outputStr, "📋 Channel exclusions configured:")
+		assert.NotContains(t, outputStr, "Excluded channels:")
+		assert.Contains(t, outputStr, "Excluded prefixes: test-")
+	})
+
+	t.Run("Display nothing when no exclusions", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		os.Stdout = w
+
+		displayExclusionInfo([]string{}, []string{})
+
+		err = w.Close()
+		require.NoError(t, err)
+		os.Stdout = oldStdout
+
+		output, err := io.ReadAll(r)
+		require.NoError(t, err)
+		outputStr := string(output)
+
+		assert.Empty(t, strings.TrimSpace(outputStr))
+	})
+
+	os.Stdout = oldStdout
+}
+
+func TestGetUserMapWithErrorHandling(t *testing.T) {
+	t.Run("Success with debug mode", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.AddUser("U1234567", "testuser", "Test User")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap, err := getUserMapWithErrorHandling(client, true)
+		assert.NoError(t, err)
+		assert.Len(t, userMap, 1)
+		assert.Equal(t, "Test User", userMap["U1234567"])
+	})
+
+	t.Run("Success without debug mode", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.AddUser("U1234567", "testuser", "Test User")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap, err := getUserMapWithErrorHandling(client, false)
+		assert.NoError(t, err)
+		assert.Len(t, userMap, 1)
+		assert.Equal(t, "Test User", userMap["U1234567"])
+	})
+
+	t.Run("Rate limit error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetUsersError("rate_limited")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap, err := getUserMapWithErrorHandling(client, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "rate limited by Slack API")
+		assert.Nil(t, userMap)
+	})
+
+	t.Run("Missing scope error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetUsersError("missing_scope: users:read")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap, err := getUserMapWithErrorHandling(client, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing required OAuth scope 'users:read'")
+		assert.Nil(t, userMap)
+	})
+
+	t.Run("Generic error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetUsersError("generic API error")
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap, err := getUserMapWithErrorHandling(client, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get users")
+		assert.Nil(t, userMap)
+	})
+}
+
+func TestGetInactiveChannelsWithErrorHandling(t *testing.T) {
+	t.Run("Success with channels", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+
+		// Add an inactive channel
+		mockAPI.AddChannel("C1", "inactive-channel", time.Now().Add(-2*time.Hour), "Inactive")
+		lastActivity := time.Now().Add(-35 * time.Second)
+		mockAPI.AddMessageToHistory("C1", "old message", "U1234567", fmt.Sprintf("%.6f", float64(lastActivity.Unix())))
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap := map[string]string{"U1234567": "testuser"}
+		toWarn, toArchive, err := getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, []string{}, []string{}, false)
+
+		assert.NoError(t, err)
+		assert.Len(t, toWarn, 1)
+		assert.Len(t, toArchive, 0)
+		assert.Equal(t, "inactive-channel", toWarn[0].Name)
+	})
+
+	t.Run("API error handling", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetConversationsError(true)
+
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		userMap := map[string]string{}
+		toWarn, toArchive, err := getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, []string{}, []string{}, false)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to analyze inactive channels")
+		assert.Nil(t, toWarn)
+		assert.Nil(t, toArchive)
+	})
+}
+
+func TestRunDetectErrorPaths(t *testing.T) {
+	t.Run("Days parsing error path", func(t *testing.T) {
+		originalSince := since
+
+		t.Setenv("SLACK_TOKEN", "xoxb-valid-token-format")
+		initConfig()
+
+		since = "invalid-format"
+
+		cmd := &cobra.Command{}
+		err := runDetect(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid days format")
+
+		since = originalSince
+	})
+
+	t.Run("Negative days error", func(t *testing.T) {
+		originalSince := since
+
+		t.Setenv("SLACK_TOKEN", "xoxb-valid-token-format")
+		initConfig()
+
+		since = "-1"
+
+		cmd := &cobra.Command{}
+		err := runDetect(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "days must be positive")
+
+		since = originalSince
 	})
 }

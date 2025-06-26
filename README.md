@@ -4,7 +4,7 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.1.7 - Stable Release** ✅
+**Version 1.1.8** ✅
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.
 
@@ -18,12 +18,12 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
 - **🛡️ Security Features**: Basic security scanning and dependency monitoring (community-maintained)
 - **💡 Intelligent Error Handling**: Clear, actionable error messages for missing permissions and configuration issues
-- **✅ Well Tested**: Successfully tested with real Slack workspaces with good test coverage
+- **✅ Well Tested**: Solid test coverage with real Slack workspace validation
 
 ## Installation
 
 ### Prerequisites
-- Go 1.24.4
+- Go 1.24.4+
 - Slack Bot Token with appropriate permissions
 
 ### Install via Go
@@ -69,7 +69,9 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 
 **Note**: The `.env.example` file uses `export` statements to ensure environment variables are available to the slack-butler binary when you `source .env`.
 
-**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings. The `groups:read` scope is only needed if you want to detect private channels - without it, the tool will only detect public channels.
+**Note**: If you get permission errors, the tool will tell you exactly which OAuth scopes to add in your Slack app settings.
+
+**Important**: All listed OAuth scopes are required. The tool will fail without proper permissions.
 
 ## Important Limitations
 
@@ -86,10 +88,10 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 ### Health Check
 ```bash
 # Basic health check
-./bin/slack-butler health
+slack-butler health
 
 # Detailed health check with verbose output
-./bin/slack-butler health --verbose
+slack-butler health --verbose
 ```
 
 ### New Channel Detection
@@ -98,31 +100,31 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 source .env
 
 # Detect new channels from the last 8 days (default)
-./bin/slack-butler channels detect
+slack-butler channels detect
 
 # Detect from last week
-./bin/slack-butler channels detect --since=7
+slack-butler channels detect --since=7
 ```
 
 ### Warning and Archiving Inactive Channels
 ```bash
 # Dry run what channels would be warned/archived (default mode)
-./bin/slack-butler channels archive
+slack-butler channels archive
 
 # Actually warn channels inactive for 30 days, archive after 30 days grace period
-./bin/slack-butler channels archive --warn-days=30 --archive-days=30 --commit
+slack-butler channels archive --warn-days=30 --archive-days=30 --commit
 
 # Exclude important channels from archival
-./bin/slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
+slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
 ```
 
 ### Dry Run vs Commit Mode
 ```bash
 # Dry run what would be announced without posting (default)
-./bin/slack-butler channels detect --since=7 --announce-to=#general
+slack-butler channels detect --since=7 --announce-to=#general
 
 # Actually post announcements
-./bin/slack-butler channels detect --since=7 --announce-to=#general --commit
+slack-butler channels detect --since=7 --announce-to=#general --commit
 
 # The default behavior is safe dry run mode
 ```
@@ -130,7 +132,7 @@ source .env
 ### Using Token Flag
 ```bash
 # Use token directly without .env file
-./bin/slack-butler channels detect --token=xoxb-your-token --since=7
+slack-butler channels detect --token=xoxb-your-token --since=7
 ```
 
 **⚠️ Security Warning**: Using `--token` directly in commands may expose your token in shell history. Use environment variables or `.env` files for better security.
@@ -159,8 +161,8 @@ Check Slack connectivity and validate configuration.
 
 **Examples:**
 ```bash
-./bin/slack-butler health
-./bin/slack-butler health --verbose
+slack-butler health
+slack-butler health --verbose
 ```
 
 ### `channels detect`
@@ -174,8 +176,8 @@ Detect new channels created within a specified time period.
 
 **Examples:**
 ```bash
-./bin/slack-butler channels detect --since=7 --announce-to=#general
-./bin/slack-butler channels detect --since=1 --announce-to=#general --commit
+slack-butler channels detect --since=7 --announce-to=#general
+slack-butler channels detect --since=1 --announce-to=#general --commit
 ```
 
 ### `channels archive`
@@ -193,9 +195,9 @@ Manage inactive channel archival with automated warnings and grace periods.
 
 **Examples:**
 ```bash
-./bin/slack-butler channels archive
-./bin/slack-butler channels archive --warn-days=60 --archive-days=14 --commit
-./bin/slack-butler channels archive --exclude-channels="general,random" --commit
+slack-butler channels archive
+slack-butler channels archive --warn-days=60 --archive-days=14 --commit
+slack-butler channels archive --exclude-channels="general,random" --commit
 ```
 
 
@@ -212,7 +214,6 @@ slack-butler/
 ├── pkg/                 # Core packages
 │   ├── logger/         # Structured logging
 │   └── slack/          # Slack API wrapper and client
-├── docs/               # Documentation
 ├── bin/                # Build outputs
 ├── build/              # Build artifacts (coverage, reports)
 ├── .env                # Token storage (git-ignored)
@@ -255,8 +256,8 @@ make maintenance
 # Full CI pipeline (requires: make install-tools + PATH setup)
 make ci
 
-# Full release workflow (requires: make install-tools + PATH setup)
-make release-full
+# Build release binary with version info (cleans first)
+make release
 
 # Install dependencies
 make deps
@@ -307,6 +308,9 @@ go install github.com/astrostl/slack-butler@latest
 # Install specific version
 go install github.com/astrostl/slack-butler@v1.1.7
 
+# Install development version
+go install github.com/astrostl/slack-butler@main
+
 # Build from specific version
 git clone https://github.com/astrostl/slack-butler.git
 cd slack-butler
@@ -355,6 +359,7 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security
 
 - [x] New channel detection - **Implemented**
 - [x] Channel cleanup detection (inactive channels) - **Implemented**
+- [ ] Interactive setup wizard (`slack-butler init`)
 - [ ] Multi-workspace support
 - [ ] Configurable warning message templates
 

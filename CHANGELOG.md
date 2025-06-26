@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.8] - 2025-06-26
+
+### Fixed
+- **Documentation**: Resolved version inconsistency across README, CHANGELOG, and CLAUDE.md files
+- **Version Alignment**: Updated README from "1.1.8-dev" to match actual git tag state (v1.1.7 → v1.1.8)
+- **Testing Claims**: Softened "comprehensive" to "solid" test coverage to avoid stale metrics
+- **Changelog Cleanup**: Removed confusing development version entries that created version confusion
+
+### Improved
+- **Documentation Consistency**: All documentation files now consistently reflect the current stable release
+- **User Experience**: Eliminated version confusion that could mislead users about feature availability
+
 ## [1.1.7] - 2025-06-26
 
 ### Enhanced
@@ -212,7 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0-beta] - 2025-06-21
 
 ### Added
-- **Beta release** of Slack Buddy AI CLI tool
+- **Beta release** of Slack Butler CLI tool
 - **Channel Detection Feature**: Detect new channels created within specified time periods
 - **Flexible Time Filtering**: Support for various time formats (24h, 7d, 1w, etc.)
 - **Smart Announcements**: Post formatted announcements to designated channels
@@ -223,7 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **User-Friendly Feedback**: Clear guidance on how to fix common configuration issues
 
 ### Enhanced
-- **Error Messages**: Now shows exactly which OAuth scopes are missing (channels:read, groups:read, chat:write)
+- **Error Messages**: Now shows exactly which OAuth scopes are missing (channels:read, chat:write)
 - **Authentication Feedback**: Displays connected user and team information
 - **Channel Access Validation**: Specific messages for bot membership requirements
 
@@ -257,15 +269,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline help documentation for all commands
 - TODO.md for task tracking and project management
 
-## [Future Plans]
-
-### Planned Features
-- **Bulk Channel Operations**: Mass operations on multiple channels simultaneously  
-- **Multi-workspace Support**: Manage multiple Slack workspaces from a single configuration
-- **Configurable Message Templates**: Customizable warning and announcement message templates
-- **Scheduled Archival Policies**: Cron-like scheduling for automated archival operations
-
-### Planned Enhancements  
-- **Enhanced Analytics**: Channel usage statistics and reporting
-- **Integration Improvements**: Better error handling and respect for Slack's native rate limiting
-- **Performance Optimizations**: Batch API operations for large workspaces

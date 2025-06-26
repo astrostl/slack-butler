@@ -116,14 +116,6 @@ source .env
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
 ```
 
-```bash
-# Detect and announce to #general
-./bin/slack-butler channels detect --since=1 --announce-to=#general
-
-# Detect from last 3 days and announce to #announcements
-./bin/slack-butler channels detect --since=3 --announce-to=#announcements
-```
-
 ### Dry Run vs Commit Mode
 ```bash
 # Dry run what would be announced without posting (default)
@@ -140,6 +132,8 @@ source .env
 # Use token directly without .env file
 ./bin/slack-butler channels detect --token=xoxb-your-token --since=7
 ```
+
+**⚠️ Security Warning**: Using `--token` directly in commands may expose your token in shell history. Use environment variables or `.env` files for better security.
 
 ### Time Format Examples
 - `1` - Last 1 day (24 hours)
@@ -204,12 +198,6 @@ Manage inactive channel archival with automated warnings and grace periods.
 ./bin/slack-butler channels archive --exclude-channels="general,random" --commit
 ```
 
-**Required OAuth Scopes for Archive:**
-- `channels:read` (to list channels)
-- `channels:join` (to join public channels)
-- `chat:write` (to post warnings)
-- `channels:manage` (to archive channels)
-- `users:read` (required for enhanced features, user name resolution)
 
 ## Development
 
@@ -360,7 +348,6 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security
 ## Roadmap
 
 - [x] Channel cleanup detection (inactive channels) - **Implemented**
-- [ ] Bulk channel operations
 - [ ] Multi-workspace support
 - [ ] Configurable warning message templates
 

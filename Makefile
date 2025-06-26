@@ -307,4 +307,4 @@ help:
 	@echo ""
 	@echo "⚙️  Setup:"
 	@echo "  install-tools - Install dev tools (from go.mod versions)"
-	@echo "  release      - Create release (standalone)"
+	@echo "  release      - Build binary with version info (standalone)"

@@ -92,7 +92,7 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 ./bin/slack-butler health --verbose
 ```
 
-### Basic Channel Detection
+### New Channel Detection
 ```bash
 # Load environment variables
 source .env
@@ -104,19 +104,18 @@ source .env
 ./bin/slack-butler channels detect --since=7
 ```
 
-### Channel Archival Management
+### Warning and Archiving Inactive Channels
 ```bash
 # Dry run what channels would be warned/archived (default mode)
 ./bin/slack-butler channels archive
 
-# Actually warn channels inactive for 5 minutes, archive after 1 minute grace period
-./bin/slack-butler channels archive --warn-seconds=300 --archive-seconds=60 --commit
+# Actually warn channels inactive for 30 days, archive after 7 days grace period
+./bin/slack-butler channels archive --warn-days=30 --archive-days=7 --commit
 
 # Exclude important channels from archival
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
 ```
 
-### With Announcements
 ```bash
 # Detect and announce to #general
 ./bin/slack-butler channels detect --since=1 --announce-to=#general
@@ -189,19 +188,19 @@ Detect new channels created within a specified time period.
 Manage inactive channel archival with automated warnings and grace periods.
 
 **Flags:**
-- `--warn-seconds` - Seconds of inactivity before warning (default: 300)
-- `--archive-seconds` - Seconds after warning before archiving (default: 60)
+- `--warn-days` - Days of inactivity before warning (default: 30)
+- `--archive-days` - Days after warning before archiving (default: 7)
 - `--exclude-channels` - Comma-separated list of channels to exclude
 - `--exclude-prefixes` - Comma-separated list of prefixes to exclude
 - `--commit` - Actually warn and archive channels (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
-**Note:** Archive timing is configured in seconds for precise control.
+**Note:** Archive timing is configured in days for practical channel management.
 
 **Examples:**
 ```bash
 ./bin/slack-butler channels archive
-./bin/slack-butler channels archive --warn-seconds=1800 --archive-seconds=300 --commit
+./bin/slack-butler channels archive --warn-days=60 --archive-days=14 --commit
 ./bin/slack-butler channels archive --exclude-channels="general,random" --commit
 ```
 

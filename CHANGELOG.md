@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.7] - 2025-06-26
+
+### Enhanced
+- **Command Usability**: Switched archive command from seconds to days with decimal precision support for more intuitive time configuration
+- **Documentation Clarity**: Simplified project disclaimer in README for better readability
+- **Project Branding**: Fixed remaining references from 'Slack Buddy AI' to 'Slack Butler' in documentation
+
+### Improved
+- **User Experience**: Archive command now accepts practical day-based timing (e.g., --warn-days=7.5 for 7.5 days)
+- **Documentation Consistency**: All documentation now consistently uses the correct project name
+
 ## [1.1.6] - 2025-06-26
 
 ### Fixed

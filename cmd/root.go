@@ -24,7 +24,9 @@ const unknownValue = "unknown"
 var rootCmd = &cobra.Command{
 	Use:   "slack-butler",
 	Short: "A CLI tool to help manage Slack workspaces",
-	Long:  `Slack Butler is a CLI tool that helps make Slack workspaces more useful and tidy.`,
+	Long:  `Slack Butler is a CLI tool that helps make Slack workspaces more useful and tidy.
+
+Note: this tool was vibe coded with generative AI.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Handle --version flag when no subcommand is specified
 		versionFlag, err := cmd.Flags().GetBool("version")

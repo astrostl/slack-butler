@@ -103,7 +103,7 @@ make ci
 
 # Full release workflow with quality checks
 # NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
-make release-full
+make ci
 ```
 
 ### Setup and Tools
@@ -169,7 +169,9 @@ make coverage
 make build           # Build binary with embedded version info
 
 # Release management
-make release         # Create release with GoReleaser (standalone)
+make build           # Build binary for local platform
+git tag v1.x.x       # Create release tag
+gh release create    # Create GitHub release
 ```
 
 ### Help and Documentation
@@ -183,10 +185,10 @@ make help
 ```
 
 ## Git Repository
-- **Version**: 1.1.6 - Stable Release
+- **Version**: 1.1.7 - Stable Release
 - **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Enhanced OAuth scope validation and documentation consistency, added channels:history scope support (v1.1.6)
+- **Recent Updates**: Improved command usability with days-based timing, simplified documentation, consistent project branding (v1.1.7)
 - **Branches**: 
   - `main` - Stable release branch
 
@@ -314,11 +316,12 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
 
 **Release Command Sequence (MANDATORY):**
 ```bash
-# Required sequence before ANY release push
+# Required sequence before ANY release
 make clean && make deps && make quality && make test && make coverage && make build
 
 # Only proceed to release if ALL commands succeed
-make release
+git tag v1.x.x && git push origin main --tags
+gh release create v1.x.x --title "Release v1.x.x" --notes-from-tag
 ```
 
 **Rationale**: Quality is non-negotiable. Users depend on stable, secure releases. Every release represents the project's commitment to excellence.

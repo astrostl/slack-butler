@@ -4,7 +4,7 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.1.6 - Stable Release** ✅
+**Version 1.1.7 - Stable Release** ✅
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.
 
@@ -297,23 +297,20 @@ make security
 
 ### Release Management
 
-#### Local Release Process
+#### Release Process
 ```bash
-# Install development tools (includes GoReleaser)
-make install-tools
+# Create and push release tags
+git tag v1.x.x
+git push origin main --tags
 
-# Create full release with checksums (includes quality checks)
-make release-full
-
-# Standalone release creation
-make release
+# Create GitHub release
+gh release create v1.x.x --title "Release v1.x.x" --notes-from-tag
 ```
 
 #### Release Features
-- **Multi-platform builds**: Linux, macOS, Windows (amd64, arm64)
-- **Checksums**: SHA256 checksums for all artifacts
-- **Archives**: tar.gz (Unix) and zip (Windows) with documentation
-- **Local-only**: No GitHub integration (release.disable: true)
+- **Simple tagging**: Git tags for version management
+- **GitHub releases**: Manual release creation with GitHub CLI
+- **Source distribution**: Source code archives automatically generated
 
 ## Contributing
 

@@ -207,30 +207,24 @@ deps-audit:
 .PHONY: install-tools
 install-tools:
 	@echo "Installing development tools from go.mod versions..."
-	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck, goreleaser"
+	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck"
 	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
 	@echo "Installing standalone tools separately..."
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	@go install github.com/goreleaser/goreleaser/v2@latest
 	@go install github.com/securego/gosec/v2/cmd/gosec@latest
 	@go install golang.org/x/vuln/cmd/govulncheck@latest
 	@echo "✅ All development tools installed successfully!"
 
-# Create full release with checksums
+# Build release binary with version info
 .PHONY: release
 release: clean
-	@echo "Creating full release with checksums..."
-	@if ! command -v goreleaser >/dev/null 2>&1; then \
-		echo "goreleaser not installed. Run: make install-tools"; \
-		exit 1; \
-	fi
-	goreleaser release --snapshot --clean
-	@echo "Release created in dist/ with checksums"
-	@echo "Files:"
-	@ls -la dist/
+	@echo "Building release binary..."
+	@$(MAKE) build
+	@echo "Release binary created: $(BINARY_PATH)"
+	@echo "Version: $(VERSION)"
 
 # Main workflow suites
-.PHONY: dev quality maintenance ci release-full
+.PHONY: dev quality maintenance ci
 
 # Quick development cycle (format + vet + test + build)
 dev:
@@ -275,9 +269,6 @@ maintenance-quality:
 ci: clean deps quality coverage build
 	@echo "✅ CI pipeline completed!"
 
-# Full release workflow with quality checks
-release-full: ci release
-	@echo "✅ Release workflow completed!"
 
 # Show available targets
 .PHONY: help
@@ -290,7 +281,7 @@ help:
 	@echo "  make quality     - Complete: security + format + vet + lint + complexity"
 	@echo "  make maintenance - Monthly: deps-update + essential quality + test (recommended)"
 	@echo "  make ci          - Full: clean + deps + quality + coverage + build"
-	@echo "  make release-full - Release: ci + create release with checksums"
+	@echo "  make release     - Build release binary with version info"
 	@echo ""
 	@echo "📦 Core targets:"
 	@echo "  build        - Build binary"

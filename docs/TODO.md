@@ -18,7 +18,7 @@ Project task tracking and development notes.
 - [x] Integration Tests - Mock Slack API integration testing
 - [x] Code Quality - golangci-lint configuration with 30+ linters
 - [x] Error Handling - Fixed unhandled error in cmd/root.go (gosec G104)
-- [x] GoReleaser Configuration - Added .goreleaser.yaml with local release support
+- [x] Release Management - Simplified release process with git tags and GitHub CLI
 - [x] Health Check Command - Added comprehensive health and connectivity testing
 - [x] Channel Archive Management - Complete implementation with warnings, grace periods, and exclusions
 

@@ -2,7 +2,7 @@
 # Build: goreleaser build --snapshot --clean
 # Release: goreleaser release --snapshot --clean
 
-version: 1
+version: 2
 
 project_name: slack-butler
 
@@ -82,10 +82,10 @@ changelog:
     - title: Others
       order: 999
 
-# Local release settings
+# GitHub release settings
 release:
-  # Disable GitHub release for local-only builds
-  disable: true
+  # Enable GitHub releases
+  disable: false
   
 # Metadata
 metadata:

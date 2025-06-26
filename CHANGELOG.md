@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2025-06-26
+
+### Fixed
+- **Module Path**: Fixed go install compatibility after repository rename from slack-buddy-ai to slack-butler
+- **Documentation**: Updated all version references to maintain consistency across documentation files
+- **Repository Cleanup**: Removed coverage artifacts from version control
+
+### Added
+- **CLI Enhancement**: Added generative AI development acknowledgment to help output
+
 ## [1.1.3] - 2025-06-25
 
 ### Fixed

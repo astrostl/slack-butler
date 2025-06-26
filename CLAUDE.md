@@ -183,10 +183,10 @@ make help
 ```
 
 ## Git Repository
-- **Version**: 1.1.3 - Stable Release
+- **Version**: 1.1.4 - Stable Release
 - **Status**: ✅ **STABLE RELEASE** - Production-ready with comprehensive testing and security features
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Project renamed from slack-buddy-ai to slack-butler, development tools fixes, dependency cleanup, and documentation improvements (v1.1.3)
+- **Recent Updates**: Fixed go install compatibility after repository rename, added AI development acknowledgment, and cleaned up repository artifacts (v1.1.4)
 - **Branches**: 
   - `main` - Stable release branch
 

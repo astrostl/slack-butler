@@ -51,7 +51,6 @@ go build -o slack-butler
    - `channels:manage` - To archive channels
    - `chat:write` - To post announcements and warnings
    - `users:read` - To resolve user names in messages
-   - `groups:read` - To list private channels (*optional*)
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
 ### 2. Configure Token

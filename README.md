@@ -1,4 +1,4 @@
-# Slack Buddy AI
+# Slack Butler
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/astrostl/slack-butler?v=2)](https://goreportcard.com/report/github.com/astrostl/slack-butler)
 

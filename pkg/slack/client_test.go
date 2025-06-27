@@ -2466,3 +2466,283 @@ func TestGetNewChannelsWithAllChannels(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to get conversations")
 	})
 }
+
+// TestIsRealMessage tests the isRealMessage function comprehensively.
+func TestIsRealMessage(t *testing.T) {
+	botUserID := "U0000000"
+
+	t.Run("Real user messages", func(t *testing.T) {
+		msg := slack.Message{
+			Msg: slack.Msg{
+				Text:    "Hello everyone!",
+				User:    "U1234567",
+				SubType: "",
+			},
+		}
+		assert.True(t, isRealMessage(msg, botUserID), "Regular user message should be considered real")
+	})
+
+	t.Run("System messages with subtypes", func(t *testing.T) {
+		systemSubtypes := []string{
+			"channel_join", "channel_leave", "channel_topic", "channel_purpose",
+			"channel_name", "channel_archive", "channel_unarchive",
+			"group_join", "group_leave", "group_topic", "group_purpose",
+			"group_name", "group_archive", "group_unarchive",
+			"bot_add", "bot_remove", "pinned_item", "unpinned_item",
+		}
+
+		for _, subtype := range systemSubtypes {
+			msg := slack.Message{
+				Msg: slack.Msg{
+					Text:    "Some system message",
+					User:    "U1234567",
+					SubType: subtype,
+				},
+			}
+			assert.False(t, isRealMessage(msg, botUserID), "Message with subtype '%s' should not be considered real", subtype)
+		}
+	})
+
+	t.Run("Messages with system content patterns", func(t *testing.T) {
+		systemPatterns := []string{
+			"has joined the channel",
+			"has left the channel",
+			"has joined the group",
+			"has left the group",
+			"set the channel topic:",
+			"set the channel purpose:",
+			"renamed the channel from",
+			"archived this channel",
+			"unarchived this channel",
+			"pinned a message to this channel",
+			"unpinned a message from this channel",
+		}
+
+		for _, pattern := range systemPatterns {
+			msg := slack.Message{
+				Msg: slack.Msg{
+					Text:    fmt.Sprintf("User %s", pattern),
+					User:    "U1234567",
+					SubType: "",
+				},
+			}
+			assert.False(t, isRealMessage(msg, botUserID), "Message containing pattern '%s' should not be considered real", pattern)
+		}
+	})
+
+	t.Run("Empty and whitespace-only messages", func(t *testing.T) {
+		testCases := []struct {
+			text        string
+			description string
+		}{
+			{"", "empty string"},
+			{" ", "single space"},
+			{"\t", "tab character"},
+			{"\n", "newline character"},
+			{"   \t\n  ", "mixed whitespace"},
+		}
+
+		for _, tc := range testCases {
+			msg := slack.Message{
+				Msg: slack.Msg{
+					Text:    tc.text,
+					User:    "U1234567",
+					SubType: "",
+				},
+			}
+			assert.False(t, isRealMessage(msg, botUserID), "Message with %s should not be considered real", tc.description)
+		}
+	})
+
+	t.Run("Messages with both subtype and content pattern", func(t *testing.T) {
+		// Should be filtered out by subtype check first
+		msg := slack.Message{
+			Msg: slack.Msg{
+				Text:    "User has joined the channel",
+				User:    "U1234567",
+				SubType: "channel_join",
+			},
+		}
+		assert.False(t, isRealMessage(msg, botUserID), "Message with both subtype and pattern should not be considered real")
+	})
+
+	t.Run("Bot messages with real content", func(t *testing.T) {
+		// Even bot messages with real content should be considered "real" if they have substance
+		msg := slack.Message{
+			Msg: slack.Msg{
+				Text:    "Automated report: Today's metrics are ready",
+				User:    botUserID,
+				SubType: "",
+			},
+		}
+		assert.True(t, isRealMessage(msg, botUserID), "Bot message with real content should be considered real")
+	})
+
+	t.Run("Messages with special characters and Unicode", func(t *testing.T) {
+		msg := slack.Message{
+			Msg: slack.Msg{
+				Text:    "Hello! 🎉 Testing unicode αβγ and special chars @#$%",
+				User:    "U1234567",
+				SubType: "",
+			},
+		}
+		assert.True(t, isRealMessage(msg, botUserID), "Message with special characters should be considered real")
+	})
+}
+
+// TestParseSlackTimestamp tests edge cases in timestamp parsing.
+func TestParseSlackTimestamp(t *testing.T) {
+	t.Run("Valid timestamps", func(t *testing.T) {
+		testCases := []struct {
+			expected  time.Time
+			timestamp string
+		}{
+			{time.Unix(1234567890, 0), "1234567890.123456"}, // microseconds ignored
+			{time.Unix(1609459200, 0), "1609459200.000000"}, // New Year 2021
+			{time.Unix(0, 0), "0.000000"},                   // Unix epoch
+			{time.Unix(1234567890, 0), "1234567890"},        // missing decimal part is allowed
+		}
+
+		for _, tc := range testCases {
+			result, err := parseSlackTimestamp(tc.timestamp)
+			assert.NoError(t, err, "Should parse valid timestamp: %s", tc.timestamp)
+			assert.Equal(t, tc.expected, result, "Parsed time should match expected for: %s", tc.timestamp)
+		}
+	})
+
+	t.Run("Invalid timestamps", func(t *testing.T) {
+		testCases := []string{
+			"",                                     // empty string
+			"not-a-number",                         // non-numeric
+			".123456",                              // missing seconds
+			"99999999999999999999999999999.123456", // overflow
+		}
+
+		for _, timestamp := range testCases {
+			result, err := parseSlackTimestamp(timestamp)
+			assert.Error(t, err, "Should fail to parse invalid timestamp: %s", timestamp)
+			assert.True(t, result.IsZero(), "Result should be zero time for invalid timestamp: %s", timestamp)
+		}
+	})
+
+	t.Run("Edge case - negative timestamps are actually parsed", func(t *testing.T) {
+		// Negative timestamps are technically valid Unix timestamps (before epoch)
+		result, err := parseSlackTimestamp("-1234567890.123456")
+		assert.NoError(t, err, "Negative timestamps should parse successfully")
+		assert.Equal(t, time.Unix(-1234567890, 0), result, "Should handle negative timestamps")
+	})
+}
+
+// TestParseSlackRetryAfterEdgeCases tests additional edge cases in retry-after parsing.
+func TestParseSlackRetryAfterEdgeCases(t *testing.T) {
+	t.Run("Valid Go duration format", func(t *testing.T) {
+		// The function expects Go duration format like "30s", not "30 seconds"
+		testCases := []struct {
+			errorString string
+			expected    time.Duration
+		}{
+			{"rate_limited, retry after 30s", 31 * time.Second},          // 30s + 1s buffer
+			{"rate_limited, retry after 1m", 61 * time.Second},           // 1m + 1s buffer
+			{"rate_limited, retry after 500ms", 1500 * time.Millisecond}, // 500ms + 1s buffer
+		}
+
+		for _, tc := range testCases {
+			result := parseSlackRetryAfter(tc.errorString)
+			assert.Equal(t, tc.expected, result, "Should parse: %s", tc.errorString)
+		}
+	})
+
+	t.Run("Invalid duration formats return zero", func(t *testing.T) {
+		testCases := []string{
+			"rate_limited, retry after 30 seconds", // not Go format
+			"retry after 30seconds",                // not Go format
+			"retry after 30 second",                // not Go format
+			"retry after abc",                      // invalid
+			"retry after",                          // missing duration
+			"no retry directive",                   // no directive
+		}
+
+		for _, errorString := range testCases {
+			result := parseSlackRetryAfter(errorString)
+			assert.Equal(t, time.Duration(0), result, "Should return 0 for invalid format: %s", errorString)
+		}
+	})
+
+	t.Run("Multiple retry-after uses first", func(t *testing.T) {
+		// Should use the first valid one found - function splits on space so "45s," is parsed
+		errorString := "rate_limited, retry after 45s also retry after 60s"
+		result := parseSlackRetryAfter(errorString)
+		assert.Equal(t, 46*time.Second, result, "Should use first retry-after directive with buffer")
+	})
+}
+
+// TestSeemsActiveFromMetadataEdgeCases tests additional edge cases in metadata-based activity detection.
+func TestSeemsActiveFromMetadataEdgeCases(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	warnCutoff := time.Now().Add(-30 * time.Minute)
+
+	t.Run("Channel with boundary timestamp", func(t *testing.T) {
+		// Test with timestamp exactly at the cutoff
+		channel := slack.Channel{
+			GroupConversation: slack.GroupConversation{
+				Conversation: slack.Conversation{
+					Latest: &slack.Message{
+						Msg: slack.Msg{
+							Timestamp: fmt.Sprintf("%.6f", float64(warnCutoff.Unix())),
+						},
+					},
+				},
+			},
+		}
+
+		result := client.seemsActiveFromMetadata(channel, warnCutoff)
+		assert.False(t, result, "Channel with timestamp exactly at cutoff should not seem active")
+	})
+
+	t.Run("Channel with timestamp slightly after cutoff", func(t *testing.T) {
+		// Test with timestamp just after the cutoff
+		channel := slack.Channel{
+			GroupConversation: slack.GroupConversation{
+				Conversation: slack.Conversation{
+					Latest: &slack.Message{
+						Msg: slack.Msg{
+							Timestamp: fmt.Sprintf("%.6f", float64(warnCutoff.Add(1*time.Second).Unix())),
+						},
+					},
+				},
+			},
+		}
+
+		result := client.seemsActiveFromMetadata(channel, warnCutoff)
+		assert.True(t, result, "Channel with timestamp after cutoff should seem active")
+	})
+
+	t.Run("Channel with malformed timestamp format", func(t *testing.T) {
+		testCases := []string{
+			"1234567890.",        // missing microseconds after dot
+			".123456",            // missing seconds
+			"1234567890.12345",   // wrong microsecond precision
+			"1234567890.1234567", // too many microsecond digits
+		}
+
+		for _, timestamp := range testCases {
+			channel := slack.Channel{
+				GroupConversation: slack.GroupConversation{
+					Conversation: slack.Conversation{
+						Latest: &slack.Message{
+							Msg: slack.Msg{
+								Timestamp: timestamp,
+							},
+						},
+					},
+				},
+			}
+
+			result := client.seemsActiveFromMetadata(channel, warnCutoff)
+			assert.False(t, result, "Channel with malformed timestamp '%s' should not seem active", timestamp)
+		}
+	})
+}

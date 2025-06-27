@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,7 +139,7 @@ func getArchiveTestCases() []archiveTestCase {
 			archiveSeconds: 7,
 			isPreviewMode:  true,
 			setupChannels:  func(mock *slack.MockSlackAPI) {},
-			expectedErr:    "warn-seconds must be positive, got 0",
+			expectedErr:    "warn-days must be positive, got 0",
 		},
 		{
 			name:           "API error handling",
@@ -156,13 +157,13 @@ func getArchiveTestCases() []archiveTestCase {
 func validateTestParameters(t *testing.T, tt archiveTestCase) bool {
 	if tt.expectedErr != "" && (tt.warnSeconds <= 0 || tt.archiveSeconds <= 0) {
 		if tt.warnSeconds <= 0 {
-			expectedMsg := fmt.Sprintf("warn-seconds must be positive, got %d", tt.warnSeconds)
+			expectedMsg := fmt.Sprintf("warn-days must be positive, got %d", tt.warnSeconds)
 			if expectedMsg != tt.expectedErr {
 				t.Errorf("Expected error '%s', got constructed: %s", tt.expectedErr, expectedMsg)
 			}
 		}
 		if tt.archiveSeconds <= 0 {
-			expectedMsg := fmt.Sprintf("archive-seconds must be positive, got %d", tt.archiveSeconds)
+			expectedMsg := fmt.Sprintf("archive-days must be positive, got %d", tt.archiveSeconds)
 			if expectedMsg != tt.expectedErr {
 				t.Errorf("Expected error '%s', got constructed: %s", tt.expectedErr, expectedMsg)
 			}
@@ -428,6 +429,13 @@ func TestRunArchive(t *testing.T) {
 			token:          "xoxb-validtoken123456789012345678901234567890",
 			expectedErr:    "archive-days must be positive, got",
 		},
+		{
+			name:           "Client creation error",
+			warnSeconds:    30,
+			archiveSeconds: 7,
+			token:          "invalid-token-format",
+			expectedErr:    "failed to create Slack client",
+		},
 	}
 
 	for _, tt := range tests {
@@ -485,4 +493,54 @@ func findSubstring(str, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestArchiveGetInactiveChannelsErrorPaths(t *testing.T) {
+	t.Run("Rate limit error handling", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		if err != nil {
+			t.Fatalf("Failed to create mock client: %v", err)
+		}
+
+		// Set up a rate limit error using the proper method
+		// Note: SetMissingScopeError(false) clears GetConversationsError, so we must call it first
+		mockAPI.SetMissingScopeError(false)
+		mockAPI.SetGetConversationsErrorWithMessage(true, "rate_limited")
+
+		userMap := map[string]string{"U1234567": "testuser"}
+		excludeChannels := []string{}
+		excludePrefixes := []string{}
+
+		_, _, err = getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, excludeChannels, excludePrefixes, false)
+
+		if err == nil {
+			t.Error("Expected error for rate limit scenario")
+		} else if !strings.Contains(err.Error(), "rate limited") && !strings.Contains(err.Error(), "failed to analyze") {
+			t.Errorf("Expected rate limit or analysis error, got: %v", err)
+		}
+	})
+
+	t.Run("Generic error handling", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		if err != nil {
+			t.Fatalf("Failed to create mock client: %v", err)
+		}
+
+		// Set up a generic error by enabling conversations error
+		mockAPI.SetGetConversationsError(true)
+
+		userMap := map[string]string{"U1234567": "testuser"}
+		excludeChannels := []string{}
+		excludePrefixes := []string{}
+
+		_, _, err = getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, excludeChannels, excludePrefixes, false)
+
+		if err == nil {
+			t.Error("Expected error for generic API error scenario")
+		} else if !strings.Contains(err.Error(), "failed to analyze") {
+			t.Errorf("Expected analysis error, got: %v", err)
+		}
+	})
 }

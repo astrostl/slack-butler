@@ -1,14 +1,14 @@
 # Makefile for slack-butler
 # 
 # Main workflows:
-#   make dev      - Quick development cycle
-#   make quality  - Complete quality validation
-#   make ci       - Full CI pipeline
+#   make dev         - Quick development cycle (format + vet + test + build)
+#   make quality     - Complete quality validation (security + format + vet + lint + complexity)
+#   make maintenance - Monthly maintenance (deps-update + quality + test)
+#   make ci          - Full CI pipeline (clean + deps + quality + coverage + build)
 
 # Variables
 BINARY_NAME=slack-butler
 BINARY_PATH=./bin/$(BINARY_NAME)
-MODULE_NAME=slack-butler
 GO_VERSION=1.24.4
 
 # Build directories
@@ -27,6 +27,10 @@ LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIM
 # Default target
 .PHONY: all
 all: dev
+
+# =============================================================================
+# Core Build Targets
+# =============================================================================
 
 # Build the binary
 .PHONY: build
@@ -66,7 +70,18 @@ deps:
 	go mod download
 	go mod tidy
 
-# Helper functions (not individual targets)
+# Install development tools (versions pinned in tools.go/go.mod)
+.PHONY: install-tools
+install-tools:
+	@echo "Installing development tools from go.mod versions..."
+	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck"
+	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
+	@echo "✅ All development tools installed successfully!"
+
+# =============================================================================
+# Helper Functions (Internal Use)
+# =============================================================================
+
 define run-fmt
 	@gofmt -s -w .
 endef
@@ -156,73 +171,12 @@ define run-security
 	$(call run-mod-verify)
 endef
 
-# Individual targets (use suites instead for normal workflow)
-.PHONY: fmt fmt-check vet lint complexity-check gosec vuln-check mod-verify security deps-update deps-audit
-
-# Format code (dev workflow includes this)
-fmt:
-	$(call run-fmt)
-
-# Check formatting (CI-friendly)
-fmt-check:
-	$(call run-fmt-check)
-
-# Vet code (standalone)
-vet:
-	$(call run-vet)
-
-# Lint code (standalone)
-lint:
-	$(call run-lint)
-
-# Check complexity (standalone)
-complexity-check:
-	$(call run-complexity-check)
-
-# Static security analysis (standalone)
-gosec:
-	$(call run-gosec)
-
-# Vulnerability checking (standalone)
-vuln-check:
-	$(call run-vuln-check)
-
-# Module verification (standalone)
-mod-verify:
-	$(call run-mod-verify)
-
-# Complete security analysis (standalone)
-security:
-	$(call run-security)
-
-# Update all dependencies (standalone)
-deps-update:
-	$(call run-deps-update)
-
-# Audit dependencies for vulnerabilities (standalone)
-deps-audit:
-	$(call run-deps-audit)
-
-# Install development tools (versions pinned in tools.go/go.mod)
-.PHONY: install-tools
-install-tools:
-	@echo "Installing development tools from go.mod versions..."
-	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck"
-	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
-	@echo "✅ All development tools installed successfully!"
-
-# Build release binary with version info
-.PHONY: release
-release: clean
-	@echo "Building release binary..."
-	@$(MAKE) build
-	@echo "Release binary created: $(BINARY_PATH)"
-	@echo "Version: $(VERSION)"
-
-# Main workflow suites
-.PHONY: dev quality maintenance ci
+# =============================================================================
+# Main Workflow Suites (Recommended)
+# =============================================================================
 
 # Quick development cycle (format + vet + test + build)
+.PHONY: dev
 dev:
 	$(call run-fmt)
 	$(call run-vet)
@@ -231,6 +185,7 @@ dev:
 	@echo "✅ Development cycle complete!"
 
 # Complete quality validation (security + format + vet + lint + complexity)
+.PHONY: quality
 quality:
 	$(call run-security)
 	$(call run-fmt-check)
@@ -240,9 +195,13 @@ quality:
 	@echo "✅ Quality checks completed!"
 
 # Monthly maintenance workflow (update deps + run essential checks + test)
+.PHONY: maintenance
 maintenance:
 	$(call run-deps-update)
-	@$(MAKE) maintenance-quality
+	$(call run-security)
+	$(call run-fmt-check)
+	$(call run-vet)
+	$(call run-lint-maintenance)
 	@$(MAKE) test
 	@echo "✅ Monthly maintenance completed!"
 	@echo "📋 Summary:"
@@ -253,18 +212,65 @@ maintenance:
 	@echo ""
 	@echo "💡 Consider running 'git status' to review dependency changes"
 
-# Essential quality checks for maintenance (less strict than full quality)
-maintenance-quality:
-	$(call run-security)
-	$(call run-fmt-check)
-	$(call run-vet)
-	$(call run-lint-maintenance)
-	@echo "✅ Maintenance quality checks completed!"
-
 # Full CI pipeline (clean + deps + quality + coverage + build)
+.PHONY: ci
 ci: clean deps quality coverage build
 	@echo "✅ CI pipeline completed!"
 
+# Build release binary with version info
+.PHONY: release
+release: clean
+	@echo "Building release binary..."
+	@$(MAKE) build
+	@echo "Release binary created: $(BINARY_PATH)"
+	@echo "Version: $(VERSION)"
+
+# =============================================================================
+# Individual Targets (Available for Granular Control)
+# =============================================================================
+
+.PHONY: fmt fmt-check vet lint complexity-check gosec vuln-check mod-verify security deps-update deps-audit
+
+# Code formatting
+fmt:
+	$(call run-fmt)
+
+fmt-check:
+	$(call run-fmt-check)
+
+# Code analysis
+vet:
+	$(call run-vet)
+
+lint:
+	$(call run-lint)
+
+complexity-check:
+	$(call run-complexity-check)
+
+# Security analysis
+gosec:
+	$(call run-gosec)
+
+vuln-check:
+	$(call run-vuln-check)
+
+mod-verify:
+	$(call run-mod-verify)
+
+security:
+	$(call run-security)
+
+# Dependency management
+deps-update:
+	$(call run-deps-update)
+
+deps-audit:
+	$(call run-deps-audit)
+
+# =============================================================================
+# Help Documentation
+# =============================================================================
 
 # Show available targets
 .PHONY: help
@@ -272,35 +278,35 @@ help:
 	@echo "slack-butler Makefile (Go $(GO_VERSION))"
 	@echo "Version: $(VERSION) | Commit: $(GIT_COMMIT)"
 	@echo ""
-	@echo "🚀 Main workflows:"
-	@echo "  make dev         - Quick: format + vet + test + build"
-	@echo "  make quality     - Complete: security + format + vet + lint + complexity"
-	@echo "  make maintenance - Monthly: deps-update + essential quality + test (recommended)"
-	@echo "  make ci          - Full: clean + deps + quality + coverage + build"
-	@echo "  make release     - Build release binary with version info"
+	@echo "🚀 Main workflows (recommended):"
+	@echo "  make dev         - Quick development cycle (format + vet + test + build)"
+	@echo "  make quality     - Complete quality validation (security + format + vet + lint + complexity)"
+	@echo "  make maintenance - Monthly maintenance (deps-update + quality + test)"
+	@echo "  make ci          - Full CI pipeline (clean + deps + quality + coverage + build)"
 	@echo ""
 	@echo "📦 Core targets:"
-	@echo "  build        - Build binary"
-	@echo "  test         - Run tests with race detection"
-	@echo "  coverage     - Generate test coverage report"
-	@echo "  clean        - Clean artifacts"
-	@echo "  deps         - Install dependencies"
+	@echo "  build            - Build binary with version info"
+	@echo "  test             - Run tests with race detection"
+	@echo "  coverage         - Generate test coverage report"
+	@echo "  clean            - Clean build artifacts and coverage files"
+	@echo "  deps             - Install and tidy dependencies"
+	@echo "  install-tools    - Install dev tools (golangci-lint, gocyclo, gosec, govulncheck)"
+	@echo "  release          - Build release binary (clean + build)"
 	@echo ""
 	@echo "🔒 Security & Dependencies:"
-	@echo "  security     - Complete security analysis (gosec + vuln-check + mod-verify)"
-	@echo "  deps-audit   - Audit dependencies for vulnerabilities"
-	@echo "  deps-update  - Update all dependencies to latest versions"
+	@echo "  security         - Complete security analysis (gosec + vuln-check + mod-verify)"
+	@echo "  deps-audit       - Audit dependencies for vulnerabilities"
+	@echo "  deps-update      - Update all dependencies to latest versions"
 	@echo ""
-	@echo "🔧 Individual targets:"
-	@echo "  fmt          - Format code (use 'dev' instead)"
-	@echo "  fmt-check    - Check formatting (CI-friendly)"
-	@echo "  vet          - Vet code"
-	@echo "  lint         - Lint code"
-	@echo "  complexity-check - Check cyclomatic complexity"
-	@echo "  gosec        - Static security analysis"
-	@echo "  vuln-check   - Check for vulnerabilities"
-	@echo "  mod-verify   - Verify module integrity"
+	@echo "🔧 Individual targets (for granular control):"
+	@echo "  fmt              - Format code with gofmt -s"
+	@echo "  fmt-check        - Check code formatting (CI-friendly)"
+	@echo "  vet              - Run go vet analysis"
+	@echo "  lint             - Run golangci-lint"
+	@echo "  complexity-check - Check cyclomatic complexity (threshold: 15)"
+	@echo "  gosec            - Static security analysis"
+	@echo "  vuln-check       - Check for known vulnerabilities"
+	@echo "  mod-verify       - Verify module integrity"
 	@echo ""
-	@echo "⚙️  Setup:"
-	@echo "  install-tools - Install dev tools (from go.mod versions)"
-	@echo "  release      - Build binary with version info (standalone)"
+	@echo "💡 Note: Quality/security targets require 'make install-tools' first"
+	@echo "💡 Add Go tools to PATH: export PATH=\$$PATH:~/go/bin"

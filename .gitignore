@@ -7,7 +7,7 @@ build/
 bin/
 dist/
 
-# GoReleaser artifacts
+# Build artifacts
 *.tar.gz
 *.zip
 

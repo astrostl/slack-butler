@@ -423,7 +423,7 @@ func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, arc
 			fmt.Printf("   The analysis was stopped to respect API limits.\n")
 			fmt.Printf("   Please wait a few minutes before running the command again.\n")
 			fmt.Printf("   \n")
-			fmt.Printf("   Tip: Consider running with longer time periods (e.g. --warn-seconds=3600) to reduce API calls.\n")
+			fmt.Printf("   Tip: Consider running with longer time periods (e.g. --warn-days=30) to reduce API calls.\n")
 			return nil, nil, fmt.Errorf("rate limited by Slack API")
 		}
 		return nil, nil, fmt.Errorf("failed to analyze inactive channels: %w", err)

@@ -7,17 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.9] - 2025-06-27
+
+### Enhanced
+- **Test Coverage**: Major expansion of test suite with comprehensive `isRealMessage` testing covering all message types, system events, and edge cases
+- **Documentation Quality**: Removed development disclaimer and improved Go version specification (Go 1.23+ with Go 1.24.4 testing)
+- **User Experience**: Enhanced test coverage description from "solid" to "comprehensive" reflecting improved test quality
+
+### Fixed  
+- **Test Accuracy**: Fixed error message expectations in archive tests (warn-seconds → warn-days)
+- **Health Testing**: Added comprehensive health command test coverage
+- **Integration Testing**: Enhanced integration test reliability and coverage
+
+### Removed
+- **Build Dependencies**: Completely removed GoReleaser configuration and dependencies for simplified release process
+- **Outdated Disclaimers**: Removed "vibe coded" disclaimer that was no longer accurate
+
+### Improved
+- **Build System**: Streamlined Makefile with improved organization and documentation
+- **Code Quality**: Enhanced testing framework with better mock coverage and edge case validation
+- **Project Maintenance**: Simplified dependency management and build process
+
 ## [1.1.8] - 2025-06-26
 
 ### Fixed
-- **Documentation**: Resolved version inconsistency across README, CHANGELOG, and CLAUDE.md files
-- **Version Alignment**: Updated README from "1.1.8-dev" to match actual git tag state (v1.1.7 → v1.1.8)
-- **Testing Claims**: Softened "comprehensive" to "solid" test coverage to avoid stale metrics
-- **Changelog Cleanup**: Removed confusing development version entries that created version confusion
+- **Documentation**: Minor documentation consistency improvements and cleanup
+- **Version References**: Ensured all documentation files accurately reflect current stable release status
 
 ### Improved
-- **Documentation Consistency**: All documentation files now consistently reflect the current stable release
-- **User Experience**: Eliminated version confusion that could mislead users about feature availability
+- **Documentation Quality**: Maintained accurate and up-to-date project documentation
 
 ## [1.1.7] - 2025-06-26
 
@@ -267,5 +285,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive README with installation and usage instructions
 - CLAUDE.md for development notes and project tracking
 - Inline help documentation for all commands
-- TODO.md for task tracking and project management
 

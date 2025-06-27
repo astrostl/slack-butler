@@ -104,74 +104,69 @@ make maintenance
 # Full CI pipeline (clean + deps + quality + coverage + build)
 # NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
 make ci
-
-# Full release workflow with quality checks
-# NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
-make ci
 ```
 
-### Setup and Tools
+### Core Targets
 ```bash
-# Install development tools (versions pinned in go.mod)
-make install-tools
+# Build binary with version info
+make build
 
-# Install dependencies and tidy modules
-make deps
-
-# Clean build artifacts and coverage files
-make clean
-
-# NOTE: Security and quality targets require Go tools in PATH:
-export PATH=$PATH:~/go/bin
-# This applies to: security, gosec, vuln-check, quality, maintenance, ci targets
-```
-
-### Individual Quality Checks
-```bash
-# Code formatting
-make fmt             # Format code with gofmt -s (required for commits)
-make fmt-check       # Check formatting with simplify flag (CI-friendly)
-
-# Code analysis
-make vet             # Go vet analysis
-make lint            # golangci-lint analysis
-make complexity-check # Check cyclomatic complexity (threshold: 15)
-
-# Security analysis
-# NOTE: Security targets require Go tools in PATH (export PATH=$PATH:~/go/bin)
-make gosec           # Static security analysis with gosec
-make vuln-check      # Check for known vulnerabilities with govulncheck
-make mod-verify      # Verify module integrity
-make security        # Complete security analysis (all above)
-```
-
-### Security & Dependency Management
-```bash
-# Monthly security maintenance (RECOMMENDED)
-make maintenance     # Update deps + run quality checks + test
-
-# Dependency management
-make deps-update     # Update all dependencies to latest versions
-make deps-audit      # Audit dependencies for security vulnerabilities
-
-# Security workflows
-make security-update # Security checks with dependency updates
-```
-
-### Testing and Coverage
-```bash
 # Run tests with race detection
 make test
 
 # Generate test coverage report
 make coverage
+
+# Clean build artifacts and coverage files
+make clean
+
+# Install and tidy dependencies
+make deps
+
+# Install development tools (versions pinned in go.mod)
+make install-tools
+
+# Build release binary (clean + build)
+make release
+
+# NOTE: Quality and security targets require Go tools in PATH:
+export PATH=$PATH:~/go/bin
+# This applies to: quality, maintenance, ci, security, lint, complexity-check, gosec targets
 ```
 
-### Build and Version Management
+### Security & Dependencies
 ```bash
-# Build the tool
-make build           # Build binary with embedded version info
+# Complete security analysis (gosec + vuln-check + mod-verify)
+# NOTE: Requires Go tools in PATH (export PATH=$PATH:~/go/bin)
+make security
 
+# Audit dependencies for vulnerabilities
+make deps-audit
+
+# Update all dependencies to latest versions
+make deps-update
+```
+
+### Individual Targets (Granular Control)
+```bash
+# Code formatting
+make fmt             # Format code with gofmt -s (required for commits)
+make fmt-check       # Check code formatting (CI-friendly)
+
+# Code analysis
+make vet             # Run go vet analysis
+make lint            # Run golangci-lint (requires tools + PATH setup)
+make complexity-check # Check cyclomatic complexity (threshold: 15, requires tools + PATH setup)
+
+# Security analysis
+# NOTE: Security targets require Go tools in PATH (export PATH=$PATH:~/go/bin)
+make gosec           # Static security analysis
+make vuln-check      # Check for known vulnerabilities
+make mod-verify      # Verify module integrity
+```
+
+### Version Management
+```bash
 # Version management (git tags only - no GitHub releases)
 git tag v1.x.x       # Create version tag for reference
 git push origin main --tags  # Push tags to remote
@@ -194,8 +189,8 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.8 - Current stable release
-- **Status**: ✅ **STABLE** - Clean working directory
+- **Version**: 1.1.9 - Current stable release
+- **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Recent Updates**: Improved command usability with days-based timing, simplified documentation, consistent project branding
 - **Branches**: 
@@ -225,12 +220,10 @@ slack-butler channels detect --help
 ### Code Review and Verification Principles
 **CRITICAL**: Always verify technical claims before making changes:
 
-- **Go Version Verification**: Never assume a Go version doesn't exist without checking. Go releases follow their own schedule and may have versions that seem unusual but are legitimate.
 - **Dependency Verification**: Before claiming a dependency or feature doesn't exist, verify by checking documentation, running commands, or testing functionality.
 - **Fact Checking**: When identifying "issues" in configuration or code, verify the issue actually exists rather than making assumptions based on patterns or expectations.
 - **Version Validation**: Use `go version`, `go mod verify`, or other appropriate tools to check current state before suggesting changes.
-
-**Example**: Go 1.24.4 is a legitimate version that exists and should not be "corrected" to an earlier version without explicit user request.
+- **Version Pinning**: Pinning to exact Go versions (e.g., "1.23.4") in documentation is preferred over ranges (e.g., "1.24+") for clarity and reproducibility. Avoid over-analyzing version specifications.
 
 ### Code Quality Standards
 
@@ -350,7 +343,7 @@ git tag v1.x.x && git push origin main --tags
 - **Test Real Scenarios**: Integration tests should simulate realistic user workflows
 
 **Current Test Status:**
-- ✅ **Comprehensive test suite** covering core functionality
+- ✅ **Comprehensive test coverage** covering core functionality
 - ✅ **Unit tests** for business logic and message formatting
 - ✅ **Integration tests** with mock Slack API interactions
 - ✅ **CLI tests** for end-to-end command execution

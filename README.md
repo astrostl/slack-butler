@@ -4,9 +4,7 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.1.8** ✅
-
-> **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.
+**Version 1.1.9** ✅
 
 ## Features
 
@@ -18,12 +16,12 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 - **🔐 Secure Configuration**: Environment-based token management with git-safe storage
 - **🛡️ Security Features**: Basic security scanning and dependency monitoring (community-maintained)
 - **💡 Intelligent Error Handling**: Clear, actionable error messages for missing permissions and configuration issues
-- **✅ Well Tested**: Solid test coverage with real Slack workspace validation
+- **✅ Well Tested**: Comprehensive test coverage with API validation
 
 ## Installation
 
 ### Prerequisites
-- Go 1.24.4+
+- Go 1.23+ (tested with Go 1.24.4)
 - Slack Bot Token with appropriate permissions
 
 ### Install via Go
@@ -31,7 +29,10 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 go install github.com/astrostl/slack-butler@latest
 ```
 
-**Note:** This installs the binary as `slack-butler`.
+**Note:** This installs the binary as `slack-butler` in your `~/go/bin` directory. Make sure `~/go/bin` is in your PATH:
+```bash
+export PATH=$PATH:~/go/bin
+```
 
 ### Build from Source
 ```bash
@@ -55,10 +56,10 @@ go build -o slack-butler
 4. Install the app to your workspace and copy the Bot User OAuth Token
 
 ### 2. Configure Token
-Create a `.env` file in the project directory:
+Create a `.env` file in the project directory using the provided template:
 ```bash
 cp .env.example .env
-# Edit .env and add your token, then:
+# Edit .env and replace the example token with your actual token, then:
 source .env
 ```
 
@@ -76,12 +77,11 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 ## Important Limitations
 
 ### Slack API Rate Limits
-**Duplicate Detection Limitations**: Due to Slack API restrictions for non-Marketplace apps:
-- `GetConversationHistory` is limited to **1 request per minute**
-- Maximum **15 messages** returned per request
-- The duplicate detection feature only checks the **last 15 messages** in the announcement channel
+**Duplicate Detection Limitations**: Due to Slack API restrictions:
+- Duplicate detection checks recent messages in the announcement channel
+- API rate limits may apply to frequent requests
 
-**Impact**: If more than 15 messages are posted to your announcement channel between runs, some duplicate announcements may not be detected. For high-traffic channels, consider running the tool more frequently or using a dedicated low-traffic channel for announcements.
+**Impact**: For high-traffic announcement channels, consider running the tool more frequently or using a dedicated low-traffic channel for announcements to ensure optimal duplicate detection.
 
 ## Usage
 
@@ -185,13 +185,13 @@ Manage inactive channel archival with automated warnings and grace periods.
 
 **Flags:**
 - `--warn-days` - Days of inactivity before warning (default: 30)
-- `--archive-days` - Days after warning before archiving (default: 7)
+- `--archive-days` - Days after warning before archiving (default: 30)
 - `--exclude-channels` - Comma-separated list of channels to exclude
 - `--exclude-prefixes` - Comma-separated list of prefixes to exclude
 - `--commit` - Actually warn and archive channels (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
-**Note:** Archive timing is configured in days for practical channel management.
+**Note:** Archive timing supports decimal precision (e.g., 0.5 = 12 hours, 7.5 = 7.5 days). While sub-day precision is available, day-based values are recommended for practical channel management.
 
 **Examples:**
 ```bash
@@ -214,10 +214,10 @@ slack-butler/
 ├── pkg/                 # Core packages
 │   ├── logger/         # Structured logging
 │   └── slack/          # Slack API wrapper and client
-├── bin/                # Build outputs
-├── build/              # Build artifacts (coverage, reports)
-├── .env                # Token storage (git-ignored)
+├── bin/                # Build outputs (git-ignored)
+├── build/              # Build artifacts (git-ignored)
 ├── .env.example        # Configuration template
+├── .env                # Token storage (git-ignored)
 ├── Makefile            # Build automation
 └── go.mod              # Dependencies
 ```
@@ -236,65 +236,94 @@ make test
 make coverage
 ```
 
-### Development Commands
+### Development Tool Setup (Required First)
 ```bash
-# Install development and security tools (REQUIRED for quality/security targets)
+# REQUIRED: Install development and security tools first
 make install-tools
 
-# Add Go tools to PATH (REQUIRED for quality/security targets)
+# REQUIRED: Add Go tools to PATH for quality/security targets
 export PATH=$PATH:~/go/bin
+```
 
+### Main Workflows
+```bash
 # Quick development cycle (format + vet + test + build)
 make dev
 
-# Complete quality validation (requires: make install-tools + PATH setup)
+# Complete quality validation (security + format + vet + lint + complexity)
 make quality
 
-# Monthly maintenance (requires: make install-tools + PATH setup)
+# Monthly maintenance (deps-update + quality + test)
 make maintenance
 
-# Full CI pipeline (requires: make install-tools + PATH setup)
+# Full CI pipeline (clean + deps + quality + coverage + build)
 make ci
-
-# Build release binary with version info (cleans first)
-make release
-
-# Install dependencies
-make deps
-
-# Clean build artifacts
-make clean
 ```
 
-### Individual Quality Checks
+### Core Targets
 ```bash
-# Format code
+# Build binary with version info
+make build
+
+# Run tests with race detection
+make test
+
+# Generate test coverage report
+make coverage
+
+# Clean build artifacts and coverage files
+make clean
+
+# Install and tidy dependencies
+make deps
+
+# Install dev tools (golangci-lint, gocyclo, gosec, govulncheck)
+make install-tools
+
+# Build release binary (clean + build)
+make release
+```
+
+### Security & Dependencies
+```bash
+# Complete security analysis (gosec + vuln-check + mod-verify)
+make security
+
+# Audit dependencies for vulnerabilities
+make deps-audit
+
+# Update all dependencies to latest versions
+make deps-update
+```
+
+### Individual Targets (Granular Control)
+```bash
+# Format code with gofmt -s
 make fmt
 
-# Check formatting (CI-friendly)
+# Check code formatting (CI-friendly)
 make fmt-check
 
-# Vet code
+# Run go vet analysis
 make vet
 
-# Lint code (requires: make install-tools + export PATH=$PATH:~/go/bin)
+# Run golangci-lint
 make lint
 
-# Check cyclomatic complexity (requires: make install-tools + export PATH=$PATH:~/go/bin)
+# Check cyclomatic complexity (threshold: 15)
 make complexity-check
 
-# Static security analysis (requires: make install-tools + export PATH=$PATH:~/go/bin)
+# Static security analysis
 make gosec
 
-# Check for vulnerabilities (requires: make install-tools + export PATH=$PATH:~/go/bin)
+# Check for known vulnerabilities
 make vuln-check
 
 # Verify module integrity
 make mod-verify
-
-# Complete security analysis (requires: make install-tools + export PATH=$PATH:~/go/bin)
-make security
 ```
+
+**Important:** Many targets require development tools. Run `make install-tools` and `export PATH=$PATH:~/go/bin` first.
 
 ### Version Management
 
@@ -306,7 +335,7 @@ This project uses git tags for version tracking but does NOT use GitHub releases
 go install github.com/astrostl/slack-butler@latest
 
 # Install specific version
-go install github.com/astrostl/slack-butler@v1.1.7
+go install github.com/astrostl/slack-butler@v1.1.8
 
 # Install development version
 go install github.com/astrostl/slack-butler@main
@@ -314,7 +343,7 @@ go install github.com/astrostl/slack-butler@main
 # Build from specific version
 git clone https://github.com/astrostl/slack-butler.git
 cd slack-butler
-git checkout v1.1.7
+git checkout v1.1.8
 go build -o slack-butler
 ```
 

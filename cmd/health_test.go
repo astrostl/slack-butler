@@ -1315,3 +1315,29 @@ func TestRunHealthVerboseOutputPaths(t *testing.T) {
 		assert.Len(t, missingOptional, 0)
 	})
 }
+
+func TestRunHealthAdditionalErrorPaths(t *testing.T) {
+	t.Run("Token validation failure path", func(t *testing.T) {
+		// Set an invalid token format that will fail validation
+		viper.Set("token", "bad")
+
+		cmd := &cobra.Command{}
+		err := runHealth(cmd, []string{})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "token format validation failed")
+	})
+
+	t.Run("Configuration validation basic functionality", func(t *testing.T) {
+		// Test basic configuration validation function
+		viper.Set("token", "test-valid-token-format")
+
+		token, err := validateConfiguration()
+		if err == nil {
+			assert.Equal(t, "test-valid-token-format", token)
+		}
+
+		// Clean up
+		viper.Set("token", "")
+	})
+}

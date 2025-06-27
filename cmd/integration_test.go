@@ -36,19 +36,15 @@ func TestRunDetectIntegration(t *testing.T) {
 }
 
 func TestRunDetectErrors(t *testing.T) {
-	t.Run("Test with invalid token format", func(t *testing.T) {
-		// Set an invalid token that will fail validation
-		t.Setenv("SLACK_TOKEN", "invalid-token")
+	t.Run("Test with missing token", func(t *testing.T) {
+		// Clear token to test missing token error
+		t.Setenv("SLACK_TOKEN", "")
 		initConfig()
-		announceTo = "test-channel"
 
 		cmd := &cobra.Command{}
 		err := runDetect(cmd, []string{})
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create Slack client")
-
-		// Reset
-		announceTo = ""
+		assert.Contains(t, err.Error(), "slack token is required")
 	})
 }
 

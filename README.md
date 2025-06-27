@@ -21,7 +21,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 ## Installation
 
 ### Prerequisites
-- Go 1.23+ (tested with Go 1.24.4)
+- Go 1.24.4 (requires Go 1.24.4)
 - Slack Bot Token with appropriate permissions
 
 ### Install via Go
@@ -335,7 +335,7 @@ This project uses git tags for version tracking but does NOT use GitHub releases
 go install github.com/astrostl/slack-butler@latest
 
 # Install specific version
-go install github.com/astrostl/slack-butler@v1.1.8
+go install github.com/astrostl/slack-butler@v1.1.10
 
 # Install development version
 go install github.com/astrostl/slack-butler@main
@@ -343,7 +343,7 @@ go install github.com/astrostl/slack-butler@main
 # Build from specific version
 git clone https://github.com/astrostl/slack-butler.git
 cd slack-butler
-git checkout v1.1.8
+git checkout v1.1.10
 go build -o slack-butler
 ```
 
@@ -398,7 +398,7 @@ MIT License - see LICENSE file for details
 
 ## Disclaimer & Warranty
 
-**This software is "vibe coded" and comes with no warranties or guarantees.**
+**This software comes with no warranties or guarantees.**
 
 - ❌ **No official support** - Community-driven, best-effort maintenance
 - ❌ **No production guarantees** - Use at your own risk

@@ -660,7 +660,7 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 
 	// Get all channels
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types:           []string{"public_channel", "private_channel"},
+		Types:           []string{"public_channel"},
 		Limit:           1000,
 		ExcludeArchived: true,
 	})
@@ -673,9 +673,15 @@ func (c *Client) GetInactiveChannels(warnSeconds int, archiveSeconds int) (toWar
 	c.logInactiveChannelsFilteringStats(len(allChannels), len(candidateChannels), stats)
 
 	// Auto-join channels before analysis
+	if len(candidateChannels) > 0 {
+		fmt.Printf("🤖 Joining %d public channels for analysis...\n", len(candidateChannels))
+	}
 	joinedCount, err := c.autoJoinPublicChannels(candidateChannels)
 	if err != nil {
 		return toWarn, toArchive, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
+	}
+	if len(candidateChannels) > 0 {
+		fmt.Printf("✅ Joined %d channels successfully\n\n", joinedCount)
 	}
 	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
 
@@ -691,7 +697,7 @@ func (c *Client) logInactiveChannelsFilteringStats(totalChannels, candidateChann
 		"skipped_new":        stats.skippedNew,
 		"skipped_excluded":   stats.skippedExcluded,
 		"skipped_active":     stats.skippedActive,
-	}).Info("Pre-filtered channels using metadata")
+	}).Debug("Pre-filtered channels using metadata")
 }
 
 // analyzeChannelsForBasicInactivity analyzes channels for basic inactivity without detailed reporting.
@@ -730,7 +736,7 @@ func (c *Client) analyzeChannelsForBasicInactivity(candidateChannels []slack.Cha
 	logger.WithFields(logger.LogFields{
 		"to_warn":    len(toWarn),
 		"to_archive": len(toArchive),
-	}).Info("Inactive channel analysis completed")
+	}).Debug("Inactive channel analysis completed")
 
 	return toWarn, toArchive, nil
 }
@@ -817,7 +823,7 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 
 	// Get all channels
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types:           []string{"public_channel", "private_channel"},
+		Types:           []string{"public_channel"},
 		Limit:           1000,
 		ExcludeArchived: true,
 	})
@@ -853,7 +859,7 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 
 	// Get all channels
 	allChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
-		Types:           []string{"public_channel", "private_channel"},
+		Types:           []string{"public_channel"},
 		Limit:           1000,
 		ExcludeArchived: true,
 	})
@@ -925,7 +931,7 @@ func (c *Client) logChannelFilteringStatsSimple(totalChannels, candidateChannels
 		"skipped_active":     stats.skippedActive,
 		"skipped_excluded":   stats.skippedExcluded,
 		"skipped_new":        stats.skippedNew,
-	}).Info("Pre-filtered channels using metadata")
+	}).Debug("Pre-filtered channels using metadata")
 
 	fmt.Printf("📞 API Call 2: Getting channel list with metadata...\n")
 	fmt.Printf("✅ Got %d channels from API\n", totalChannels)
@@ -954,12 +960,18 @@ func (c *Client) logChannelFilteringStats(totalChannels, candidateChannels int, 
 
 // autoJoinChannelsForAnalysis auto-joins public channels before analysis.
 func (c *Client) autoJoinChannelsForAnalysis(candidateChannels []slack.Channel, isDebug bool) (int, error) {
-	if isDebug {
-		fmt.Printf("📞 API Calls 3+: Auto-joining public channels for accurate analysis...\n")
+	if len(candidateChannels) > 0 {
+		fmt.Printf("🤖 Joining %d public channels for analysis...\n", len(candidateChannels))
+		if isDebug {
+			fmt.Printf("📞 API Calls 3+: Auto-joining public channels for accurate analysis...\n")
+		}
 	}
 	joinedCount, err := c.autoJoinPublicChannels(candidateChannels)
-	if isDebug {
-		fmt.Printf("✅ Auto-joined %d channels\n\n", joinedCount)
+	if len(candidateChannels) > 0 {
+		fmt.Printf("✅ Joined %d channels successfully\n\n", joinedCount)
+		if isDebug {
+			fmt.Printf("✅ Auto-joined %d channels\n\n", joinedCount)
+		}
 	}
 	return joinedCount, err
 }
@@ -997,7 +1009,7 @@ func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel,
 	logger.WithFields(logger.LogFields{
 		"channels_to_warn":    len(toWarn),
 		"channels_to_archive": len(toArchive),
-	}).Info("Inactive channel analysis completed")
+	}).Debug("Inactive channel analysis completed")
 
 	return toWarn, toArchive, nil
 }

@@ -87,6 +87,30 @@ func TestRunDetectFunction(t *testing.T) {
 		since = originalSince
 		announceTo = ""
 	})
+
+	t.Run("Announce-to required when commit is true", func(t *testing.T) {
+		// Save original values
+		originalCommit := commit
+		originalAnnounceTo := announceTo
+
+		// Set valid token but no announce-to with commit=true
+		t.Setenv("SLACK_TOKEN", "MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL")
+
+		// Force viper to reload environment
+		initConfig()
+
+		commit = true
+		announceTo = ""
+
+		cmd := &cobra.Command{}
+		err := runDetect(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "--announce-to is required when using --commit")
+
+		// Reset values
+		commit = originalCommit
+		announceTo = originalAnnounceTo
+	})
 }
 
 func TestDaysParsing(t *testing.T) {

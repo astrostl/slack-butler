@@ -7,12 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.10] - 2025-06-27
+
+### Enhanced
+- **Archive Command Testing**: Added comprehensive test coverage for --commit flag validation requiring --announce-to parameter
+- **User Experience**: Improved archive command feedback with clearer progress messages for channel joining
+- **Code Quality**: Reduced log noise by converting Info-level logs to Debug-level in channel analysis functions
+
+### Fixed
+- **Archive Scope**: Restricted archive operations to public channels only for improved safety and performance
+- **Command Validation**: Added proper validation ensuring --announce-to is required when using --commit flag
+- **Logging Consistency**: Fixed excessive INFO logging during channel analysis operations
+
+### Improved
+- **Archive Performance**: Optimized channel filtering to focus on public channels only
+- **User Feedback**: Enhanced progress messaging during channel joining operations
+- **Code Organization**: Better separation between debug and user-facing output
+
 ## [1.1.9] - 2025-06-27
 
 ### Enhanced
 - **Test Coverage**: Major expansion of test suite with comprehensive `isRealMessage` testing covering all message types, system events, and edge cases
 - **Documentation Quality**: Removed development disclaimer and improved Go version specification (Go 1.23+ with Go 1.24.4 testing)
-- **User Experience**: Enhanced test coverage description from "solid" to "comprehensive" reflecting improved test quality
+- **User Experience**: Enhanced test coverage with comprehensive testing framework
 
 ### Fixed  
 - **Test Accuracy**: Fixed error message expectations in archive tests (warn-seconds → warn-days)

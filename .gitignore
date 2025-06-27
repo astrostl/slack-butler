@@ -17,8 +17,8 @@ dist/
 .env.production
 .env.staging
 
-# Go build cache (remove go.sum from gitignore - it should be committed)
-# go.sum should actually be committed for reproducible builds
+# Go build cache
+# Note: go.sum should be committed for reproducible builds
 
 # IDE files
 .vscode/
@@ -34,10 +34,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Test coverage files
-coverage*.out
+# Test coverage files and output files
+*.out
 coverage*.html
-*_coverage.out
 *_coverage.html
 analysis_coverage.*
 comprehensive_coverage.*
@@ -45,7 +44,6 @@ final_coverage.*
 health_coverage.*
 temp_coverage.*
 main_coverage_analysis.html
-main_debug.out
 
 # Security reports
 security-report.json

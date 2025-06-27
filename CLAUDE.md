@@ -189,7 +189,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.9 - Current stable release
+- **Version**: 1.1.10 - Current stable release
 - **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Recent Updates**: Improved command usability with days-based timing, simplified documentation, consistent project branding
@@ -233,7 +233,14 @@ slack-butler channels detect --help
 - **Quality Gate**: Use `make quality` to check both formatting and complexity before commits
 - **Follow existing patterns** - Look at surrounding code for style and conventions
 - **Error Handling** - Handle errors properly with meaningful, actionable messages
-- **Logging Standards** - NEVER use stdout `fmt.Printf` for INFO or DEBUG logging unless a `--debug` flag is passed. Use structured logging via the logger package for internal diagnostics. Keep stdout clean for user-facing output only.
+- **Logging Standards** - 
+  - **CRITICAL**: NEVER emit INFO level structured logging unless the CLI was passed a `--debug` flag
+  - Use `logger.Debug()` for internal diagnostics - only shows when debug is enabled
+  - Use `logger.Info()` ONLY when `--debug` flag is present 
+  - NEVER use stdout `fmt.Printf` for INFO or DEBUG logging unless a `--debug` flag is passed
+  - Use structured logging via the logger package for internal diagnostics
+  - Keep stdout clean for user-facing output only
+  - Default CLI output should be clean and minimal without debug noise
 
 ### API Integration Standards
 **MANDATORY**: All Slack API functions must use standardized robust patterns:
@@ -263,7 +270,7 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
                         "attempt": attempt,
                         "max_tries": maxRetries,
                         "wait_duration": waitDuration,
-                    }).Info("Rate limited, waiting before retry")
+                    }).Debug("Rate limited, waiting before retry")
                     showProgressBar(waitDuration)
                 }
                 continue

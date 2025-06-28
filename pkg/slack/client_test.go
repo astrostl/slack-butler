@@ -430,7 +430,7 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 		since := time.Now().Add(-1 * time.Hour)
 		message := client.FormatNewChannelAnnouncement(channels, since)
 
-		assert.Contains(t, message, "New channel alert!")
+		assert.Contains(t, message, "New channel created in the last")
 		assert.Contains(t, message, "C1234567890") // Channel ID in link format
 		assert.Contains(t, message, "Test purpose")
 		assert.Contains(t, message, "by <@U1234567>")
@@ -445,7 +445,7 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 		since := time.Now().Add(-1 * time.Hour)
 		message := client.FormatNewChannelAnnouncement(channels, since)
 
-		assert.Contains(t, message, "2 new channels created!")
+		assert.Contains(t, message, "2 new channels created in the last")
 		assert.Contains(t, message, "C1234567890") // First channel ID
 		assert.Contains(t, message, "C0987654321") // Second channel ID
 		assert.Contains(t, message, "by <@U1111111>")
@@ -470,7 +470,7 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 
 		assert.Contains(t, message, "C1234567890") // Channel ID in link format
 		assert.Contains(t, message, "by <@U3333333>")
-		assert.NotContains(t, message, "Purpose:")
+		assert.NotContains(t, message, "Description:")
 	})
 
 	t.Run("Channel without creator", func(t *testing.T) {
@@ -488,7 +488,7 @@ func TestFormatNewChannelAnnouncement(t *testing.T) {
 		message := client.FormatNewChannelAnnouncement(channels, since)
 
 		assert.Contains(t, message, "C1234567890") // Channel ID in link format
-		assert.Contains(t, message, "Purpose: Test purpose")
+		assert.Contains(t, message, "Description: Test purpose")
 		assert.NotContains(t, message, " by <@")
 	})
 }
@@ -2142,7 +2142,7 @@ func TestFormatNewChannelAnnouncementDryRun(t *testing.T) {
 		cutoffTime := time.Now().Add(-2 * time.Hour)
 		result := client.FormatNewChannelAnnouncementDryRun(channels, cutoffTime)
 
-		assert.Contains(t, result, "New channel alert!")
+		assert.Contains(t, result, "New channel created in the last")
 		assert.Contains(t, result, "#test-channel")
 		assert.Contains(t, result, "Test User")
 		assert.Contains(t, result, "Test purpose")
@@ -2179,7 +2179,7 @@ func TestFormatNewChannelAnnouncementDryRun(t *testing.T) {
 		cutoffTime := time.Now().Add(-2 * time.Hour)
 		result := client.FormatNewChannelAnnouncementDryRun(channels, cutoffTime)
 
-		assert.Contains(t, result, "2 new channels created!")
+		assert.Contains(t, result, "2 new channels created in the last")
 		assert.Contains(t, result, "#test-channel-1")
 		assert.Contains(t, result, "#test-channel-2")
 		assert.Contains(t, result, "User One")
@@ -2209,7 +2209,7 @@ func TestFormatNewChannelAnnouncementDryRun(t *testing.T) {
 		result := client.FormatNewChannelAnnouncementDryRun(channels, cutoffTime)
 
 		// Should contain the expected content from fallback format
-		assert.Contains(t, result, "New channel alert!")
+		assert.Contains(t, result, "New channel created in the last")
 		assert.Contains(t, result, "<#C123>") // Uses channel ID format in fallback
 		assert.Contains(t, result, "Test purpose")
 	})
@@ -2744,5 +2744,205 @@ func TestSeemsActiveFromMetadataEdgeCases(t *testing.T) {
 			result := client.seemsActiveFromMetadata(channel, warnCutoff)
 			assert.False(t, result, "Channel with malformed timestamp '%s' should not seem active", timestamp)
 		}
+	})
+}
+
+func TestGetRandomChannels(t *testing.T) {
+	t.Run("Returns all channels when count >= available", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 2 channels
+		now := time.Now()
+		mockAPI.AddChannel("C1234567890", "channel1", now, "Channel 1")
+		mockAPI.AddChannel("C1234567891", "channel2", now, "Channel 2")
+
+		// Request 5 channels (more than available)
+		channels, err := client.GetRandomChannels(5)
+		assert.NoError(t, err)
+		assert.Len(t, channels, 2)
+
+		// Verify channel names are correct
+		channelNames := make([]string, len(channels))
+		for i, ch := range channels {
+			channelNames[i] = ch.Name
+		}
+		assert.Contains(t, channelNames, "channel1")
+		assert.Contains(t, channelNames, "channel2")
+	})
+
+	t.Run("Returns requested count when sufficient channels available", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 5 channels
+		now := time.Now()
+		for i := 1; i <= 5; i++ {
+			mockAPI.AddChannel(fmt.Sprintf("C123456789%d", i), fmt.Sprintf("channel%d", i), now, fmt.Sprintf("Channel %d", i))
+		}
+
+		// Request 3 channels
+		channels, err := client.GetRandomChannels(3)
+		assert.NoError(t, err)
+		assert.Len(t, channels, 3)
+
+		// Verify all returned channels have valid names
+		for _, ch := range channels {
+			assert.NotEmpty(t, ch.Name)
+			assert.NotEmpty(t, ch.ID)
+		}
+	})
+
+	t.Run("Returns empty slice when no channels available", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Don't add any channels
+		channels, err := client.GetRandomChannels(3)
+		assert.NoError(t, err)
+		assert.Len(t, channels, 0)
+	})
+
+	t.Run("Handles API error gracefully", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Set up API to return error
+		mockAPI.SetGetConversationsErrorWithMessage(true, "rate_limited")
+
+		channels, err := client.GetRandomChannels(3)
+		assert.Error(t, err)
+		assert.Nil(t, channels)
+		assert.Contains(t, err.Error(), "failed to get conversations")
+	})
+}
+
+func TestFormatChannelHighlightAnnouncement(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	t.Run("Single channel with purpose", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "general",
+				Purpose: "General discussion for the team",
+			},
+		}
+
+		result := client.FormatChannelHighlightAnnouncement(channels)
+
+		assert.Contains(t, result, "🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
+		assert.Contains(t, result, "<#C1234567890>")
+		assert.Contains(t, result, "General discussion for the team")
+	})
+
+	t.Run("Multiple channels", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "general",
+				Purpose: "General discussion",
+			},
+			{
+				ID:      "C1234567891",
+				Name:    "random",
+				Purpose: "Random chat",
+			},
+		}
+
+		result := client.FormatChannelHighlightAnnouncement(channels)
+
+		assert.Contains(t, result, "🧭 Here are 2 randomly-selected public channels that you are welcome to explore!")
+		assert.Contains(t, result, "<#C1234567890>")
+		assert.Contains(t, result, "<#C1234567891>")
+		assert.Contains(t, result, "General discussion")
+		assert.Contains(t, result, "Random chat")
+	})
+
+	t.Run("Channel without purpose", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "general",
+				Purpose: "",
+			},
+		}
+
+		result := client.FormatChannelHighlightAnnouncement(channels)
+
+		assert.Contains(t, result, "🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
+		assert.Contains(t, result, "<#C1234567890>")
+		assert.NotContains(t, result, "Purpose:")
+		assert.NotContains(t, result, "Description:")
+	})
+}
+
+func TestFormatChannelHighlightAnnouncementDryRun(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	t.Run("Single channel with purpose", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "general",
+				Purpose: "General discussion for the team",
+			},
+		}
+
+		result := client.FormatChannelHighlightAnnouncementDryRun(channels)
+
+		assert.Contains(t, result, "🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
+		assert.Contains(t, result, "#general")
+		assert.NotContains(t, result, "<#C1234567890>") // Should use friendly name, not ID
+		assert.Contains(t, result, "General discussion for the team")
+	})
+
+	t.Run("Multiple channels", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "general",
+				Purpose: "General discussion",
+			},
+			{
+				ID:      "C1234567891",
+				Name:    "random",
+				Purpose: "Random chat",
+			},
+		}
+
+		result := client.FormatChannelHighlightAnnouncementDryRun(channels)
+
+		assert.Contains(t, result, "🧭 Here are 2 randomly-selected public channels that you are welcome to explore!")
+		assert.Contains(t, result, "#general")
+		assert.Contains(t, result, "#random")
+		assert.NotContains(t, result, "<#") // Should not contain any Slack ID links
+		assert.Contains(t, result, "General discussion")
+		assert.Contains(t, result, "Random chat")
+	})
+
+	t.Run("Channel without purpose", func(t *testing.T) {
+		channels := []Channel{
+			{
+				ID:      "C1234567890",
+				Name:    "general",
+				Purpose: "",
+			},
+		}
+
+		result := client.FormatChannelHighlightAnnouncementDryRun(channels)
+
+		assert.Contains(t, result, "🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
+		assert.Contains(t, result, "#general")
+		assert.NotContains(t, result, "Purpose:")
+		assert.NotContains(t, result, "Description:")
 	})
 }

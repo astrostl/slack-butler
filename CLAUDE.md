@@ -11,6 +11,7 @@
 ## Current Features
 - **Channel Detection**: Detect new channels created during a specified time period
 - **Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period (✅ **IMPLEMENTED**)
+- **Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation (✅ **IMPLEMENTED**)
 - **Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **Announcement System**: Optionally announce new channels to a target channel
 - **Duplicate Prevention**: Scans last 15 messages to prevent duplicate announcements (✅ **IMPLEMENTED**)
@@ -54,6 +55,11 @@ source .env
 ./bin/slack-butler channels archive
 ./bin/slack-butler channels archive --warn-days=30 --archive-days=30 --commit
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --commit
+
+# Random channel highlights (dry run mode by default)
+./bin/slack-butler channels highlight
+./bin/slack-butler channels highlight --count=5 --announce-to=#general
+./bin/slack-butler channels highlight --count=1 --announce-to=#general --commit
 ```
 
 ### Installed Usage
@@ -189,10 +195,10 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.10 - Current stable release
+- **Version**: 1.1.11 - Current stable release
 - **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Improved command usability with days-based timing, simplified documentation, consistent project branding
+- **Recent Updates**: Added random channel highlight feature, enhanced message formatting, improved time displays
 - **Branches**: 
   - `main` - Stable release branch
 

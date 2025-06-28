@@ -53,6 +53,20 @@ NOTE: Archive timing is configured in days with decimal precision for flexible c
 	RunE:         runArchive,
 }
 
+var highlightCmd = &cobra.Command{
+	Use:   "highlight",
+	Short: "Highlight random channels to encourage discovery",
+	Long: `Randomly select and highlight channels from your workspace to encourage participation and discovery.
+
+This command helps teams discover channels they might not know about by showcasing random active channels.
+Useful for promoting engagement and helping members find relevant conversations.
+
+When --announce-to is specified, shows a preview of the highlight message.
+Use --commit with --announce-to to actually post messages (default is dry run mode).`,
+	SilenceUsage: true, // Don't show usage on errors
+	RunE:         runHighlight,
+}
+
 var (
 	since           string
 	announceTo      string
@@ -61,12 +75,14 @@ var (
 	archiveDays     float64
 	excludeChannels string
 	excludePrefixes string
+	count           int
 )
 
 func init() {
 	rootCmd.AddCommand(channelsCmd)
 	channelsCmd.AddCommand(detectCmd)
 	channelsCmd.AddCommand(archiveCmd)
+	channelsCmd.AddCommand(highlightCmd)
 
 	detectCmd.Flags().StringVar(&since, "since", "8", "Number of days to look back (e.g., 1, 7, 30)")
 	detectCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce new channels to (e.g., #general). Required when using --commit")
@@ -77,6 +93,10 @@ func init() {
 	archiveCmd.Flags().BoolVar(&commit, "commit", false, "Actually warn and archive channels (default is dry run mode)")
 	archiveCmd.Flags().StringVar(&excludeChannels, "exclude-channels", "", "Comma-separated list of channel names to exclude (with or without # prefix, e.g., 'general,random,#important')")
 	archiveCmd.Flags().StringVar(&excludePrefixes, "exclude-prefixes", "", "Comma-separated list of channel prefixes to exclude (with or without # prefix, e.g., 'prod-,#temp-,admin')")
+
+	highlightCmd.Flags().IntVar(&count, "count", 3, "Number of random channels to highlight (e.g., 1, 3, 5)")
+	highlightCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce highlights to (e.g., #general). Required when using --commit")
+	highlightCmd.Flags().BoolVar(&commit, "commit", false, "Actually post messages (default is dry run mode)")
 }
 
 func runDetect(cmd *cobra.Command, args []string) error {
@@ -256,7 +276,7 @@ func postOrPreviewAnnouncement(client *slack.Client, announceChannel, finalMessa
 
 func handleDryRunWithoutChannel(client *slack.Client, newChannels []slack.Channel, cutoffTime time.Time, isDryRun bool) error {
 	if isDryRun {
-		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
+		message := client.FormatNewChannelAnnouncementDryRun(newChannels, cutoffTime)
 		fmt.Printf("\n--- DRY RUN ---\n")
 		fmt.Printf("Announcement message dry run (use --announce-to to specify target):\n%s\n", message)
 		fmt.Printf("--- END DRY RUN ---\n")
@@ -435,9 +455,18 @@ func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, arc
 func displayChannelDetails(channels []slack.Channel, title string) {
 	fmt.Printf("%s:\n", title)
 	for _, channel := range channels {
-		fmt.Printf("  #%s (inactive since: %s, members: %d)\n",
+		// Calculate days of inactivity
+		daysSinceActive := int(time.Since(channel.LastActivity).Hours() / 24)
+		daysText := "days"
+		if daysSinceActive == 1 {
+			daysText = "day"
+		}
+
+		fmt.Printf("  #%s (inactive since: %s, %d %s ago, members: %d)\n",
 			channel.Name,
 			channel.LastActivity.Format("2006-01-02 15:04:05"),
+			daysSinceActive,
+			daysText,
 			channel.MemberCount)
 
 		// Show last message details if available
@@ -528,4 +557,94 @@ func processArchival(client *slack.Client, toArchive []slack.Channel, warnSecond
 		}
 		fmt.Printf("Channels archived: %d/%d\n\n", archived, len(toArchive))
 	}
+}
+
+func runHighlight(cmd *cobra.Command, args []string) error {
+	token := viper.GetString("token")
+	if token == "" {
+		return fmt.Errorf("slack token is required. Set SLACK_TOKEN environment variable or use --token flag")
+	}
+
+	// announce-to is mandatory when committing changes
+	if announceTo == "" && commit {
+		return fmt.Errorf("--announce-to is required when using --commit")
+	}
+
+	if count <= 0 {
+		return fmt.Errorf("count must be positive, got %d", count)
+	}
+
+	client, err := slack.NewClient(token)
+	if err != nil {
+		return fmt.Errorf("failed to create Slack client: %w", err)
+	}
+
+	// Validate that the announce-to channel exists (if specified)
+	if announceTo != "" {
+		_, err = client.ResolveChannelNameToID(announceTo)
+		if err != nil {
+			return fmt.Errorf("announce-to channel '%s' not found: %w", announceTo, err)
+		}
+	}
+
+	return runHighlightWithClient(client, count, announceTo, !commit)
+}
+
+func runHighlightWithClient(client *slack.Client, highlightCount int, announceChannel string, isDryRun bool) error {
+	randomChannels, err := client.GetRandomChannels(highlightCount)
+	if err != nil {
+		return fmt.Errorf("failed to get random channels: %w", err)
+	}
+
+	if len(randomChannels) == 0 {
+		fmt.Printf("No channels found to highlight.\n")
+		return nil
+	}
+
+	fmt.Printf("Random channels to highlight (%d): ", len(randomChannels))
+	channelNames := make([]string, len(randomChannels))
+	for i, channel := range randomChannels {
+		channelNames[i] = "#" + channel.Name
+	}
+	fmt.Printf("%s\n\n", strings.Join(channelNames, ", "))
+
+	if announceChannel != "" {
+		return handleHighlightAnnouncement(client, randomChannels, announceChannel, isDryRun)
+	}
+
+	return handleHighlightDryRunWithoutChannel(client, randomChannels, isDryRun)
+}
+
+func handleHighlightAnnouncement(client *slack.Client, channels []slack.Channel, announceChannel string, isDryRun bool) error {
+	message := client.FormatChannelHighlightAnnouncement(channels)
+
+	if isDryRun {
+		dryRunMessage := client.FormatChannelHighlightAnnouncementDryRun(channels)
+		fmt.Printf("--- DRY RUN ---\n")
+		fmt.Printf("Would announce to channel: %s\n", announceChannel)
+		fmt.Printf("Message content:\n%s\n", dryRunMessage)
+		fmt.Printf("--- END DRY RUN ---\n")
+		fmt.Printf("\nTo actually post this highlight, add --commit to your command\n")
+	} else {
+		if err := client.PostMessage(announceChannel, message); err != nil {
+			logger.WithFields(logger.LogFields{
+				"channel": announceChannel,
+				"error":   err.Error(),
+			}).Error("Failed to post highlight")
+			return fmt.Errorf("failed to post highlight to %s: %w", announceChannel, err)
+		}
+		fmt.Printf("Channel highlight posted to %s\n", announceChannel)
+	}
+	return nil
+}
+
+func handleHighlightDryRunWithoutChannel(client *slack.Client, channels []slack.Channel, isDryRun bool) error {
+	if isDryRun {
+		message := client.FormatChannelHighlightAnnouncementDryRun(channels)
+		fmt.Printf("--- DRY RUN ---\n")
+		fmt.Printf("Channel highlight message dry run (use --announce-to to specify target):\n%s\n", message)
+		fmt.Printf("--- END DRY RUN ---\n")
+		fmt.Printf("\nTo actually post highlights, add --commit to your command\n")
+	}
+	return nil
 }

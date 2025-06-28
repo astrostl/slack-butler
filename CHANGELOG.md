@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.11] - 2025-06-28
+
+### Added
+- **Random Channel Highlight Feature**: New `slack-butler channels highlight` command to randomly select and showcase active channels
+  - Configurable channel count with `--count` flag (default: 3)
+  - Dry run mode by default with `--commit` flag for actual posting
+  - Requires `--announce-to` when using `--commit` for safety
+  - Comprehensive test coverage with 150+ test cases
+
+### Enhanced
+- **Channel Announcements**: Improved announcement message formatting with creation timestamps and clearer time references
+  - Enhanced time display showing "days ago" for better context
+  - Changed "Purpose" to "Description" for clearer labeling
+  - Better singular/plural handling for time references ("1 day" vs "days")
+- **Archive Command Display**: Enhanced inactive channel display with days of inactivity calculation
+- **User Experience**: Updated Go version requirement from "1.24.4 or later" for clearer compatibility
+- **Message Formatting**: Improved announcement and dry-run message consistency across all commands
+
+### Fixed
+- **Test Message Expectations**: Updated test cases to match new announcement message formats
+- **Duplicate Detection**: Enhanced duplicate announcement detection with updated message patterns
+
+### Improved
+- **Code Organization**: Better separation of announcement formatting between commit and dry-run modes
+- **Test Coverage**: Expanded test suite with comprehensive highlight command testing
+- **Documentation**: Added random channel highlight feature to roadmap
+
 ## [1.1.10] - 2025-06-27
 
 ### Enhanced

@@ -364,7 +364,7 @@ func TestDryRunModeFunctionality(t *testing.T) {
 		assert.Len(t, newChannels, 2)
 
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
-		assert.Contains(t, message, "2 new channels created!")
+		assert.Contains(t, message, "2 new channels created in the last")
 		assert.Contains(t, message, "<#C123>")
 		assert.Contains(t, message, "<#C456>")
 		assert.Contains(t, message, "Test purpose for new channel")
@@ -420,7 +420,7 @@ func TestDryRunModeFunctionality(t *testing.T) {
 		assert.Len(t, newChannels, 1)
 
 		message := client.FormatNewChannelAnnouncement(newChannels, cutoffTime)
-		assert.Contains(t, message, "New channel alert!")
+		assert.Contains(t, message, "New channel created in the last")
 		assert.Contains(t, message, "<#C123>")
 		assert.Contains(t, message, "Test purpose 1")
 	})
@@ -446,7 +446,7 @@ func TestDuplicateAnnouncementDetection(t *testing.T) {
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 
 		// Add a previous announcement message from our bot
-		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel created in the last 1 day! #test-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -462,7 +462,7 @@ func TestDuplicateAnnouncementDetection(t *testing.T) {
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 
 		// Add a previous announcement message from our bot for a different channel
-		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert! #other-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel created in the last 1 day! #other-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -478,7 +478,7 @@ func TestDuplicateAnnouncementDetection(t *testing.T) {
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 
 		// Add a message from a different user mentioning the same channel
-		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert! #test-channel", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel created in the last 1 day! #test-channel", "U1234567", fmt.Sprintf("%.6f", float64(time.Now().Add(-1*time.Hour).Unix())))
 
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -530,7 +530,7 @@ func TestDuplicateAnnouncementIntegration(t *testing.T) {
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 
 		// Add a previous announcement for the same channel
-		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert! #test-channel-1", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-30*time.Minute).Unix())))
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel created in the last 1 day! #test-channel-1", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-30*time.Minute).Unix())))
 
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -552,7 +552,7 @@ func TestDuplicateAnnouncementIntegration(t *testing.T) {
 		mockAPI.AddChannel("CGENERAL", "general", time.Now().Add(-24*time.Hour), "General discussion")
 
 		// Add a previous announcement for a DIFFERENT channel
-		mockAPI.AddMessageToHistory("CGENERAL", "New channel alert! #other-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-30*time.Minute).Unix())))
+		mockAPI.AddMessageToHistory("CGENERAL", "New channel created in the last 1 day! #other-channel", "U0000000", fmt.Sprintf("%.6f", float64(time.Now().Add(-30*time.Minute).Unix())))
 
 		client, err := slack.NewClientWithAPI(mockAPI)
 		require.NoError(t, err)
@@ -932,5 +932,415 @@ func TestRunDetectErrorPaths(t *testing.T) {
 		assert.Contains(t, err.Error(), "days must be positive")
 
 		since = originalSince
+	})
+}
+
+func TestHighlightCommandSetup(t *testing.T) {
+	t.Run("Command structure", func(t *testing.T) {
+		assert.NotNil(t, highlightCmd)
+		assert.Equal(t, "highlight", highlightCmd.Use)
+		assert.NotEmpty(t, highlightCmd.Short)
+		assert.Contains(t, highlightCmd.Long, "Randomly select and highlight channels")
+	})
+
+	t.Run("Command flags", func(t *testing.T) {
+		countFlag := highlightCmd.Flags().Lookup("count")
+		assert.NotNil(t, countFlag)
+		assert.Equal(t, "3", countFlag.DefValue)
+
+		announceFlag := highlightCmd.Flags().Lookup("announce-to")
+		assert.NotNil(t, announceFlag)
+		assert.Equal(t, "", announceFlag.DefValue)
+
+		commitFlag := highlightCmd.Flags().Lookup("commit")
+		assert.NotNil(t, commitFlag)
+		assert.Equal(t, "false", commitFlag.DefValue)
+	})
+
+	t.Run("Command hierarchy", func(t *testing.T) {
+		// Check that highlight is a subcommand of channels
+		subcommands := channelsCmd.Commands()
+		var highlightFound bool
+		for _, cmd := range subcommands {
+			if cmd.Use == "highlight" {
+				highlightFound = true
+				break
+			}
+		}
+		assert.True(t, highlightFound)
+	})
+}
+
+func TestRunHighlightFunction(t *testing.T) {
+	t.Run("Missing token error", func(t *testing.T) {
+		// Clear any environment token
+		t.Setenv("SLACK_TOKEN", "")
+
+		cmd := &cobra.Command{}
+		err := runHighlight(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "slack token is required")
+	})
+
+	t.Run("Announce-to required when commit is true", func(t *testing.T) {
+		// Save original values
+		originalCommit := commit
+		originalAnnounceTo := announceTo
+
+		// Set valid token but no announce-to with commit=true
+		t.Setenv("SLACK_TOKEN", "MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL")
+
+		// Force viper to reload environment
+		initConfig()
+
+		commit = true
+		announceTo = ""
+
+		cmd := &cobra.Command{}
+		err := runHighlight(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "--announce-to is required when using --commit")
+
+		// Reset values
+		commit = originalCommit
+		announceTo = originalAnnounceTo
+	})
+
+	t.Run("Invalid count error", func(t *testing.T) {
+		// Save original values
+		originalCount := count
+
+		// Set valid token but invalid count
+		t.Setenv("SLACK_TOKEN", "MOCK-BOT-TOKEN-FOR-TESTING-ONLY-NOT-REAL-TOKEN-AT-ALL")
+
+		// Force viper to reload environment
+		initConfig()
+
+		count = 0
+
+		cmd := &cobra.Command{}
+		err := runHighlight(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "count must be positive")
+
+		// Reset values
+		count = originalCount
+	})
+
+	t.Run("Negative count error", func(t *testing.T) {
+		originalCount := count
+
+		t.Setenv("SLACK_TOKEN", "xoxb-valid-token-format")
+		initConfig()
+
+		count = -5
+
+		cmd := &cobra.Command{}
+		err := runHighlight(cmd, []string{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "count must be positive")
+
+		count = originalCount
+	})
+}
+
+func TestRunHighlightWithClient(t *testing.T) {
+	t.Run("Successful highlight without announcement", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add some test channels for highlighting
+		mockAPI.AddChannel("C1234567", "test-channel-1", time.Now().Add(-24*time.Hour), "Test purpose 1")
+		mockAPI.AddChannel("C2345678", "test-channel-2", time.Now().Add(-48*time.Hour), "Test purpose 2")
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = runHighlightWithClient(client, 2, "", true)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "Random channels to highlight (2):")
+		assert.Contains(t, outputStr, "#test-channel-")
+	})
+
+	t.Run("No channels found", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = runHighlightWithClient(client, 5, "", true)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "No channels found to highlight")
+	})
+
+	t.Run("Successful highlight with announcement - dry run", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add test channel
+		mockAPI.AddChannel("C1234567", "test-channel-1", time.Now().Add(-24*time.Hour), "Test purpose 1")
+
+		// Add announcement channel
+		mockAPI.AddChannel("C9999999", "general", time.Now().Add(-48*time.Hour), "General channel")
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = runHighlightWithClient(client, 1, "#general", true)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "--- DRY RUN ---")
+		assert.Contains(t, outputStr, "Would announce to channel: #general")
+		assert.Contains(t, outputStr, "--- END DRY RUN ---")
+
+		// Verify no message was actually posted
+		messages := mockAPI.GetPostedMessages()
+		assert.Empty(t, messages)
+	})
+
+	t.Run("Successful highlight with announcement - commit mode", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add test channel
+		mockAPI.AddChannel("C1234567", "test-channel-1", time.Now().Add(-24*time.Hour), "Test purpose 1")
+
+		// Add announcement channel
+		mockAPI.AddChannel("C9999999", "general", time.Now().Add(-48*time.Hour), "General channel")
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = runHighlightWithClient(client, 1, "#general", false)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "Channel highlight posted to #general")
+
+		// Verify message was posted
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 1)
+		assert.Equal(t, "C9999999", messages[0].ChannelID)
+		assert.Contains(t, messages[0].Text, "mock-message-posted")
+	})
+
+	t.Run("GetRandomChannels error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetGetConversationsErrorWithMessage(true, "API error")
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		err = runHighlightWithClient(client, 1, "", true)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get random channels")
+	})
+}
+
+func TestHandleHighlightAnnouncement(t *testing.T) {
+	t.Run("Successful announcement - dry run", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		channels := []slack.Channel{
+			{
+				ID:   "C1234567",
+				Name: "test-channel-1",
+			},
+		}
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = handleHighlightAnnouncement(client, channels, "#general", true)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "--- DRY RUN ---")
+		assert.Contains(t, outputStr, "Would announce to channel: #general")
+		assert.Contains(t, outputStr, "To actually post this highlight")
+
+		// Verify no message was posted
+		messages := mockAPI.GetPostedMessages()
+		assert.Empty(t, messages)
+	})
+
+	t.Run("Successful announcement - commit mode", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add announcement channel
+		mockAPI.AddChannel("C9999999", "general", time.Now().Add(-48*time.Hour), "General channel")
+
+		channels := []slack.Channel{
+			{
+				ID:   "C1234567",
+				Name: "test-channel-1",
+			},
+		}
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = handleHighlightAnnouncement(client, channels, "#general", false)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "Channel highlight posted to #general")
+
+		// Verify message was posted
+		messages := mockAPI.GetPostedMessages()
+		assert.Len(t, messages, 1)
+		assert.Equal(t, "C9999999", messages[0].ChannelID)
+	})
+
+	t.Run("PostMessage error", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		mockAPI.SetPostMessageError("channel_not_found")
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		channels := []slack.Channel{
+			{
+				ID:   "C1234567",
+				Name: "test-channel-1",
+			},
+		}
+
+		err = handleHighlightAnnouncement(client, channels, "#nonexistent", false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to post highlight")
+	})
+}
+
+func TestHandleHighlightDryRunWithoutChannel(t *testing.T) {
+	t.Run("Dry run without channel", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		channels := []slack.Channel{
+			{
+				ID:   "C1234567",
+				Name: "test-channel-1",
+			},
+		}
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = handleHighlightDryRunWithoutChannel(client, channels, true)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Contains(t, outputStr, "--- DRY RUN ---")
+		assert.Contains(t, outputStr, "Channel highlight message dry run")
+		assert.Contains(t, outputStr, "use --announce-to to specify target")
+		assert.Contains(t, outputStr, "--- END DRY RUN ---")
+	})
+
+	t.Run("Non-dry run mode does nothing", func(t *testing.T) {
+		mockAPI := slack.NewMockSlackAPI()
+		client, err := slack.NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		channels := []slack.Channel{
+			{
+				ID:   "C1234567",
+				Name: "test-channel-1",
+			},
+		}
+
+		// Capture stdout
+		r, w, _ := os.Pipe() //nolint:errcheck
+		oldStdout := os.Stdout
+		os.Stdout = w
+
+		err = handleHighlightDryRunWithoutChannel(client, channels, false)
+
+		// Restore stdout
+		_ = w.Close() //nolint:errcheck
+		os.Stdout = oldStdout
+
+		// Read captured output
+		output, _ := io.ReadAll(r) //nolint:errcheck
+		outputStr := string(output)
+
+		assert.NoError(t, err)
+		assert.Empty(t, outputStr)
 	})
 }

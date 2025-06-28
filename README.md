@@ -4,12 +4,13 @@
 
 A powerful Go CLI tool designed to help Slack workspaces become more useful, organized, and tidy through intelligent automation and monitoring.
 
-**Version 1.1.9** ✅
+**Version 1.1.11** ✅
 
 ## Features
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
 - **📁 Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period
+- **🧭 Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
 - **🩺 Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **⏰ Flexible Time Filtering**: Support for days-based filtering (1, 7, 30, etc.)
@@ -21,7 +22,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 ## Installation
 
 ### Prerequisites
-- Go 1.24.4 (requires Go 1.24.4)
+- Go 1.24.4 or later
 - Slack Bot Token with appropriate permissions
 
 ### Install via Go
@@ -200,6 +201,22 @@ slack-butler channels archive --warn-days=60 --archive-days=14 --commit
 slack-butler channels archive --exclude-channels="general,random" --commit
 ```
 
+### `channels highlight`
+Randomly select and highlight active channels to encourage discovery and participation.
+
+**Flags:**
+- `--count` - Number of random channels to highlight (default: 3)
+- `--announce-to` - Channel to announce highlights to (required when using --commit)
+- `--commit` - Actually post messages (default is dry run mode)
+- `--token` - Slack bot token (can also use SLACK_TOKEN env var)
+
+**Examples:**
+```bash
+slack-butler channels highlight
+slack-butler channels highlight --count=5 --announce-to=#general
+slack-butler channels highlight --count=1 --announce-to=#general --commit
+```
+
 
 ## Development
 
@@ -335,7 +352,7 @@ This project uses git tags for version tracking but does NOT use GitHub releases
 go install github.com/astrostl/slack-butler@latest
 
 # Install specific version
-go install github.com/astrostl/slack-butler@v1.1.10
+go install github.com/astrostl/slack-butler@v1.1.11
 
 # Install development version
 go install github.com/astrostl/slack-butler@main
@@ -343,7 +360,7 @@ go install github.com/astrostl/slack-butler@main
 # Build from specific version
 git clone https://github.com/astrostl/slack-butler.git
 cd slack-butler
-git checkout v1.1.10
+git checkout v1.1.11
 go build -o slack-butler
 ```
 
@@ -388,6 +405,7 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and detailed security
 
 - [x] New channel detection - **Implemented**
 - [x] Channel cleanup detection (inactive channels) - **Implemented**
+- [x] Random channel highlight feature - **Implemented**
 - [ ] Interactive setup wizard (`slack-butler init`)
 - [ ] Multi-workspace support
 - [ ] Configurable warning message templates

@@ -2,6 +2,7 @@ package slack
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ const (
 	oneMinuteText = "1 minute"
 	oneHourText   = "1 hour"
 	oneDayText    = "1 day"
+	textDays      = "days"
+	textDay       = "day"
 )
 
 type Client struct {
@@ -185,17 +188,31 @@ func (c *Client) FormatNewChannelAnnouncement(channels []Channel, since time.Tim
 		"since":         since.Format("2006-01-02 15:04:05"),
 	}).Debug("Formatting announcement message")
 
+	// Calculate days since the search period
+	daysSince := int(time.Since(since).Hours() / 24)
+	daysText := textDays
+	if daysSince == 1 {
+		daysText = textDay
+	}
+
 	var builder strings.Builder
 
 	if len(channels) == 1 {
-		builder.WriteString("New channel alert!")
+		builder.WriteString(fmt.Sprintf("New channel created in the last %d %s!", daysSince, daysText))
 	} else {
-		builder.WriteString(fmt.Sprintf("%d new channels created!", len(channels)))
+		builder.WriteString(fmt.Sprintf("%d new channels created in the last %d %s!", len(channels), daysSince, daysText))
 	}
 
 	builder.WriteString("\n\n")
 
 	for i, ch := range channels {
+		// Calculate days since creation
+		daysSinceCreated := int(time.Since(ch.Created).Hours() / 24)
+		daysText := "days"
+		if daysSinceCreated == 1 {
+			daysText = "day"
+		}
+
 		builder.WriteString(fmt.Sprintf("• <#%s>", ch.ID))
 
 		// Add creator info if available
@@ -203,8 +220,11 @@ func (c *Client) FormatNewChannelAnnouncement(channels []Channel, since time.Tim
 			builder.WriteString(fmt.Sprintf(" created by <@%s>", ch.Creator))
 		}
 
+		// Add creation time info
+		builder.WriteString(fmt.Sprintf(" %d %s ago", daysSinceCreated, daysText))
+
 		if ch.Purpose != "" {
-			builder.WriteString(fmt.Sprintf("\n  Purpose: %s", ch.Purpose))
+			builder.WriteString(fmt.Sprintf("\n  Description: %s", ch.Purpose))
 		}
 
 		// Add spacing between channels (but not after the last one)
@@ -226,17 +246,31 @@ func (c *Client) FormatNewChannelAnnouncementDryRun(channels []Channel, since ti
 		return c.FormatNewChannelAnnouncement(channels, since)
 	}
 
+	// Calculate days since the search period
+	daysSince := int(time.Since(since).Hours() / 24)
+	daysText := textDays
+	if daysSince == 1 {
+		daysText = textDay
+	}
+
 	var builder strings.Builder
 
 	if len(channels) == 1 {
-		builder.WriteString("New channel alert!")
+		builder.WriteString(fmt.Sprintf("New channel created in the last %d %s!", daysSince, daysText))
 	} else {
-		builder.WriteString(fmt.Sprintf("%d new channels created!", len(channels)))
+		builder.WriteString(fmt.Sprintf("%d new channels created in the last %d %s!", len(channels), daysSince, daysText))
 	}
 
 	builder.WriteString("\n\n")
 
 	for i, ch := range channels {
+		// Calculate days since creation
+		daysSinceCreated := int(time.Since(ch.Created).Hours() / 24)
+		daysText := "days"
+		if daysSinceCreated == 1 {
+			daysText = "day"
+		}
+
 		builder.WriteString(fmt.Sprintf("• #%s", ch.Name))
 
 		// Add creator info with pretty name if available
@@ -248,8 +282,11 @@ func (c *Client) FormatNewChannelAnnouncementDryRun(channels []Channel, since ti
 			builder.WriteString(fmt.Sprintf(" created by %s", creatorName))
 		}
 
+		// Add creation time info
+		builder.WriteString(fmt.Sprintf(" %d %s ago", daysSinceCreated, daysText))
+
 		if ch.Purpose != "" {
-			builder.WriteString(fmt.Sprintf("\n  Purpose: %s", ch.Purpose))
+			builder.WriteString(fmt.Sprintf("\n  Description: %s", ch.Purpose))
 		}
 
 		// Add spacing between channels (but not after the last one)
@@ -1063,7 +1100,109 @@ func (c *Client) displayChannelAnalysis(ch slack.Channel, lastActivity time.Time
 	if lastMessage != nil {
 		c.displayMessageDetails(lastMessage)
 	}
-	fmt.Println()
+}
+
+// GetRandomChannels gets all channels and returns a random subset of the specified count.
+func (c *Client) GetRandomChannels(count int) ([]Channel, error) {
+	logger.WithField("count", count).Debug("Fetching all channels for random selection")
+
+	// Get all public channels
+	allSlackChannels, _, err := c.api.GetConversations(&slack.GetConversationsParameters{
+		Types:           []string{"public_channel"},
+		Limit:           1000,
+		ExcludeArchived: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversations: %w", err)
+	}
+
+	// Convert to our Channel type
+	channels := make([]Channel, 0, len(allSlackChannels))
+	for _, ch := range allSlackChannels {
+		channels = append(channels, Channel{
+			ID:          ch.ID,
+			Name:        ch.Name,
+			Created:     time.Unix(int64(ch.Created), 0),
+			Purpose:     ch.Purpose.Value,
+			Creator:     ch.Creator,
+			MemberCount: ch.NumMembers,
+			IsArchived:  ch.IsArchived,
+		})
+	}
+
+	// Return all channels if count is larger than available
+	if count >= len(channels) {
+		return channels, nil
+	}
+
+	// Randomly select channels using local random generator
+	// #nosec G404 - using math/rand is appropriate for non-security channel selection
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Shuffle(len(channels), func(i, j int) {
+		channels[i], channels[j] = channels[j], channels[i]
+	})
+
+	return channels[:count], nil
+}
+
+// FormatChannelHighlightAnnouncement formats a channel highlight announcement for commit mode.
+func (c *Client) FormatChannelHighlightAnnouncement(channels []Channel) string {
+	var builder strings.Builder
+
+	if len(channels) == 1 {
+		builder.WriteString("🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
+	} else {
+		builder.WriteString(fmt.Sprintf("🧭 Here are %d randomly-selected public channels that you are welcome to explore!", len(channels)))
+	}
+
+	builder.WriteString("\n\n")
+
+	for i, ch := range channels {
+		builder.WriteString(fmt.Sprintf("• <#%s>", ch.ID))
+
+		if ch.Purpose != "" {
+			builder.WriteString(fmt.Sprintf("\n  %s", ch.Purpose))
+		}
+
+		// Add spacing between channels (but not after the last one)
+		if i < len(channels)-1 {
+			builder.WriteString("\n\n")
+		} else {
+			builder.WriteString("\n")
+		}
+	}
+
+	return builder.String()
+}
+
+// FormatChannelHighlightAnnouncementDryRun formats a channel highlight announcement for dry run mode.
+func (c *Client) FormatChannelHighlightAnnouncementDryRun(channels []Channel) string {
+	var builder strings.Builder
+
+	if len(channels) == 1 {
+		builder.WriteString("🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
+	} else {
+		builder.WriteString(fmt.Sprintf("🧭 Here are %d randomly-selected public channels that you are welcome to explore!", len(channels)))
+	}
+
+	builder.WriteString("\n\n")
+
+	for i, ch := range channels {
+		builder.WriteString(fmt.Sprintf("• #%s", ch.Name))
+
+		if ch.Purpose != "" {
+			builder.WriteString(fmt.Sprintf("\n  %s", ch.Purpose))
+		}
+
+		// Add spacing between channels (but not after the last one)
+		if i < len(channels)-1 {
+			builder.WriteString("\n\n")
+		} else {
+			builder.WriteString("\n")
+		}
+	}
+
+	return builder.String()
 }
 
 // formatChannelActivityString formats the activity description for a channel.

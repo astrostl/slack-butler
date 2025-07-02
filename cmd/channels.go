@@ -498,32 +498,50 @@ func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, 
 	displayChannelDetails(toWarn, "Channels to warn about inactivity")
 
 	if isDryRun {
-		fmt.Printf("--- DRY RUN ---\n")
-		fmt.Printf("Would warn %d channels about upcoming archival\n", len(toWarn))
-		if len(toWarn) > 0 {
-			fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
-			exampleMessage := client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds)
-			fmt.Printf("%s\n", exampleMessage)
-		}
-		fmt.Printf("--- END DRY RUN ---\n\n")
+		processWarningsDryRun(client, toWarn, warnSeconds, archiveSeconds)
 	} else {
-		fmt.Printf("Sending warnings to %d channels (joining channels as needed)...\n", len(toWarn))
-		warningsSent := 0
-		for _, channel := range toWarn {
-			if err := client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds); err != nil {
-				logger.WithFields(logger.LogFields{
-					"channel": channel.Name,
-					"error":   err.Error(),
-				}).Error("Failed to send warning")
-				fmt.Printf("  Failed to warn #%s: %s\n", channel.Name, err.Error())
-			} else {
-				warningsSent++
-				logger.WithField("channel", channel.Name).Info("Warning sent successfully")
-				fmt.Printf("  ✓ Warned #%s\n", channel.Name)
-			}
-		}
-		fmt.Printf("Warnings sent: %d/%d\n\n", warningsSent, len(toWarn))
+		processWarningsReal(client, toWarn, warnSeconds, archiveSeconds)
 	}
+}
+
+// processWarningsDryRun handles the dry-run display for warnings.
+func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int) {
+	fmt.Printf("--- DRY RUN ---\n")
+	fmt.Printf("Would warn %d channels about upcoming archival\n", len(toWarn))
+	if len(toWarn) > 0 {
+		fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
+		exampleMessage := client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds, "")
+		fmt.Printf("%s\n", exampleMessage)
+	}
+	fmt.Printf("--- END DRY RUN ---\n\n")
+}
+
+// processWarningsReal handles the actual warning sending.
+func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int) {
+	fmt.Printf("Sending warnings to %d channels (joining channels as needed)...\n", len(toWarn))
+
+	// Look up meta channel ID once for all warnings to reduce API calls
+	metaChannelID, err := client.ResolveChannelNameToID("meta")
+	if err != nil {
+		logger.WithField("error", err.Error()).Debug("Could not find #meta channel for linking")
+		metaChannelID = "" // Fall back to plain text #meta
+	}
+
+	warningsSent := 0
+	for _, channel := range toWarn {
+		if err := client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds, metaChannelID); err != nil {
+			logger.WithFields(logger.LogFields{
+				"channel": channel.Name,
+				"error":   err.Error(),
+			}).Error("Failed to send warning")
+			fmt.Printf("  Failed to warn #%s: %s\n", channel.Name, err.Error())
+		} else {
+			warningsSent++
+			logger.WithField("channel", channel.Name).Info("Warning sent successfully")
+			fmt.Printf("  ✓ Warned #%s\n", channel.Name)
+		}
+	}
+	fmt.Printf("Warnings sent: %d/%d\n\n", warningsSent, len(toWarn))
 }
 
 // processArchival handles archiving channels in both dry-run and real modes.
@@ -535,7 +553,7 @@ func processArchival(client *slack.Client, toArchive []slack.Channel, warnSecond
 		fmt.Printf("Would archive %d channels\n", len(toArchive))
 		if len(toArchive) > 0 {
 			fmt.Printf("Example archival message for #%s:\n", toArchive[0].Name)
-			exampleArchivalMessage := client.FormatChannelArchivalMessage(toArchive[0], warnSeconds, archiveSeconds)
+			exampleArchivalMessage := client.FormatChannelArchivalMessage(toArchive[0], warnSeconds, archiveSeconds, "")
 			fmt.Printf("%s\n", exampleArchivalMessage)
 		}
 		fmt.Printf("--- END DRY RUN ---\n\n")

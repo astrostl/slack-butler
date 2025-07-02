@@ -1417,7 +1417,7 @@ func (c *Client) needsDetailedAnalysis(lastRealMsg *slack.Message, botUserID str
 		return true
 	}
 	// If the last real message is from the bot and contains a warning, we need more context
-	if lastRealMsg.User == botUserID && strings.Contains(lastRealMsg.Text, "inactive channel warning") {
+	if lastRealMsg.User == botUserID && strings.Contains(strings.ToLower(lastRealMsg.Text), "inactive channel warning") {
 		return true
 	}
 	// If the last real message is from the bot but not a warning, we need to look deeper
@@ -1521,7 +1521,7 @@ func (c *Client) analyzeChannelMessages(messages []slack.Message, botUserID stri
 		}
 
 		// Check if this is a warning message from our bot
-		if msg.User == botUserID && strings.Contains(msg.Text, "inactive channel warning") {
+		if msg.User == botUserID && strings.Contains(strings.ToLower(msg.Text), "inactive channel warning") {
 			hasWarningMessage = true
 			if msgTime.After(mostRecentWarning) {
 				mostRecentWarning = msgTime
@@ -1748,7 +1748,7 @@ func parseSlackTimestamp(ts string) (time.Time, error) {
 	return time.Unix(seconds, 0), nil
 }
 
-func (c *Client) WarnInactiveChannel(channel Channel, warnSeconds, archiveSeconds int) error {
+func (c *Client) WarnInactiveChannel(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) error {
 	// First, try to join the channel if it's public
 	if err := c.ensureBotInChannel(channel); err != nil {
 		logger.WithFields(logger.LogFields{
@@ -1758,7 +1758,7 @@ func (c *Client) WarnInactiveChannel(channel Channel, warnSeconds, archiveSecond
 		return fmt.Errorf("failed to join channel %s: %w", channel.Name, err)
 	}
 
-	message := c.FormatInactiveChannelWarning(channel, warnSeconds, archiveSeconds)
+	message := c.FormatInactiveChannelWarning(channel, warnSeconds, archiveSeconds, metaChannelID)
 
 	logger.WithFields(logger.LogFields{
 		"channel":         channel.Name,
@@ -1876,10 +1876,10 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 	return nil
 }
 
-func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, archiveSeconds int) string {
+func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {
 	var builder strings.Builder
 
-	builder.WriteString("🚨 **Inactive Channel Warning** 🚨\n\n")
+	builder.WriteString("🚨 Inactive Channel Warning 🚨\n\n")
 
 	warnText := formatDurationSeconds(warnSeconds)
 
@@ -1887,38 +1887,42 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 
 	archiveText := formatDurationSeconds(archiveSeconds)
 
-	builder.WriteString(fmt.Sprintf("**This channel will be archived in %s** unless new messages are posted.\n\n", archiveText))
+	builder.WriteString(fmt.Sprintf("This channel could be archived in another %s unless new messages are posted.\n\n", archiveText))
 
-	builder.WriteString("To keep this channel active:\n")
-	builder.WriteString("• Post a message in this channel\n")
-	builder.WriteString("• Or contact an admin if this channel should remain active\n\n")
-
-	builder.WriteString("_This is an automated message from slack-butler bot._\n")
-	builder.WriteString("<!-- inactive channel warning -->")
+	builder.WriteString("To keep this channel active:\n\n")
+	builder.WriteString("• Post a message in this channel or\n")
+	// Create meta channel link if available
+	metaLink := "#meta"
+	if metaChannelID != "" {
+		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
+	}
+	builder.WriteString(fmt.Sprintf("• Discuss in %s if this channel warrants admin intervention\n\n", metaLink))
 
 	return builder.String()
 }
 
-func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, archiveSeconds int) string {
+func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {
 	var builder strings.Builder
 
-	builder.WriteString("📋 **Channel Archival Notice** 📋\n\n")
+	builder.WriteString("📋 Channel Archival Notice 📋\n\n")
 
 	warnText := formatDurationSeconds(warnSeconds)
 
 	archiveText := formatDurationSeconds(archiveSeconds)
 
-	builder.WriteString("This channel is being archived because:\n")
+	builder.WriteString("This channel is being archived because:\n\n")
 	builder.WriteString(fmt.Sprintf("• It was inactive for more than %s (warning threshold)\n", warnText))
 	builder.WriteString("• An inactivity warning was posted\n")
 	builder.WriteString(fmt.Sprintf("• No new activity occurred within %s after the warning (archive threshold)\n\n", archiveText))
 
-	builder.WriteString("**This channel is now being archived.**\n\n")
+	builder.WriteString("This channel is now being archived.\n\n")
 
-	builder.WriteString("If this channel should not have been archived, please contact a workspace admin.\n\n")
-
-	builder.WriteString("_This is an automated action by slack-butler bot._\n")
-	builder.WriteString("<!-- channel archival notice -->")
+	// Create meta channel link if available
+	metaLink := "#meta"
+	if metaChannelID != "" {
+		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
+	}
+	builder.WriteString(fmt.Sprintf("You may unarchive the channel yourself (given permissions) or discuss in %s if you disagree!", metaLink))
 
 	return builder.String()
 }
@@ -1931,21 +1935,28 @@ func (c *Client) ArchiveChannel(channel Channel) error {
 func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, archiveSeconds int) error {
 	logger.WithField("channel", channel.Name).Debug("Archiving inactive channel")
 
+	// Look up meta channel ID once to reduce API calls
+	metaChannelID, err := c.ResolveChannelNameToID("meta")
+	if err != nil {
+		logger.WithField("error", err.Error()).Debug("Could not find #meta channel for linking")
+		metaChannelID = "" // Fall back to plain text #meta
+	}
+
 	// First, ensure the bot is in the channel to post the archival message
-	if err := c.ensureBotInChannel(channel); err != nil {
+	if joinErr := c.ensureBotInChannel(channel); joinErr != nil {
 		logger.WithFields(logger.LogFields{
 			"channel": channel.Name,
-			"error":   err.Error(),
+			"error":   joinErr.Error(),
 		}).Warn("Could not join channel for archival message, proceeding with archival anyway")
 		// Don't fail here - we can still archive even if we can't post the message
 	}
 
 	// Post archival message explaining why the channel is being archived
-	archivalMessage := c.FormatChannelArchivalMessage(channel, warnSeconds, archiveSeconds)
-	if err := c.postMessageToChannelID(channel.ID, archivalMessage); err != nil {
+	archivalMessage := c.FormatChannelArchivalMessage(channel, warnSeconds, archiveSeconds, metaChannelID)
+	if postErr := c.postMessageToChannelID(channel.ID, archivalMessage); postErr != nil {
 		logger.WithFields(logger.LogFields{
 			"channel": channel.Name,
-			"error":   err.Error(),
+			"error":   postErr.Error(),
 		}).Warn("Failed to post archival message, proceeding with archival anyway")
 		// Don't fail here - archival should proceed even if the message fails
 	} else {
@@ -1954,7 +1965,7 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 
 	// Rate limit before archival API call
 
-	err := c.api.ArchiveConversation(channel.ID)
+	err = c.api.ArchiveConversation(channel.ID)
 	if err != nil {
 		errStr := err.Error()
 		logger.WithFields(logger.LogFields{
@@ -2149,7 +2160,7 @@ func (c *Client) createMessageInfo(msg *slack.Message, msgTime time.Time, botUse
 
 // checkForWarningMessage checks if the message is a warning from our bot.
 func (c *Client) checkForWarningMessage(msg *slack.Message, msgTime time.Time, botUserID string) (bool, time.Time) {
-	hasWarning := msg.User == botUserID && strings.Contains(msg.Text, "inactive channel warning")
+	hasWarning := msg.User == botUserID && strings.Contains(strings.ToLower(msg.Text), "inactive channel warning")
 	if hasWarning {
 		return true, msgTime
 	}

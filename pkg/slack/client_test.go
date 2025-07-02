@@ -891,20 +891,46 @@ func TestFormatInactiveChannelWarning(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := client.FormatInactiveChannelWarning(channel, tt.warnSeconds, tt.archiveSeconds)
+			warning := client.FormatInactiveChannelWarning(channel, tt.warnSeconds, tt.archiveSeconds, "")
 
 			for _, part := range tt.expectedParts {
 				assert.Contains(t, warning, part, "Warning should contain: %s", part)
 			}
 
-			// Should include the warning comment for detection
-			assert.Contains(t, warning, "<!-- inactive channel warning -->")
+			// Should include the warning text for detection
+			assert.Contains(t, warning, "Inactive Channel Warning")
 
 			// Should include guidance
 			assert.Contains(t, warning, "To keep this channel active")
 			assert.Contains(t, warning, "Post a message")
 		})
 	}
+}
+
+func TestFormatInactiveChannelWarningWithMetaLink(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	channel := Channel{
+		ID:      "C1234567890",
+		Name:    "test-channel",
+		Created: time.Now().Add(-24 * time.Hour),
+		Purpose: "Test channel purpose",
+		Creator: "U1111111",
+	}
+
+	t.Run("With meta channel ID - creates link", func(t *testing.T) {
+		warning := client.FormatInactiveChannelWarning(channel, 300, 60, "CMETA123")
+		assert.Contains(t, warning, "<#CMETA123|meta>", "Should contain proper channel link")
+		assert.NotContains(t, warning, "#meta", "Should not contain plain #meta text")
+	})
+
+	t.Run("Without meta channel ID - uses plain text", func(t *testing.T) {
+		warning := client.FormatInactiveChannelWarning(channel, 300, 60, "")
+		assert.Contains(t, warning, "#meta", "Should contain plain #meta text")
+		assert.NotContains(t, warning, "<#", "Should not contain channel link format")
+	})
 }
 
 func TestFormatChannelArchivalMessage(t *testing.T) {
@@ -921,18 +947,45 @@ func TestFormatChannelArchivalMessage(t *testing.T) {
 	}
 
 	t.Run("Standard archival message", func(t *testing.T) {
-		message := client.FormatChannelArchivalMessage(channel, 300, 60) // 5 minutes warn, 1 minute archive
+		message := client.FormatChannelArchivalMessage(channel, 300, 60, "") // 5 minutes warn, 1 minute archive
 
 		expectedParts := []string{
-			"📋 **Channel Archival Notice**",
-			"This channel is being archived",
+			"📋 Channel Archival Notice",
+			"This channel is being archived because:\n\n•",
 			"inactive for more than",
-			"slack-butler bot",
+			"You may unarchive the channel yourself",
+			"discuss in #meta if you disagree",
 		}
 
 		for _, part := range expectedParts {
 			assert.Contains(t, message, part, "Archival message should contain: %s", part)
 		}
+	})
+}
+
+func TestFormatChannelArchivalMessageWithMetaLink(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	channel := Channel{
+		ID:      "C1234567890",
+		Name:    "test-channel",
+		Created: time.Now().Add(-24 * time.Hour),
+		Purpose: "Test channel purpose",
+		Creator: "U1111111",
+	}
+
+	t.Run("With meta channel ID - creates link", func(t *testing.T) {
+		message := client.FormatChannelArchivalMessage(channel, 300, 60, "CMETA123")
+		assert.Contains(t, message, "<#CMETA123|meta>", "Should contain proper channel link")
+		assert.NotContains(t, message, "#meta", "Should not contain plain #meta text")
+	})
+
+	t.Run("Without meta channel ID - uses plain text", func(t *testing.T) {
+		message := client.FormatChannelArchivalMessage(channel, 300, 60, "")
+		assert.Contains(t, message, "#meta", "Should contain plain #meta text")
+		assert.NotContains(t, message, "<#", "Should not contain channel link format")
 	})
 }
 
@@ -961,7 +1014,7 @@ func TestFormatDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			warning := client.FormatInactiveChannelWarning(channel, tt.seconds, 60)
+			warning := client.FormatInactiveChannelWarning(channel, tt.seconds, 60, "")
 			assert.Contains(t, warning, tt.expected)
 		})
 	}
@@ -1111,7 +1164,7 @@ func TestGetInactiveChannels(t *testing.T) {
 			{
 				Timestamp: formatTimestamp(warningTime),
 				User:      "UBOT123456",
-				Text:      "🚨 **Inactive Channel Warning** 🚨\n\n<!-- inactive channel warning -->",
+				Text:      "🚨 Inactive Channel Warning 🚨\n\n",
 			},
 		})
 
@@ -1218,7 +1271,7 @@ func TestGetChannelActivity(t *testing.T) {
 		oldUserTime := now.Add(-4 * time.Hour)
 		warningTime := now.Add(-1 * time.Hour)
 
-		warningText := "🚨 **Inactive Channel Warning** 🚨\n\n<!-- inactive channel warning -->"
+		warningText := "🚨 Inactive Channel Warning 🚨"
 
 		// Mock conversation history showing warning from bot (using correct format)
 		// Note: Mock stores messages oldest-first, then reverses them to newest-first for API
@@ -1426,7 +1479,7 @@ func TestWarnInactiveChannel(t *testing.T) {
 			Name: "inactive-channel",
 		}
 
-		err = client.WarnInactiveChannel(channel, 7200, 3600) // 2 hours warn, 1 hour archive
+		err = client.WarnInactiveChannel(channel, 7200, 3600, "") // 2 hours warn, 1 hour archive
 
 		assert.NoError(t, err)
 
@@ -1452,7 +1505,7 @@ func TestWarnInactiveChannel(t *testing.T) {
 			Name: "private-channel",
 		}
 
-		err = client.WarnInactiveChannel(channel, 7200, 3600)
+		err = client.WarnInactiveChannel(channel, 7200, 3600, "")
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to join channel")

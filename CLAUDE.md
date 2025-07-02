@@ -195,7 +195,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.11 - Current stable release
+- **Version**: 1.1.12 - Current stable release
 - **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Recent Updates**: Added random channel highlight feature, enhanced message formatting, improved time displays
@@ -399,7 +399,7 @@ git tag v1.x.x && git push origin main --tags
 - **No Duplicate Planning**: Avoid creating separate TODO.md, BACKLOG.md, or other planning files that would diverge from README.md
 
 ### Documentation Standards
-- **Vibe Coded Disclaimer**: ALWAYS preserve the "vibe coded" disclaimer at the top of README.md after the main description. This disclaimer identifies the software as developed entirely using generative AI tools and sets appropriate user expectations.
+- **Development Disclaimer**: ALWAYS preserve the development disclaimer at the top of README.md after the main description. This disclaimer identifies the software as developed using generative AI tools and sets appropriate user expectations.
 - **Format**: `> **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.`
 - **Placement**: Must appear between the main project description and the version badge
 

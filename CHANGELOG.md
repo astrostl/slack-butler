@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.11] - 2025-06-28
+## [1.1.12] - 2025-07-01
+
+### Enhanced
+- **Channel Archival Messages**: Improved archival message formatting with cleaner, more user-friendly text
+  - Removed excessive bold formatting for better readability
+  - Enhanced meta channel linking with proper Slack channel link format when available
+  - Updated warning messages to be more actionable and less judgmental
+  - Added fallback to plain text "#meta" when channel ID lookup fails
+
+### Fixed
+- **Message Formatting**: Fixed archival message function signature to accept meta channel ID parameter
+- **API Integration**: Enhanced meta channel ID resolution to reduce redundant API calls
+- **Error Handling**: Improved error handling in archival process with better fallback behavior
+
+### Improved
+- **User Experience**: More helpful and encouraging archival messages
+- **Code Quality**: Better separation of concerns in message formatting functions
+- **Test Coverage**: Added comprehensive tests for archival message formatting with and without meta channel links
+
+## [1.1.11] - 2025-07-01
 
 ### Added
 - **Random Channel Highlight Feature**: New `slack-butler channels highlight` command to randomly select and showcase active channels
@@ -65,7 +84,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - **Build Dependencies**: Completely removed GoReleaser configuration and dependencies for simplified release process
-- **Outdated Disclaimers**: Removed "vibe coded" disclaimer that was no longer accurate
 
 ### Improved
 - **Build System**: Streamlined Makefile with improved organization and documentation

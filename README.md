@@ -99,9 +99,6 @@ slack-butler health --verbose
 
 ### New Channel Detection
 ```bash
-# Load environment variables
-source .env
-
 # Detect new channels from the last 8 days (default)
 slack-butler channels detect
 

@@ -24,7 +24,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 ## Installation
 
 ### Prerequisites
-- Go 1.24.4 or later
+- Go 1.23+ (tested with Go 1.24+)
 - Slack Bot Token with appropriate permissions
 
 ### Install via Go
@@ -65,6 +65,7 @@ cp .env.example .env
 # Edit .env and replace the example token with your actual token, then:
 source .env
 ```
+**Note**: The `.env.example` file includes export statements and detailed setup instructions.
 
 Or set the environment variable directly:
 ```bash
@@ -111,8 +112,8 @@ slack-butler channels detect --since=7
 # Dry run what channels would be warned/archived (default mode)
 slack-butler channels archive
 
-# Actually warn channels inactive for 30 days, archive after 30 days grace period
-slack-butler channels archive --warn-days=30 --archive-days=30 --commit
+# Actually warn channels inactive for 45 days, archive after 30 days grace period
+slack-butler channels archive --warn-days=45 --archive-days=30 --commit
 
 # Exclude important channels from archival
 slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit

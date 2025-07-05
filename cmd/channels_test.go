@@ -876,7 +876,7 @@ func TestGetInactiveChannelsWithErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 
 		userMap := map[string]string{"U1234567": "testuser"}
-		toWarn, toArchive, err := getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, []string{}, []string{}, false)
+		toWarn, toArchive, _, err := getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, []string{}, []string{}, false)
 
 		assert.NoError(t, err)
 		assert.Len(t, toWarn, 1)
@@ -892,7 +892,7 @@ func TestGetInactiveChannelsWithErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 
 		userMap := map[string]string{}
-		toWarn, toArchive, err := getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, []string{}, []string{}, false)
+		toWarn, toArchive, _, err := getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, []string{}, []string{}, false)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to analyze inactive channels")

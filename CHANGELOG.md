@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.13] - 2025-07-05
+
+### Enhanced
+- **Archive Command UX**: Significantly improved user experience with comprehensive status reporting
+  - Added configuration status display showing warning/archive thresholds and execution mode at startup
+  - Enhanced progress reporting with "[X/Y]" counters for all channel operations
+  - Smart time formatting that displays whole numbers cleanly and sub-day intervals with human-readable durations
+  - Better dry run summaries with clearer indication of planned actions
+- **Default Configuration**: Changed default warn-days from 30 to 45 days for more conservative archival approach
+
+### Improved
+- **Progress Tracking**: All channel operations now show detailed progress indicators (e.g., "[1/15] #channel-name")
+- **Time Display**: Intelligent formatting that shows "45" instead of "45.0000" for whole numbers, with automatic precision for fractional values
+- **Debug Experience**: Enhanced debug logs with channel index and total count context for better troubleshooting
+- **Code Organization**: Improved function signatures to pass configuration values through for better reporting
+
+### Fixed
+- **Status Reporting**: Enhanced archive command status display with proper parameter passing and cleaner output formatting
+- **Test Coverage**: Updated all test files to match enhanced function signatures and improved error handling
+
 ## [1.1.12] - 2025-07-01
 
 ### Enhanced

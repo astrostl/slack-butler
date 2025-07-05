@@ -53,7 +53,7 @@ source .env
 
 # Channel archival management (dry run mode by default)
 ./bin/slack-butler channels archive
-./bin/slack-butler channels archive --warn-days=30 --archive-days=30 --commit
+./bin/slack-butler channels archive --warn-days=45 --archive-days=30 --commit
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --commit
 
 # Random channel highlights (dry run mode by default)
@@ -195,10 +195,10 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.12 - Current stable release
+- **Version**: 1.1.13 - Current stable release
 - **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Added random channel highlight feature, enhanced message formatting, improved time displays
+- **Recent Updates**: Enhanced archive command UX with progress reporting, smart time formatting, and conservative defaults
 - **Branches**: 
   - `main` - Stable release branch
 

@@ -88,7 +88,7 @@ func init() {
 	detectCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce new channels to (e.g., #general). Required when using --commit")
 	detectCmd.Flags().BoolVar(&commit, "commit", false, "Actually post messages (default is dry run mode)")
 
-	archiveCmd.Flags().Float64Var(&warnDays, "warn-days", 30.0, "Number of days of inactivity before warning (supports decimal precision, e.g., 0.0003)")
+	archiveCmd.Flags().Float64Var(&warnDays, "warn-days", 45.0, "Number of days of inactivity before warning (supports decimal precision, e.g., 0.0003)")
 	archiveCmd.Flags().Float64Var(&archiveDays, "archive-days", 30.0, "Number of days after warning (with no new activity) before archiving (supports decimal precision, e.g., 0.0003)")
 	archiveCmd.Flags().BoolVar(&commit, "commit", false, "Actually warn and archive channels (default is dry run mode)")
 	archiveCmd.Flags().StringVar(&excludeChannels, "exclude-channels", "", "Comma-separated list of channel names to exclude (with or without # prefix, e.g., 'general,random,#important')")
@@ -308,11 +308,23 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create Slack client: %w", err)
 	}
 
-	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes)
+	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes, warnDays, archiveDays)
 }
 
-func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string) error {
+func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64) error {
 	isDebug := viper.GetBool("debug")
+
+	// Report configuration in plain English
+	modeText := "live mode"
+	if isDryRun {
+		modeText = "dry run"
+	}
+
+	// Format days nicely - show decimals only when needed
+	warnText := formatDays(warnDays)
+	archiveText := formatDays(archiveDays)
+
+	fmt.Printf("Channel Archive Status: Warning at %s days, archiving at %s days, %s\n\n", warnText, archiveText, modeText)
 
 	if isDebug {
 		logger.WithFields(logger.LogFields{
@@ -335,7 +347,7 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 	displayExclusionInfo(excludeChannelsList, excludePrefixesList)
 
 	// Analyze inactive channels
-	toWarn, toArchive, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
+	toWarn, toArchive, totalChannels, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
 	if err != nil {
 		return err
 	}
@@ -348,12 +360,12 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 
 	// Process warnings
 	if len(toWarn) > 0 {
-		processWarnings(client, toWarn, warnSeconds, archiveSeconds, isDryRun)
+		processWarnings(client, toWarn, warnSeconds, archiveSeconds, isDryRun, totalChannels)
 	}
 
 	// Process archival
 	if len(toArchive) > 0 {
-		processArchival(client, toArchive, warnSeconds, archiveSeconds, isDryRun)
+		processArchival(client, toArchive, warnSeconds, archiveSeconds, isDryRun, totalChannels)
 	}
 
 	if len(toWarn) == 0 && len(toArchive) == 0 {
@@ -434,8 +446,8 @@ func displayExclusionInfo(excludeChannelsList, excludePrefixesList []string) {
 }
 
 // getInactiveChannelsWithErrorHandling analyzes inactive channels with proper error handling.
-func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, archiveSeconds int, userMap map[string]string, excludeChannelsList, excludePrefixesList []string, isDebug bool) ([]slack.Channel, []slack.Channel, error) {
-	toWarn, toArchive, err := client.GetInactiveChannelsWithDetailsAndExclusions(warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
+func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, archiveSeconds int, userMap map[string]string, excludeChannelsList, excludePrefixesList []string, isDebug bool) ([]slack.Channel, []slack.Channel, int, error) {
+	toWarn, toArchive, totalChannels, err := client.GetInactiveChannelsWithDetailsAndExclusions(warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
 	if err != nil {
 		// Check if this is a rate limit error and provide helpful guidance
 		if strings.Contains(err.Error(), "rate_limited") || strings.Contains(err.Error(), "rate limit") {
@@ -444,11 +456,11 @@ func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, arc
 			fmt.Printf("   Please wait a few minutes before running the command again.\n")
 			fmt.Printf("   \n")
 			fmt.Printf("   Tip: Consider running with longer time periods (e.g. --warn-days=30) to reduce API calls.\n")
-			return nil, nil, fmt.Errorf("rate limited by Slack API")
+			return nil, nil, 0, fmt.Errorf("rate limited by Slack API")
 		}
-		return nil, nil, fmt.Errorf("failed to analyze inactive channels: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to analyze inactive channels: %w", err)
 	}
-	return toWarn, toArchive, nil
+	return toWarn, toArchive, totalChannels, nil
 }
 
 // displayChannelDetails shows channel information with last message details.
@@ -494,20 +506,20 @@ func displayChannelDetails(channels []slack.Channel, title string) {
 }
 
 // processWarnings handles warning channels in both dry-run and real modes.
-func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool) {
+func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool, totalChannels int) {
 	displayChannelDetails(toWarn, "Channels to warn about inactivity")
 
 	if isDryRun {
-		processWarningsDryRun(client, toWarn, warnSeconds, archiveSeconds)
+		processWarningsDryRun(client, toWarn, warnSeconds, archiveSeconds, totalChannels)
 	} else {
 		processWarningsReal(client, toWarn, warnSeconds, archiveSeconds)
 	}
 }
 
 // processWarningsDryRun handles the dry-run display for warnings.
-func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int) {
+func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, totalChannels int) {
 	fmt.Printf("--- DRY RUN ---\n")
-	fmt.Printf("Would warn %d channels about upcoming archival\n", len(toWarn))
+	fmt.Printf("Would warn %d/%d channels about upcoming archival\n", len(toWarn), totalChannels)
 	if len(toWarn) > 0 {
 		fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
 		exampleMessage := client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds, "")
@@ -545,12 +557,12 @@ func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSecon
 }
 
 // processArchival handles archiving channels in both dry-run and real modes.
-func processArchival(client *slack.Client, toArchive []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool) {
+func processArchival(client *slack.Client, toArchive []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool, totalChannels int) {
 	displayChannelDetails(toArchive, "Channels to archive (grace period expired)")
 
 	if isDryRun {
 		fmt.Printf("--- DRY RUN ---\n")
-		fmt.Printf("Would archive %d channels\n", len(toArchive))
+		fmt.Printf("Would archive %d/%d channels\n", len(toArchive), totalChannels)
 		if len(toArchive) > 0 {
 			fmt.Printf("Example archival message for #%s:\n", toArchive[0].Name)
 			exampleArchivalMessage := client.FormatChannelArchivalMessage(toArchive[0], warnSeconds, archiveSeconds, "")
@@ -665,4 +677,60 @@ func handleHighlightDryRunWithoutChannel(client *slack.Client, channels []slack.
 		fmt.Printf("\nTo actually post highlights, add --commit to your command\n")
 	}
 	return nil
+}
+
+// formatDays formats a float days value nicely - shows decimals only when needed.
+func formatDays(days float64) string {
+	// Check if it's a whole number >= 1
+	if days == float64(int(days)) && days >= 1.0 {
+		return fmt.Sprintf("%.0f", days)
+	}
+
+	// For very small numbers, use higher precision to avoid rounding to 0
+	var formatted string
+	if days < 0.001 && days > 0 {
+		formatted = strings.TrimRight(fmt.Sprintf("%.6f", days), "0")
+	} else {
+		formatted = strings.TrimRight(fmt.Sprintf("%.4f", days), "0")
+	}
+
+	// Remove trailing period only if it would result in a whole number display
+	formatted = strings.TrimSuffix(formatted, ".")
+
+	// Add human-readable duration for sub-day intervals
+	if days < 1.0 && days > 0 {
+		duration := time.Duration(days * 24 * float64(time.Hour))
+		formatted += fmt.Sprintf(" (%s)", formatDuration(duration))
+	}
+
+	return formatted
+}
+
+// formatDuration formats a duration in a compact, readable format.
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%.0fms", float64(d.Nanoseconds())/1e6)
+	}
+
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	seconds := int(d.Seconds()) % 60
+
+	var parts []string
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if minutes > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", minutes))
+	}
+	if seconds > 0 {
+		parts = append(parts, fmt.Sprintf("%ds", seconds))
+	}
+
+	// If no parts (shouldn't happen with our logic), return "0s"
+	if len(parts) == 0 {
+		return "0s"
+	}
+
+	return strings.Join(parts, "")
 }

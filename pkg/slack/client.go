@@ -739,8 +739,12 @@ func (c *Client) logInactiveChannelsFilteringStats(totalChannels, candidateChann
 
 // analyzeChannelsForBasicInactivity analyzes channels for basic inactivity without detailed reporting.
 func (c *Client) analyzeChannelsForBasicInactivity(candidateChannels []slack.Channel, warnCutoff time.Time, archiveSeconds int) (toWarn []Channel, toArchive []Channel, err error) {
-	for _, ch := range candidateChannels {
-		logger.WithField("channel", ch.Name).Debug("Checking message history for candidate channel")
+	for i, ch := range candidateChannels {
+		logger.WithFields(logger.LogFields{
+			"channel": ch.Name,
+			"index":   i + 1,
+			"total":   len(candidateChannels),
+		}).Debug("Checking message history for candidate channel")
 
 		// Get channel activity with retry for rate limits
 		lastActivity, hasWarning, warningTime, err := c.getChannelActivityWithRetry(ch.ID, ch.Name)
@@ -884,7 +888,7 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 }
 
 // GetInactiveChannelsWithDetailsAndExclusions returns inactive channels with exclusion support.
-func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, archiveSeconds int, userMap map[string]string, excludeChannels, excludePrefixes []string, isDebug bool) (toWarn []Channel, toArchive []Channel, err error) {
+func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, archiveSeconds int, userMap map[string]string, excludeChannels, excludePrefixes []string, isDebug bool) (toWarn []Channel, toArchive []Channel, totalChannels int, err error) {
 	logger.WithFields(logger.LogFields{
 		"warn_seconds":     warnSeconds,
 		"archive_seconds":  archiveSeconds,
@@ -901,7 +905,7 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 		ExcludeArchived: true,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get conversations: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to get conversations: %w", err)
 	}
 
 	// Pre-filter channels to reduce API calls
@@ -911,12 +915,13 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 	// Auto-join channels and analyze activity
 	joinedCount, err := c.autoJoinChannelsForAnalysis(candidateChannels, isDebug)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
+		return nil, nil, 0, fmt.Errorf("failed to auto-join channels - inactive detection requires channel membership: %w", err)
 	}
 	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
 
 	// Analyze each candidate channel for activity
-	return c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug)
+	toWarn, toArchive, err = c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug)
+	return toWarn, toArchive, len(candidateChannels), err
 }
 
 // channelFilterStats holds statistics about channel filtering.
@@ -1016,7 +1021,7 @@ func (c *Client) autoJoinChannelsForAnalysis(candidateChannels []slack.Channel, 
 // analyzeChannelsForInactivity analyzes each candidate channel for activity and categorizes them.
 func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel, userMap map[string]string, warnCutoff time.Time, archiveSeconds int, isDebug bool) (toWarn []Channel, toArchive []Channel, err error) {
 	now := time.Now()
-	for _, ch := range candidateChannels {
+	for i, ch := range candidateChannels {
 		lastActivity, hasWarning, warningTime, lastMessage, err := c.GetChannelActivityWithMessageAndUsers(ch.ID, userMap)
 		if err != nil {
 			if c.handleChannelAnalysisError(err, ch.Name, isDebug) {
@@ -1030,7 +1035,7 @@ func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel,
 		}
 
 		enhancedChannel := c.createEnhancedChannel(ch, lastActivity, lastMessage)
-		c.displayChannelAnalysis(ch, lastActivity, hasWarning, warningTime, lastMessage, now)
+		c.displayChannelAnalysis(ch, lastActivity, hasWarning, warningTime, lastMessage, now, i, len(candidateChannels))
 
 		if hasWarning {
 			if c.shouldArchiveChannel(warningTime, archiveSeconds) {
@@ -1093,9 +1098,9 @@ func (c *Client) createEnhancedChannel(ch slack.Channel, lastActivity time.Time,
 }
 
 // displayChannelAnalysis displays detailed channel analysis information.
-func (c *Client) displayChannelAnalysis(ch slack.Channel, lastActivity time.Time, hasWarning bool, warningTime time.Time, lastMessage *MessageInfo, now time.Time) {
+func (c *Client) displayChannelAnalysis(ch slack.Channel, lastActivity time.Time, hasWarning bool, warningTime time.Time, lastMessage *MessageInfo, now time.Time, currentIndex, totalChannels int) {
 	activityStr := c.formatChannelActivityString(lastActivity, hasWarning, warningTime, now, ch)
-	fmt.Printf("  #%-20s - %s\n", ch.Name, activityStr)
+	fmt.Printf("  [%d/%d] #%-20s - %s\n", currentIndex+1, totalChannels, ch.Name, activityStr)
 
 	if lastMessage != nil {
 		c.displayMessageDetails(lastMessage)

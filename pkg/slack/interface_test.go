@@ -31,6 +31,7 @@ func TestRealSlackAPI(t *testing.T) {
 		assert.NotNil(t, api.ArchiveConversation)
 		assert.NotNil(t, api.JoinConversation)
 		assert.NotNil(t, api.GetUsers)
+		assert.NotNil(t, api.GetTeamInfo)
 	})
 
 	t.Run("RealSlackAPI token handling", func(t *testing.T) {
@@ -100,5 +101,9 @@ func TestRealSlackAPI(t *testing.T) {
 		// Test GetUsers delegation
 		_, err = api.GetUsers()
 		assert.Error(t, err, "GetUsers should fail with invalid token")
+
+		// Test GetTeamInfo delegation
+		_, err = api.GetTeamInfo()
+		assert.Error(t, err, "GetTeamInfo should fail with invalid token")
 	})
 }

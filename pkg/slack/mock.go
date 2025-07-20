@@ -25,6 +25,7 @@ type MockSlackAPI struct {
 	ArchiveConversationError    error
 	JoinConversationError       error
 	GetUsersError               error
+	GetTeamInfoError            error
 
 	// Map fields (8 bytes each on 64-bit) - grouped together
 	ConversationHistory       map[string][]slack.Message
@@ -34,6 +35,7 @@ type MockSlackAPI struct {
 
 	// Pointer fields (8 bytes each on 64-bit) - at end to minimize padding
 	AuthTestResponse *slack.AuthTestResponse
+	TeamInfo         *slack.TeamInfo
 	// Slice fields (24 bytes each on 64-bit)
 	Channels         []slack.Channel
 	PostedMessages   []MockMessage
@@ -54,6 +56,12 @@ func NewMockSlackAPI() *MockSlackAPI {
 			User:   "test-bot",
 			UserID: "U0000000", // Bot's user ID for filtering
 			Team:   "Test Team",
+			TeamID: "T0000000",
+		},
+		TeamInfo: &slack.TeamInfo{
+			ID:     "T0000000",
+			Name:   "Test Team",
+			Domain: "testteam",
 		},
 		Channels:                  []slack.Channel{},
 		ConversationHistory:       make(map[string][]slack.Message),
@@ -170,6 +178,13 @@ func (m *MockSlackAPI) GetUsers() ([]slack.User, error) {
 		return nil, m.GetUsersError
 	}
 	return m.Users, nil
+}
+
+func (m *MockSlackAPI) GetTeamInfo() (*slack.TeamInfo, error) {
+	if m.GetTeamInfoError != nil {
+		return nil, m.GetTeamInfoError
+	}
+	return m.TeamInfo, nil
 }
 
 // Helper methods for testing
@@ -397,6 +412,17 @@ func (m *MockSlackAPI) SetGetUsersError(errorType string) {
 		m.GetUsersError = nil
 	default:
 		m.GetUsersError = fmt.Errorf("%s", errorType)
+	}
+}
+
+func (m *MockSlackAPI) SetGetTeamInfoError(errorType string) {
+	switch errorType {
+	case missingScope:
+		m.GetTeamInfoError = fmt.Errorf("%s", missingScope)
+	case "":
+		m.GetTeamInfoError = nil
+	default:
+		m.GetTeamInfoError = fmt.Errorf("%s", errorType)
 	}
 }
 

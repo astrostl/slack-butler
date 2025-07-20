@@ -13,6 +13,7 @@ type SlackAPI interface {
 	ArchiveConversation(channelID string) error
 	JoinConversation(channelID string) (*slack.Channel, string, []string, error)
 	GetUsers() ([]slack.User, error)
+	GetTeamInfo() (*slack.TeamInfo, error)
 }
 
 // RealSlackAPI wraps the actual Slack API client.
@@ -53,4 +54,8 @@ func (r *RealSlackAPI) JoinConversation(channelID string) (*slack.Channel, strin
 
 func (r *RealSlackAPI) GetUsers() ([]slack.User, error) {
 	return r.client.GetUsers()
+}
+
+func (r *RealSlackAPI) GetTeamInfo() (*slack.TeamInfo, error) {
+	return r.client.GetTeamInfo()
 }

@@ -39,10 +39,11 @@ type Channel struct {
 }
 
 type AuthInfo struct {
-	User   string
-	UserID string
-	Team   string
-	TeamID string
+	User        string
+	UserID      string
+	Team        string
+	TeamID      string
+	WorkspaceURL string
 }
 
 func NewClient(token string) (*Client, error) {
@@ -557,11 +558,21 @@ func (c *Client) TestAuth() (*AuthInfo, error) {
 		return nil, err
 	}
 
+	// Get team info to construct workspace URL
+	teamInfo, err := c.api.GetTeamInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get team info: %w", err)
+	}
+
+	// Construct workspace URL from team domain
+	workspaceURL := fmt.Sprintf("https://%s.slack.com", teamInfo.Domain)
+
 	return &AuthInfo{
-		User:   auth.User,
-		UserID: auth.UserID,
-		Team:   auth.Team,
-		TeamID: auth.TeamID,
+		User:         auth.User,
+		UserID:       auth.UserID,
+		Team:         auth.Team,
+		TeamID:       auth.TeamID,
+		WorkspaceURL: workspaceURL,
 	}, nil
 }
 

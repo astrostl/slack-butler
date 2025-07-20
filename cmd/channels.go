@@ -78,6 +78,16 @@ var (
 	count           int
 )
 
+// displayWorkspaceInfo gets and displays workspace information.
+func displayWorkspaceInfo(client *slack.Client) error {
+	authInfo, err := client.TestAuth()
+	if err != nil {
+		return fmt.Errorf("failed to get workspace info: %w", err)
+	}
+	fmt.Printf("Workspace: %s (%s)\n\n", authInfo.Team, authInfo.WorkspaceURL)
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(channelsCmd)
 	channelsCmd.AddCommand(detectCmd)
@@ -155,12 +165,18 @@ func extractChannelNames(channels []slack.Channel) []string {
 }
 
 func runDetectWithClient(client *slack.Client, cutoffTime time.Time, announceChannel string, isDryRun bool) error {
+	// Get and display workspace info
+	if err := displayWorkspaceInfo(client); err != nil {
+		return err
+	}
+
 	newChannels, allChannels, err := client.GetNewChannelsWithAllChannels(cutoffTime)
 	if err != nil {
 		return fmt.Errorf("failed to get new channels: %w", err)
 	}
 
 	if len(newChannels) == 0 {
+		fmt.Printf("No new channels found in the last %s.\n", formatTimeRange(cutoffTime))
 		return nil
 	}
 
@@ -312,6 +328,11 @@ func runArchive(cmd *cobra.Command, args []string) error {
 }
 
 func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64) error {
+	// Get and display workspace info
+	if err := displayWorkspaceInfo(client); err != nil {
+		return err
+	}
+
 	isDebug := viper.GetBool("debug")
 
 	// Report configuration in plain English
@@ -621,6 +642,11 @@ func runHighlight(cmd *cobra.Command, args []string) error {
 }
 
 func runHighlightWithClient(client *slack.Client, highlightCount int, announceChannel string, isDryRun bool) error {
+	// Get and display workspace info
+	if err := displayWorkspaceInfo(client); err != nil {
+		return err
+	}
+
 	randomChannels, err := client.GetRandomChannels(highlightCount)
 	if err != nil {
 		return fmt.Errorf("failed to get random channels: %w", err)
@@ -733,4 +759,41 @@ func formatDuration(d time.Duration) string {
 	}
 
 	return strings.Join(parts, "")
+}
+
+// formatTimeRange formats a cutoff time into a human-readable time range description.
+func formatTimeRange(cutoffTime time.Time) string {
+	duration := time.Since(cutoffTime)
+	
+	days := duration.Hours() / 24
+	if days >= 1 {
+		dayCount := int(days + 0.5) // Round to nearest day
+		if dayCount == 1 {
+			return "day"
+		}
+		return fmt.Sprintf("%d days", dayCount)
+	}
+	
+	// Less than a day - show hours
+	hours := duration.Hours()
+	if hours >= 1 {
+		hourCount := int(hours + 0.5) // Round to nearest hour
+		if hourCount == 1 {
+			return "hour"
+		}
+		return fmt.Sprintf("%d hours", hourCount)
+	}
+	
+	// Less than an hour - show minutes
+	minutes := duration.Minutes()
+	if minutes >= 1 {
+		minuteCount := int(minutes)
+		if minuteCount == 1 {
+			return "minute"
+		}
+		return fmt.Sprintf("%d minutes", minuteCount)
+	}
+	
+	// Less than a minute
+	return "minute"
 }

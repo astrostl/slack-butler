@@ -132,6 +132,7 @@ func testAPIConnectivity(client *slack.Client) (*slack.AuthInfo, error) {
 	if healthVerbose {
 		fmt.Printf("  Connected as: %s (team: %s)\n", authInfo.User, authInfo.Team)
 		fmt.Printf("  User ID: %s, Team ID: %s\n", authInfo.UserID, authInfo.TeamID)
+		fmt.Printf("  Workspace URL: %s\n", authInfo.WorkspaceURL)
 	}
 	return authInfo, nil
 }
@@ -279,6 +280,7 @@ func displaySuccessSummary(authInfo *slack.AuthInfo) {
 	fmt.Println()
 	fmt.Println("🎉 Health check completed successfully!")
 	fmt.Printf("   Connected as: %s (team: %s)\n", authInfo.User, authInfo.Team)
+	fmt.Printf("   Workspace URL: %s\n", authInfo.WorkspaceURL)
 	fmt.Println("   All systems operational")
 }
 

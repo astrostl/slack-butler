@@ -798,7 +798,8 @@ func TestTestAuth(t *testing.T) {
 				assert.Equal(t, "test-bot", auth.User)
 				assert.Equal(t, "U0000000", auth.UserID)
 				assert.Equal(t, "Test Team", auth.Team)
-				assert.Equal(t, "", auth.TeamID) // Default mock doesn't set TeamID
+				assert.Equal(t, "T0000000", auth.TeamID)
+				assert.Equal(t, "https://testteam.slack.com", auth.WorkspaceURL)
 			},
 		},
 		{

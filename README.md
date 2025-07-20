@@ -50,6 +50,7 @@ go build -o slack-butler
 1. Go to [Slack API](https://api.slack.com/apps)
 2. Create a new app for your workspace
 3. Add the following OAuth scopes:
+   - `team:read` - To get team information (required for health checks)
    - `channels:read` - To list public channels
    - `channels:join` - To join public channels for message checks and announcements
    - `channels:manage` - To archive channels

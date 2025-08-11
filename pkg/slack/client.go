@@ -39,10 +39,10 @@ type Channel struct {
 }
 
 type AuthInfo struct {
-	User        string
-	UserID      string
-	Team        string
-	TeamID      string
+	User         string
+	UserID       string
+	Team         string
+	TeamID       string
 	WorkspaceURL string
 }
 
@@ -1013,15 +1013,38 @@ func (c *Client) logChannelFilteringStats(totalChannels, candidateChannels int, 
 
 // autoJoinChannelsForAnalysis auto-joins public channels before analysis.
 func (c *Client) autoJoinChannelsForAnalysis(candidateChannels []slack.Channel, isDebug bool) (int, error) {
+	// Count how many channels need joining vs already member
+	needsJoining := 0
+	alreadyMember := 0
+	for _, ch := range candidateChannels {
+		if !ch.IsPrivate {
+			if ch.IsMember {
+				alreadyMember++
+			} else {
+				needsJoining++
+			}
+		}
+	}
+
 	if len(candidateChannels) > 0 {
-		fmt.Printf("🤖 Joining %d public channels for analysis...\n", len(candidateChannels))
+		if needsJoining > 0 {
+			fmt.Printf("🤖 Joining %d channels (already member of %d)...\n", needsJoining, alreadyMember)
+		} else {
+			fmt.Printf("🤖 Already member of all %d channels, no joining needed\n", alreadyMember)
+		}
 		if isDebug {
 			fmt.Printf("📞 API Calls 3+: Auto-joining public channels for accurate analysis...\n")
 		}
 	}
 	joinedCount, err := c.autoJoinPublicChannels(candidateChannels)
 	if len(candidateChannels) > 0 {
-		fmt.Printf("✅ Joined %d channels successfully\n\n", joinedCount)
+		if joinedCount > 0 {
+			fmt.Printf("✅ Successfully joined %d channels\n\n", joinedCount)
+		} else if needsJoining == 0 {
+			fmt.Printf("✅ No channel joining required\n\n")
+		} else {
+			fmt.Printf("✅ Channel joining completed\n\n")
+		}
 		if isDebug {
 			fmt.Printf("✅ Auto-joined %d channels\n\n", joinedCount)
 		}
@@ -1556,11 +1579,19 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 	joinedCount := 0
 	var fatalErrors []string
 	var skippedCount = 0
+	var alreadyMemberCount = 0
 
 	for _, ch := range channels {
 		if ch.IsPrivate {
 			logger.WithField("channel", ch.Name).Debug("Skipping private channel for auto-join")
 			skippedCount++
+			continue
+		}
+
+		// Skip channels we're already a member of
+		if ch.IsMember {
+			logger.WithField("channel", ch.Name).Debug("Already a member of channel")
+			alreadyMemberCount++
 			continue
 		}
 
@@ -1577,7 +1608,7 @@ func (c *Client) autoJoinPublicChannels(channels []slack.Channel) (int, error) {
 		}
 	}
 
-	c.logAutoJoinSummary(joinedCount, skippedCount, len(channels))
+	c.logAutoJoinSummary(joinedCount, skippedCount, alreadyMemberCount, len(channels))
 
 	if len(fatalErrors) > 0 {
 		return joinedCount, fmt.Errorf("failed to join %d channels, cannot proceed with accurate analysis: %v", len(fatalErrors), fatalErrors)
@@ -1667,11 +1698,12 @@ func (c *Client) createFatalJoinError(errStr string, originalErr error) error {
 }
 
 // logAutoJoinSummary logs the summary of auto-join operation.
-func (c *Client) logAutoJoinSummary(joined, skipped, total int) {
+func (c *Client) logAutoJoinSummary(joined, skipped, alreadyMember, total int) {
 	logger.WithFields(logger.LogFields{
-		"joined":  joined,
-		"skipped": skipped,
-		"total":   total,
+		"joined":         joined,
+		"skipped":        skipped,
+		"already_member": alreadyMember,
+		"total":          total,
 	}).Debug("Auto-join summary")
 }
 

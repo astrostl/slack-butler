@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-08-11
+
+### Enhanced
+- **Channel Joining Efficiency**: Major performance improvement to auto-join functionality for inactive channel detection
+  - Leverages `IsMember` field from Slack API to skip channels bot is already a member of
+  - Reduces API calls dramatically (from 149 join attempts to typically 0-10 actual joins needed)
+  - Prevents unnecessary rate limiting during channel analysis operations
+  
+### Improved  
+- **User Experience**: Enhanced auto-join reporting with clearer status messages
+  - Shows exactly how many channels need joining vs already member of (e.g., "Joining 5 channels (already member of 144)")
+  - Displays "Already member of all X channels, no joining needed" when no joins are required
+  - Provides "No channel joining required" confirmation when appropriate
+  - Better progress feedback reduces user confusion about join operations
+
+### Fixed
+- **API Efficiency**: Eliminated redundant join attempts that were causing rate limit issues
+- **Status Reporting**: Fixed confusing messages that showed "Joined 0 channels successfully" for large workspaces
+
 ## [1.1.13] - 2025-07-05
 
 ### Enhanced

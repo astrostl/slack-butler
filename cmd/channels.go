@@ -764,7 +764,7 @@ func formatDuration(d time.Duration) string {
 // formatTimeRange formats a cutoff time into a human-readable time range description.
 func formatTimeRange(cutoffTime time.Time) string {
 	duration := time.Since(cutoffTime)
-	
+
 	days := duration.Hours() / 24
 	if days >= 1 {
 		dayCount := int(days + 0.5) // Round to nearest day
@@ -773,7 +773,7 @@ func formatTimeRange(cutoffTime time.Time) string {
 		}
 		return fmt.Sprintf("%d days", dayCount)
 	}
-	
+
 	// Less than a day - show hours
 	hours := duration.Hours()
 	if hours >= 1 {
@@ -783,7 +783,7 @@ func formatTimeRange(cutoffTime time.Time) string {
 		}
 		return fmt.Sprintf("%d hours", hourCount)
 	}
-	
+
 	// Less than an hour - show minutes
 	minutes := duration.Minutes()
 	if minutes >= 1 {
@@ -793,7 +793,7 @@ func formatTimeRange(cutoffTime time.Time) string {
 		}
 		return fmt.Sprintf("%d minutes", minuteCount)
 	}
-	
+
 	// Less than a minute
 	return "minute"
 }

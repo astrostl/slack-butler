@@ -195,10 +195,10 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.1.13 - Current stable release
+- **Version**: 1.2.0 - Current stable release
 - **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Enhanced archive command UX with progress reporting, smart time formatting, and conservative defaults
+- **Recent Updates**: Major performance improvements to channel joining efficiency, eliminating unnecessary API calls and rate limiting issues
 - **Branches**: 
   - `main` - Stable release branch
 

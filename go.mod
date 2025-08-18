@@ -5,7 +5,7 @@ go 1.24.4
 require (
 	github.com/fzipp/gocyclo v0.6.0
 	github.com/golangci/golangci-lint v1.64.8
-	github.com/securego/gosec/v2 v2.22.7
+	github.com/securego/gosec/v2 v2.22.8
 	github.com/sirupsen/logrus v1.9.3
 	github.com/slack-go/slack v0.17.3
 	github.com/spf13/cobra v1.9.1

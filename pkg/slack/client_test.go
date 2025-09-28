@@ -2642,6 +2642,64 @@ func TestIsRealMessage(t *testing.T) {
 		}
 		assert.True(t, isRealMessage(msg, botUserID), "Message with special characters should be considered real")
 	})
+
+	t.Run("File uploads with empty or minimal text", func(t *testing.T) {
+		// File upload with empty text - should be considered real activity
+		msgWithFileEmptyText := slack.Message{
+			Msg: slack.Msg{
+				Text:    "",
+				User:    "U1234567",
+				SubType: "",
+				Files: []slack.File{
+					{
+						ID:       "F1234567890",
+						Name:     "meme.jpg",
+						Mimetype: "image/jpeg",
+					},
+				},
+			},
+		}
+		assert.True(t, isRealMessage(msgWithFileEmptyText, botUserID), "File upload with empty text should be considered real")
+
+		// File upload with minimal text - should be considered real activity
+		msgWithFileMinimalText := slack.Message{
+			Msg: slack.Msg{
+				Text:    " ",
+				User:    "U1234567",
+				SubType: "",
+				Files: []slack.File{
+					{
+						ID:       "F1234567890",
+						Name:     "screenshot.png",
+						Mimetype: "image/png",
+					},
+				},
+			},
+		}
+		assert.True(t, isRealMessage(msgWithFileMinimalText, botUserID), "File upload with minimal text should be considered real")
+
+		// Multiple files with empty text - should be considered real activity
+		msgWithMultipleFiles := slack.Message{
+			Msg: slack.Msg{
+				Text:    "",
+				User:    "U1234567",
+				SubType: "",
+				Files: []slack.File{
+					{
+						ID:       "F1234567890",
+						Name:     "image1.jpg",
+						Mimetype: "image/jpeg",
+					},
+					{
+						ID:       "F1234567891",
+						Name:     "image2.png",
+						Mimetype: "image/png",
+					},
+				},
+			},
+		}
+		assert.True(t, isRealMessage(msgWithMultipleFiles, botUserID), "Message with multiple files should be considered real")
+	})
 }
 
 // TestParseSlackTimestamp tests edge cases in timestamp parsing.

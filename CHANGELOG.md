@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2025-09-27
+
+### Fixed
+- **File Upload Detection**: Fixed critical bug where file-only messages (images, documents) were not counted as channel activity
+  - Channels with recent file uploads (like memes, screenshots) are now properly recognized as active
+  - Prevents incorrect "inactive channel" warnings when users share files without accompanying text
+  - Enhanced `isRealMessage` function to check for file attachments (`msg.Files`) in addition to text content
+  - Added comprehensive test coverage for file uploads with empty text, minimal text, and multiple files
+
+### Improved
+- **Test Coverage**: Added extensive test cases for file upload scenarios to prevent regressions
+- **Activity Detection**: More accurate channel activity analysis that considers all forms of user engagement
+
 ## [1.2.0] - 2025-08-11
 
 ### Enhanced

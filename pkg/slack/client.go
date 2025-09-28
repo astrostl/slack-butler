@@ -2374,8 +2374,8 @@ func isRealMessage(msg slack.Message, botUserID string) bool {
 		}
 	}
 
-	// Filter out empty messages
-	if strings.TrimSpace(text) == "" {
+	// Filter out empty messages (unless they have file attachments)
+	if strings.TrimSpace(text) == "" && len(msg.Files) == 0 {
 		return false
 	}
 

@@ -463,6 +463,38 @@ docker run --platform linux/arm64 astrostl/slack-butler:latest --version
 - Wait 5-10 minutes for the proxy cache to refresh
 - Force refresh: `GOPROXY=direct go install github.com/astrostl/slack-butler@v1.X.X`
 
+### Issue: Need to Inspect Docker Image Contents
+
+**Purpose:** Verify the Docker image contains only the expected files (binary + CA certificates).
+
+**Methods to inspect the image:**
+
+1. **View Docker history (recommended):**
+   ```bash
+   docker history astrostl/slack-butler:v1.X.X --no-trunc --format "{{.CreatedBy}}"
+   ```
+   Shows what was copied into the image.
+
+2. **Inspect image configuration:**
+   ```bash
+   docker inspect astrostl/slack-butler:v1.X.X --format='{{json .Config}}' | jq
+   ```
+   Shows entrypoint, command, and other config details.
+
+3. **Review the Dockerfile:**
+   The Dockerfile explicitly shows what's included:
+   - `/slack-butler` - The compiled binary
+   - `/etc/ssl/certs/ca-certificates.crt` - CA certificates for HTTPS
+
+**Expected Contents:**
+```
+/ (root)
+├── slack-butler                           # Main executable
+└── etc/ssl/certs/ca-certificates.crt     # CA certs for Slack API
+```
+
+**Note:** The image is based on `scratch` (empty base), so it has NO shell, NO OS utilities, and NO package manager. This is intentional for security and minimal size (~3 MB total).
+
 ---
 
 ## Post-Release Verification

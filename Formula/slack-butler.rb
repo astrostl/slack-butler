@@ -1,15 +1,15 @@
 class SlackButler < Formula
   desc "CLI tool to help Slack workspaces be more useful and tidy"
   homepage "https://github.com/astrostl/slack-butler"
-  version "1.2.1"
+  version "1.3.1"
   license "MIT"
 
   if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/astrostl/slack-butler/releases/download/v1.2.1/slack-butler-v1.2.1-darwin-arm64.tar.gz"
-    sha256 "1f0f0adaa0c297d1abff7393eea7fd4aea89603da576640c2e570c2a1e622954"
+    url "https://github.com/astrostl/slack-butler/releases/download/v1.3.1/slack-butler-v1.3.1-darwin-arm64.tar.gz"
+    sha256 "0cd17ff18e2e7e0182e89020118ff3e8cdbf8e1be7dada54a251b8d819df2174"
   elsif OS.mac? && Hardware::CPU.intel?
-    url "https://github.com/astrostl/slack-butler/releases/download/v1.2.1/slack-butler-v1.2.1-darwin-amd64.tar.gz"
-    sha256 "57653ab2d816f5fd612fe23df10ddddafa81d7f38be1662be345b94f9cd14100"
+    url "https://github.com/astrostl/slack-butler/releases/download/v1.3.1/slack-butler-v1.3.1-darwin-amd64.tar.gz"
+    sha256 "139bb3754334b7398b7e024d49ee05c0264deabb8fc5d760adc1d9d21e38ecd0"
   else
     odie "slack-butler is only supported on macOS via Homebrew. Use 'go install' or build from source for other platforms."
   end

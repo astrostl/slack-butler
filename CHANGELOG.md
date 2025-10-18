@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - TBD
+
+### Added
+- **Homebrew Distribution**: Full Homebrew tap support for macOS installation
+  - Self-hosted Homebrew formula in `Formula/slack-butler.rb`
+  - Install via: `brew install astrostl/slack-butler/slack-butler`
+  - Multi-architecture support (Apple Silicon ARM64 + Intel AMD64)
+  - SHA256 checksum verification for secure downloads
+  - Automated formula updates via Makefile targets
+
+### Enhanced
+- **Build System**: New Makefile targets for Homebrew release workflow
+  - `build-macos-binaries` - Build darwin-amd64 and darwin-arm64 binaries
+  - `package-macos-binaries` - Create .tar.gz archives for distribution
+  - `generate-macos-checksums` - Generate SHA256 checksums for packages
+  - `update-homebrew-formula` - Update formula with version and checksums
+- **Release Process**: Comprehensive RELEASE.md with step-by-step release checklist
+  - Quality gate enforcement (all checks must pass before release)
+  - Version verification to prevent dirty builds
+  - Checksum validation workflow
+  - Homebrew installation testing procedures
+
+### Improved
+- **Distribution Options**: Users can now install via Homebrew, go install, or build from source
+- **Release Documentation**: Detailed release process documentation adapted from pentameter project
+- **Installation Experience**: Simplified macOS installation with Homebrew package manager
+
 ## [1.2.1] - 2025-09-27
 
 ### Fixed

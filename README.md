@@ -24,8 +24,15 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 ## Installation
 
 ### Prerequisites
-- Go 1.23+ (tested with Go 1.24+)
 - Slack Bot Token with appropriate permissions
+- For building from source: Go 1.23+ (tested with Go 1.24+)
+
+### Install via Homebrew (macOS)
+```bash
+brew install astrostl/slack-butler/slack-butler
+```
+
+This is the recommended installation method for macOS users. The formula supports both Apple Silicon (ARM64) and Intel (AMD64) architectures.
 
 ### Install via Go
 ```bash

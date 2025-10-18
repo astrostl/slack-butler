@@ -15,6 +15,7 @@ GO_VERSION=1.24.4
 BUILD_DIR=./build
 COVERAGE_DIR=$(BUILD_DIR)/coverage
 REPORTS_DIR=$(BUILD_DIR)/reports
+DIST_DIR=./dist
 
 # Build info
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
@@ -59,7 +60,7 @@ coverage:
 .PHONY: clean
 clean:
 	@echo "Cleaning up..."
-	rm -rf bin/ $(BUILD_DIR)/
+	rm -rf bin/ $(BUILD_DIR)/ $(DIST_DIR)/
 	rm -f $(BINARY_NAME)
 	@echo "Cleaned up build artifacts and coverage files"
 
@@ -77,6 +78,59 @@ install-tools:
 	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck"
 	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
 	@echo "✅ All development tools installed successfully!"
+
+# =============================================================================
+# Homebrew Release Targets
+# =============================================================================
+
+# Build macOS binaries for Homebrew distribution
+.PHONY: build-macos-binaries
+build-macos-binaries:
+	@echo "🍺 Building macOS binaries for Homebrew..."
+	@mkdir -p $(DIST_DIR)
+	@echo "Building darwin-amd64..."
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 .
+	@echo "Building darwin-arm64..."
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 .
+	@echo "✓ macOS binaries built successfully"
+
+# Package macOS binaries into tar.gz archives
+.PHONY: package-macos-binaries
+package-macos-binaries: build-macos-binaries
+	@echo "📦 Packaging macOS binaries..."
+	@cd $(DIST_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz $(BINARY_NAME)-darwin-amd64
+	@cd $(DIST_DIR) && tar -czf $(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz $(BINARY_NAME)-darwin-arm64
+	@echo "✓ macOS packages created:"
+	@echo "  $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz"
+	@echo "  $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz"
+
+# Generate SHA256 checksums for macOS packages
+.PHONY: generate-macos-checksums
+generate-macos-checksums: package-macos-binaries
+	@echo "🔐 Generating SHA256 checksums..."
+	@cd $(DIST_DIR) && shasum -a 256 $(BINARY_NAME)-$(VERSION)-darwin-*.tar.gz > checksums.txt
+	@echo "✓ Checksums generated in $(DIST_DIR)/checksums.txt"
+	@cat $(DIST_DIR)/checksums.txt
+
+# Update Homebrew formula with new version and checksums
+.PHONY: update-homebrew-formula
+update-homebrew-formula: generate-macos-checksums
+	@echo "🍺 Updating Homebrew formula..."
+	@if [ ! -f "Formula/$(BINARY_NAME).rb" ]; then \
+		echo "❌ Formula/$(BINARY_NAME).rb not found in current repository"; \
+		exit 1; \
+	fi
+	@AMD64_SHA=$$(cd $(DIST_DIR) && shasum -a 256 $(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz | cut -d' ' -f1); \
+	ARM64_SHA=$$(cd $(DIST_DIR) && shasum -a 256 $(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz | cut -d' ' -f1); \
+	CLEAN_VERSION=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	sed -i '' "s/version \".*\"/version \"$$CLEAN_VERSION\"/" Formula/$(BINARY_NAME).rb; \
+	sed -i '' "s|download/v.*/$(BINARY_NAME)-v.*-darwin-amd64.tar.gz|download/$(VERSION)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.tar.gz|" Formula/$(BINARY_NAME).rb; \
+	sed -i '' "s|download/v.*/$(BINARY_NAME)-v.*-darwin-arm64.tar.gz|download/$(VERSION)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.tar.gz|" Formula/$(BINARY_NAME).rb; \
+	sed -i '' "s/PLACEHOLDER_AMD64_SHA256/$$AMD64_SHA/g" Formula/$(BINARY_NAME).rb; \
+	sed -i '' "s/PLACEHOLDER_ARM64_SHA256/$$ARM64_SHA/g" Formula/$(BINARY_NAME).rb
+	@echo "✓ Homebrew formula updated with $(VERSION)"
+	@echo "✓ SHA256 checksums updated"
+	@echo "Formula ready for commit and release"
 
 # =============================================================================
 # Helper Functions (Internal Use)
@@ -292,6 +346,12 @@ help:
 	@echo "  deps             - Install and tidy dependencies"
 	@echo "  install-tools    - Install dev tools (golangci-lint, gocyclo, gosec, govulncheck)"
 	@echo "  release          - Build release binary (clean + build)"
+	@echo ""
+	@echo "🍺 Homebrew release targets:"
+	@echo "  build-macos-binaries     - Build macOS binaries (amd64 + arm64)"
+	@echo "  package-macos-binaries   - Package macOS binaries into tar.gz archives"
+	@echo "  generate-macos-checksums - Generate SHA256 checksums for macOS packages"
+	@echo "  update-homebrew-formula  - Update Homebrew formula with new version/checksums"
 	@echo ""
 	@echo "🔒 Security & Dependencies:"
 	@echo "  security         - Complete security analysis (gosec + vuln-check + mod-verify)"

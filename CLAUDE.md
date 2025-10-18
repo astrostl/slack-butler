@@ -171,14 +171,30 @@ make vuln-check      # Check for known vulnerabilities
 make mod-verify      # Verify module integrity
 ```
 
-### Version Management
+### Homebrew Release Targets
 ```bash
-# Version management (git tags only - no GitHub releases)
-git tag v1.x.x       # Create version tag for reference
-git push origin main --tags  # Push tags to remote
+# Build macOS binaries for Homebrew (amd64 + arm64)
+make build-macos-binaries
+
+# Package macOS binaries into tar.gz archives
+make package-macos-binaries
+
+# Generate SHA256 checksums for macOS packages
+make generate-macos-checksums
+
+# Update Homebrew formula with version and checksums
+# WARNING: Only use during development - NOT during actual releases
+make update-homebrew-formula
 ```
 
-**Note**: This project uses git tags for version tracking but does NOT use GitHub releases.
+### Version Management & Releases
+
+For complete release instructions, see **[RELEASE.md](RELEASE.md)**.
+
+Quick summary:
+- **Go Module Release**: `git tag v1.x.x && git push origin main --tags`
+- **Homebrew Release**: Follow detailed steps in RELEASE.md (requires GitHub release + formula update)
+- **Quality Gates**: MUST pass `make clean && make deps && make quality && make test && make coverage && make build` before ANY release
 
 ### Help and Documentation
 ```bash
@@ -196,10 +212,13 @@ slack-butler channels detect --help
 
 ## Git Repository
 - **Version**: 1.2.1 - Current stable release
-- **Status**: ✅ **STABLE** - GoReleaser configuration removed, using git tags only
+- **Status**: ✅ **STABLE** - Homebrew tap + go install distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
-- **Recent Updates**: Major performance improvements to channel joining efficiency, eliminating unnecessary API calls and rate limiting issues
-- **Branches**: 
+- **Distribution**:
+  - Homebrew: `brew install astrostl/slack-butler/slack-butler` (macOS)
+  - Go Install: `go install github.com/astrostl/slack-butler@latest` (cross-platform)
+  - Build from source: See README.md
+- **Branches**:
   - `main` - Stable release branch
 
 ## Testing Results
@@ -289,60 +308,19 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
 ```
 
 ### Release Process
-**IMPORTANT**: Always maintain documentation with every release (stable or beta):
 
-1. **CHANGELOG.md** - Update with new version, features, and changes
-   - Follow semantic versioning (MAJOR.MINOR.PATCH)
-   - Use `-beta`, `-alpha` suffixes for pre-releases
-   - Document all breaking changes, new features, and bug fixes
+**See [RELEASE.md](RELEASE.md) for complete release instructions.**
 
-2. **README.md** - Keep synchronized with current features
-   - Update usage examples if commands change
-   - Add new features to feature list
-   - Update installation instructions if needed
-   - Ensure roadmap reflects current plans
-
-3. **CLAUDE.md** - Update development notes
-   - Record version changes and release status
-   - Update project structure if modified
-   - Add new development commands or processes
-
-### Version Strategy
-- **Beta releases**: `1.x.x-beta` for feature-complete testing
-- **Stable releases**: `1.x.x` for production-ready versions
-- **Major versions**: Breaking changes or significant feature additions
-
-### Release Quality Gates
-**CRITICAL**: NEVER push releases to GitHub without passing ALL quality checks:
-
-**MANDATORY Pre-Release Requirements:**
-1. **Complete Test Suite**: Run `make test` - ALL tests must pass with 100% success rate
-2. **Quality Checks**: Run `make quality` - ALL linting, security, and complexity checks must pass
-3. **Coverage Validation**: Run `make coverage` - Ensure test coverage remains comprehensive
-4. **Build Verification**: Run `make build` - Binary must compile successfully
-5. **Race Condition Testing**: All tests must pass with race detection enabled
-
-**ABSOLUTE PROHIBITIONS:**
-- ❌ **NEVER** push releases with failing tests
-- ❌ **NEVER** push releases with linting errors
-- ❌ **NEVER** push releases with security issues (gosec failures)
-- ❌ **NEVER** push releases with build failures
-- ❌ **NEVER** skip quality checks "just this once"
-
-**Version Tagging Sequence (MANDATORY):**
-```bash
-# Required sequence before ANY version tag
-make clean && make deps && make quality && make test && make coverage && make build
-
-# Only proceed to tag if ALL commands succeed
-git tag v1.x.x && git push origin main --tags
-```
-
-**Distribution Policy**: This project does NOT use GitHub releases. Users should:
-- Install via `go install github.com/astrostl/slack-butler@latest`
-- Build from source using git tags: `git checkout v1.x.x && go build`
-
-**Rationale**: Quality is non-negotiable. Users depend on stable, secure code. Every version tag represents the project's commitment to excellence.
+Quick guidelines:
+- **Documentation First**: Always update CHANGELOG.md, README.md, and CLAUDE.md before tagging
+- **Quality Gates**: MANDATORY - all quality checks must pass before any release
+- **Version Strategy**:
+  - Beta releases: `1.x.x-beta`
+  - Stable releases: `1.x.x`
+  - Major versions for breaking changes
+- **Distribution**:
+  - Go module releases: git tag only
+  - Homebrew releases: git tag + GitHub release + formula update
 
 #### Testing Excellence
 **MANDATORY**: Maintain comprehensive testing without artificial shortcuts.

@@ -65,6 +65,24 @@ source .env
 ### Installed Usage
 Replace `./bin/slack-butler` with `slack-butler` when using the installed version.
 
+### Docker Usage
+```bash
+# Pull the latest image
+docker pull astrostl/slack-butler:latest
+
+# Health check
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest health --verbose
+
+# Detect new channels
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7
+
+# Archive inactive channels (dry run)
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels archive --warn-days=45
+
+# With commit flag to actually perform actions
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7 --announce-to=#general --commit
+```
+
 ## Required Slack Permissions
 - `channels:read` - To list public channels (**required**)
 - `channels:history` - To read channel messages for activity detection (**required**)
@@ -88,6 +106,8 @@ slack-butler/
 ├── build/              # Build artifacts (coverage, reports)
 ├── .env                # Token storage (git-ignored)
 ├── .env.example        # Configuration template
+├── Dockerfile          # Multi-stage Docker build
+├── .dockerignore       # Docker build context exclusions
 ├── Makefile            # Build automation
 └── go.mod              # Dependencies
 ```
@@ -187,14 +207,30 @@ make generate-macos-checksums
 make update-homebrew-formula
 ```
 
+### Docker Release Targets
+```bash
+# Build Docker image locally
+make docker-build
+
+# Tag Docker image for release
+make docker-tag
+
+# Build and push multi-platform images (linux/amd64, linux/arm64)
+make docker-push
+
+# Push single-platform images (for testing only)
+make docker-push-single
+
+# Create multi-platform manifests using manifest-tool
+make docker-manifest
+
+# Complete Docker release workflow (build + push)
+make docker-release
+```
+
 ### Version Management & Releases
 
 For complete release instructions, see **[RELEASE.md](RELEASE.md)**.
-
-Quick summary:
-- **Go Module Release**: `git tag v1.x.x && git push origin main --tags`
-- **Homebrew Release**: Follow detailed steps in RELEASE.md (requires GitHub release + formula update)
-- **Quality Gates**: MUST pass `make clean && make deps && make quality && make test && make coverage && make build` before ANY release
 
 ### Help and Documentation
 ```bash
@@ -212,10 +248,11 @@ slack-butler channels detect --help
 
 ## Git Repository
 - **Version**: 1.2.1 - Current stable release
-- **Status**: ✅ **STABLE** - Homebrew tap + go install distribution
+- **Status**: ✅ **STABLE** - Homebrew tap + go install + Docker distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Distribution**:
   - Homebrew: `brew install astrostl/slack-butler/slack-butler` (macOS)
+  - Docker: `docker pull astrostl/slack-butler:latest` (all platforms, multi-arch)
   - Go Install: `go install github.com/astrostl/slack-butler@latest` (cross-platform)
   - Build from source: See README.md
 - **Branches**:
@@ -309,18 +346,7 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
 
 ### Release Process
 
-**See [RELEASE.md](RELEASE.md) for complete release instructions.**
-
-Quick guidelines:
-- **Documentation First**: Always update CHANGELOG.md, README.md, and CLAUDE.md before tagging
-- **Quality Gates**: MANDATORY - all quality checks must pass before any release
-- **Version Strategy**:
-  - Beta releases: `1.x.x-beta`
-  - Stable releases: `1.x.x`
-  - Major versions for breaking changes
-- **Distribution**:
-  - Go module releases: git tag only
-  - Homebrew releases: git tag + GitHub release + formula update
+**All release instructions are documented in [RELEASE.md](RELEASE.md).**
 
 #### Testing Excellence
 **MANDATORY**: Maintain comprehensive testing without artificial shortcuts.

@@ -11,6 +11,11 @@ BINARY_NAME=slack-butler
 BINARY_PATH=./bin/$(BINARY_NAME)
 GO_VERSION=1.24.4
 
+# Docker variables
+DOCKER_CMD ?= $(shell command -v nerdctl >/dev/null 2>&1 && echo nerdctl || echo docker)
+DOCKER_IMAGE=astrostl/$(BINARY_NAME)
+DOCKER_TAG=latest
+
 # Build directories
 BUILD_DIR=./build
 COVERAGE_DIR=$(BUILD_DIR)/coverage
@@ -78,6 +83,72 @@ install-tools:
 	@echo "Tools: golangci-lint, gocyclo, gosec, govulncheck"
 	@go list -f '{{range .Imports}}{{.}} {{end}}' ./tools.go | xargs go install
 	@echo "✅ All development tools installed successfully!"
+
+# =============================================================================
+# Docker Targets
+# =============================================================================
+
+# Build Docker image
+.PHONY: docker-build
+docker-build:
+	@echo "🐳 Building Docker image..."
+	$(DOCKER_CMD) build --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE):$(VERSION) -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@echo "✓ Docker image built: $(DOCKER_IMAGE):$(VERSION)"
+	@echo "✓ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)"
+
+# Tag Docker image for release
+.PHONY: docker-tag
+docker-tag:
+	@echo "🏷️  Tagging Docker image..."
+	$(DOCKER_CMD) tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_IMAGE):$(VERSION)
+	@echo "✓ Tagged: $(DOCKER_IMAGE):$(VERSION)"
+
+# Build and push multi-platform images (default behavior)
+.PHONY: docker-push
+docker-push: docker-tag
+	@echo "🚀 Building and pushing AMD64 image..."
+	$(DOCKER_CMD) build --platform linux/amd64 --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE):latest-amd64 -t $(DOCKER_IMAGE):$(VERSION)-amd64 .
+	$(DOCKER_CMD) push $(DOCKER_IMAGE):latest-amd64
+	$(DOCKER_CMD) push $(DOCKER_IMAGE):$(VERSION)-amd64
+	@echo "🚀 Building and pushing ARM64 image..."
+	$(DOCKER_CMD) build --platform linux/arm64 --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE):latest-arm64 -t $(DOCKER_IMAGE):$(VERSION)-arm64 .
+	$(DOCKER_CMD) push $(DOCKER_IMAGE):latest-arm64
+	$(DOCKER_CMD) push $(DOCKER_IMAGE):$(VERSION)-arm64
+	@echo "🏗️  Creating multi-platform manifests..."
+	@$(MAKE) docker-manifest
+
+# Single-platform push (for testing/debugging)
+.PHONY: docker-push-single
+docker-push-single: docker-tag
+	$(DOCKER_CMD) push $(DOCKER_IMAGE):latest
+	$(DOCKER_CMD) push $(DOCKER_IMAGE):$(VERSION)
+
+# Multi-platform manifest creation using manifest-tool
+.PHONY: docker-manifest
+docker-manifest:
+	@echo "🚀 Installing manifest-tool if needed..."
+	@command -v manifest-tool >/dev/null 2>&1 || { \
+		echo "Installing manifest-tool..."; \
+		go install github.com/estesp/manifest-tool/v2/cmd/manifest-tool@latest; \
+	}
+	@echo "🏗️  Creating multi-platform manifest for latest..."
+	@export PATH=$$PATH:$$(go env GOPATH)/bin && manifest-tool push from-args \
+		--platforms linux/amd64,linux/arm64 \
+		--template $(DOCKER_IMAGE):latest-ARCHVARIANT \
+		--target $(DOCKER_IMAGE):latest
+	@echo "🏗️  Creating multi-platform manifest for $(VERSION)..."
+	@export PATH=$$PATH:$$(go env GOPATH)/bin && manifest-tool push from-args \
+		--platforms linux/amd64,linux/arm64 \
+		--template $(DOCKER_IMAGE):$(VERSION)-ARCHVARIANT \
+		--target $(DOCKER_IMAGE):$(VERSION)
+
+# Complete Docker release workflow
+.PHONY: docker-release
+docker-release: docker-build docker-push
+	@echo "✅ Docker release complete!"
+	@echo "Docker images published:"
+	@echo "  $(DOCKER_IMAGE):latest"
+	@echo "  $(DOCKER_IMAGE):$(VERSION)"
 
 # =============================================================================
 # Homebrew Release Targets
@@ -346,6 +417,14 @@ help:
 	@echo "  deps             - Install and tidy dependencies"
 	@echo "  install-tools    - Install dev tools (golangci-lint, gocyclo, gosec, govulncheck)"
 	@echo "  release          - Build release binary (clean + build)"
+	@echo ""
+	@echo "🐳 Docker targets:"
+	@echo "  docker-build         - Build Docker image with version tags"
+	@echo "  docker-tag           - Tag Docker image for release"
+	@echo "  docker-push          - Build and push multi-platform images (linux/amd64,linux/arm64)"
+	@echo "  docker-push-single   - Push single-platform images only (for testing)"
+	@echo "  docker-manifest      - Create multi-platform manifests using manifest-tool"
+	@echo "  docker-release       - Complete Docker release (build + push)"
 	@echo ""
 	@echo "🍺 Homebrew release targets:"
 	@echo "  build-macos-binaries     - Build macOS binaries (amd64 + arm64)"

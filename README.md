@@ -26,8 +26,9 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 ### Prerequisites
 - Slack Bot Token with appropriate permissions
 - For building from source: Go 1.23+ (tested with Go 1.24+)
+- For Docker: Docker or compatible container runtime
 
-### Install via Homebrew (macOS)
+### Install via Homebrew (macOS) - Recommended
 ```bash
 # Tap the repository (first time only)
 brew tap astrostl/slack-butler https://github.com/astrostl/slack-butler
@@ -39,6 +40,34 @@ brew install slack-butler
 **Note:** The tap step is only needed once. After tapping, you can install or upgrade using just `brew install slack-butler` or `brew upgrade slack-butler`.
 
 This is the recommended installation method for macOS users. The formula supports both Apple Silicon (ARM64) and Intel (AMD64) architectures.
+
+### Install via Docker (All Platforms)
+```bash
+# Pull the latest image
+docker pull astrostl/slack-butler:latest
+
+# Run commands using Docker
+docker run astrostl/slack-butler:latest --help
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7
+```
+
+The Docker image is minimal (based on `scratch`) and supports both linux/amd64 and linux/arm64 platforms. This is ideal for:
+- CI/CD pipelines
+- Kubernetes/container environments
+- Consistent cross-platform deployments
+- Systems without Go toolchain
+
+**Docker Usage Examples:**
+```bash
+# Health check
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest health --verbose
+
+# Detect new channels
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7
+
+# Archive inactive channels (dry run)
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels archive --warn-days=45 --archive-days=30
+```
 
 ### Install via Go
 ```bash

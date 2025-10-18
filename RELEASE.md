@@ -13,8 +13,9 @@ If any command returns an error or fails quality checks, STOP the release proces
 1. [Pre-Release Requirements](#pre-release-requirements)
 2. [Go Module Release Process](#go-module-release-process)
 3. [Homebrew Release Process](#homebrew-release-process)
-4. [Common Issues and Solutions](#common-issues-and-solutions)
-5. [Post-Release Verification](#post-release-verification)
+4. [Docker Release Process](#docker-release-process)
+5. [Common Issues and Solutions](#common-issues-and-solutions)
+6. [Post-Release Verification](#post-release-verification)
 
 ---
 
@@ -312,6 +313,100 @@ Should show: `slack-butler v1.X.X` (clean version, no suffixes)
 
 ---
 
+## Docker Release Process
+
+This process publishes multi-platform Docker images to Docker Hub at `astrostl/slack-butler`.
+
+**IMPORTANT**: The Go module release (git tag) MUST be completed first!
+
+### Step 1: Verify Git Tag Exists
+
+Ensure the git tag was created in the Go release process:
+
+```bash
+git tag | grep v1.X.X
+```
+
+If the tag doesn't exist, go back to the [Go Module Release Process](#go-module-release-process).
+
+### Step 2: Build Docker Image Locally
+
+Build and test the Docker image locally first:
+
+```bash
+# Build Docker image with version tag
+make docker-build
+
+# Test the image works correctly
+docker run astrostl/slack-butler:v1.X.X --version
+docker run astrostl/slack-butler:v1.X.X --help
+```
+
+The version should show exactly `slack-butler v1.X.X` with no suffixes.
+
+### Step 3: Login to Docker Hub
+
+Authenticate with Docker Hub:
+
+```bash
+docker login
+# OR for nerdctl:
+nerdctl login
+```
+
+Enter your Docker Hub credentials when prompted.
+
+### Step 4: Build and Push Multi-Platform Images
+
+Build and push images for both linux/amd64 and linux/arm64:
+
+```bash
+make docker-push
+```
+
+This will:
+1. Build AMD64 image and push with tags: `latest-amd64` and `v1.X.X-amd64`
+2. Build ARM64 image and push with tags: `latest-arm64` and `v1.X.X-arm64`
+3. Create multi-platform manifests for `latest` and `v1.X.X` tags
+
+**Alternative:** For single-platform testing only:
+```bash
+make docker-push-single
+```
+
+### Step 5: Verify Docker Hub Publication
+
+Check that images are available on Docker Hub:
+
+```bash
+# Pull and test the latest tag
+docker pull astrostl/slack-butler:latest
+docker run astrostl/slack-butler:latest --version
+
+# Pull and test the version tag
+docker pull astrostl/slack-butler:v1.X.X
+docker run astrostl/slack-butler:v1.X.X --version
+```
+
+You can also verify on Docker Hub web interface:
+- https://hub.docker.com/r/astrostl/slack-butler/tags
+
+Both `latest` and `v1.X.X` should show support for linux/amd64 and linux/arm64.
+
+### Step 6: Test Multi-Platform Images
+
+Test on different architectures if available:
+
+```bash
+# Test on AMD64 system
+docker run --platform linux/amd64 astrostl/slack-butler:latest --version
+
+# Test on ARM64 system (Mac Silicon, ARM servers, etc.)
+docker run --platform linux/arm64 astrostl/slack-butler:latest --version
+```
+
+---
+
 ## Common Issues and Solutions
 
 ### Issue: Binary Version Shows "v1.X.X-1-gHASH"
@@ -387,6 +482,14 @@ After completing the release process, verify:
 4. ✅ Formula in repository has correct checksums matching GitHub release assets
 5. ✅ All quality gates passed before release
 
+### For Docker Releases (in addition to Go releases):
+1. ✅ Docker image builds successfully: `make docker-build`
+2. ✅ Local test passes: `docker run astrostl/slack-butler:v1.X.X --version`
+3. ✅ Multi-platform images pushed to Docker Hub: `make docker-push`
+4. ✅ Images available on Docker Hub with `latest` and `v1.X.X` tags
+5. ✅ Both linux/amd64 and linux/arm64 platforms supported
+6. ✅ Pull and run tests pass: `docker pull astrostl/slack-butler:latest`
+
 ---
 
 ## Release Checklist
@@ -417,6 +520,18 @@ After completing the release process, verify:
 - [ ] Homebrew installation tested successfully
 - [ ] Installed version verified (`slack-butler --version`)
 
+### Docker Release Checklist (Optional, after Go Release)
+
+- [ ] Git tag verified to exist
+- [ ] Docker image built locally (`make docker-build`)
+- [ ] Local Docker test passed (`docker run astrostl/slack-butler:v1.X.X --version`)
+- [ ] Logged in to Docker Hub (`docker login`)
+- [ ] Multi-platform images pushed (`make docker-push`)
+- [ ] Docker Hub publication verified (check tags page)
+- [ ] Pull test successful (`docker pull astrostl/slack-butler:latest`)
+- [ ] Version verification passed (`docker run astrostl/slack-butler:latest --version`)
+- [ ] Multi-platform support confirmed (amd64 + arm64)
+
 ---
 
 ## Version Strategy
@@ -436,12 +551,18 @@ After a successful release, users can install slack-butler via:
    brew install astrostl/slack-butler/slack-butler
    ```
 
-2. **Go Install** (cross-platform):
+2. **Docker** (all platforms, containerized):
+   ```bash
+   docker pull astrostl/slack-butler:latest
+   docker run astrostl/slack-butler:latest channels detect --token=$SLACK_TOKEN --since=7
+   ```
+
+3. **Go Install** (cross-platform):
    ```bash
    go install github.com/astrostl/slack-butler@latest
    ```
 
-3. **Build from Source** (any platform):
+4. **Build from Source** (any platform):
    ```bash
    git clone https://github.com/astrostl/slack-butler.git
    cd slack-butler
@@ -456,9 +577,31 @@ After a successful release, users can install slack-butler via:
 - The entire release process should take about 10-20 minutes if everything goes smoothly
 - Go module releases only require a git tag (very quick)
 - Homebrew releases add GitHub release creation and formula updates
+- Docker releases add image building and multi-platform publishing to Docker Hub
 - Most issues come from committing changes after creating the release tag
 - Always verify binary versions before creating the GitHub release (Homebrew only)
+- Always verify Docker image versions before pushing to Docker Hub
 - The Homebrew formula checksums MUST match the GitHub release assets exactly
 - Never move the release tag after creating the GitHub release (Homebrew only)
 - NEVER skip quality gates - every failure must be fixed before release
 - Quality is non-negotiable - users depend on stable, secure code
+
+---
+
+## Release Strategy Summary
+
+**Required for ALL releases:**
+- Git tag (enables Go module distribution)
+- Quality gates passed
+- Documentation updated
+
+**Optional distribution channels:**
+- **Homebrew**: Requires GitHub release + formula update (macOS users)
+- **Docker**: Requires Docker Hub push (containerized deployments, all platforms)
+
+**Recommended approach:**
+1. Start with Go module release (git tag) - enables `go install`
+2. Add Homebrew release if targeting macOS users
+3. Add Docker release if targeting container/cloud deployments
+
+All three can be done for the same version tag.

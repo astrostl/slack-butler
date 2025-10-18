@@ -1,21 +1,29 @@
 # Release Process
 
-This document covers the complete release process for slack-butler, including both Go module releases (for `go install`) and Homebrew releases.
+This document covers the complete release process for slack-butler. **ALL releases MUST include Go module, Homebrew, AND Docker distributions.**
 
 **⚠️ CRITICAL: STOP IMMEDIATELY IF ANY STEP FAILS ⚠️**
 
 If any command returns an error or fails quality checks, STOP the release process immediately. Fix the issue, commit the fix, and restart from the beginning.
+
+**📦 RELEASE POLICY: Every release MUST include:**
+1. ✅ Go module release (git tag) - enables `go install`
+2. ✅ Homebrew release (GitHub release + formula) - macOS users
+3. ✅ Docker release (multi-platform images) - containerized deployments
+
+**This is NOT optional.** Partial releases create confusion and inconsistent user experience.
 
 ---
 
 ## Table of Contents
 
 1. [Pre-Release Requirements](#pre-release-requirements)
-2. [Go Module Release Process](#go-module-release-process)
-3. [Homebrew Release Process](#homebrew-release-process)
-4. [Docker Release Process](#docker-release-process)
-5. [Common Issues and Solutions](#common-issues-and-solutions)
-6. [Post-Release Verification](#post-release-verification)
+2. [Complete Release Process](#complete-release-process)
+3. [Go Module Release Steps](#go-module-release-steps)
+4. [Homebrew Release Steps](#homebrew-release-steps)
+5. [Docker Release Steps](#docker-release-steps)
+6. [Common Issues and Solutions](#common-issues-and-solutions)
+7. [Post-Release Verification](#post-release-verification)
 
 ---
 
@@ -87,7 +95,23 @@ git push origin main
 
 ---
 
-## Go Module Release Process
+## Complete Release Process
+
+**Follow these steps in order for EVERY release:**
+
+1. ✅ Complete Pre-Release Requirements (above)
+2. ✅ Create Go Module Release (git tag)
+3. ✅ Build Homebrew Assets
+4. ✅ Create GitHub Release with Homebrew Assets
+5. ✅ Update Homebrew Formula
+6. ✅ Build and Push Docker Images
+7. ✅ Verify All Distributions
+
+**Each section below provides detailed steps.**
+
+---
+
+## Go Module Release Steps
 
 This process makes the release available via `go install github.com/astrostl/slack-butler@latest`.
 

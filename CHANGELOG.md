@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.3.0] - 2025-10-18
+## [1.3.1] - 2025-10-18
+
+### Fixed
+- **Version Display**: Fixed `go install` to show correct version number instead of "dev"
+  - Uses `runtime/debug.ReadBuildInfo()` to extract version from module metadata
+  - Maintains compatibility with `make build` which uses ldflags
+  - Updated tests to handle both version patterns
+
+## [1.3.0] - 2025-10-18 [YANKED - use 1.3.1]
+
+**Note**: This version was yanked due to go install version display issue. Use v1.3.1 instead.
 
 ### Added
 - **Default Channel Protection**: Automatic detection and protection of workspace default channels from archival

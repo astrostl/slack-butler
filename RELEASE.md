@@ -455,9 +455,43 @@ docker run --platform linux/arm64 astrostl/slack-butler:latest --version
 4. Only proceed when ALL checks pass
 5. Commit fixes and restart from Pre-Release Requirements
 
-### Issue: `go install` Shows Old Version
+### Issue: `go install` Shows "dev" or Wrong Version
 
-**Cause:** Go module proxy cache hasn't refreshed yet.
+**Cause:** The version information is set to "dev" by default in main.go and only gets updated via ldflags during `make build`. When users run `go install`, the ldflags aren't applied, so the version shows as "dev".
+
+**Root Cause:** Go's `go install` command doesn't use our Makefile's ldflags, so the version variables in main.go remain at their default values.
+
+**Solution (IMPLEMENTED):** Use Go's `runtime/debug.ReadBuildInfo()` to automatically extract the version from the module information when ldflags aren't provided. This ensures:
+- `make build` uses ldflags for full version info (version + build time + commit)
+- `go install` uses the module version from build info (version only)
+- Both methods show the correct version number
+
+**Code Fix:**
+```go
+// In main.go
+import "runtime/debug"
+
+func main() {
+    version := Version
+    if version == "dev" {
+        if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+            version = info.Main.Version
+        }
+    }
+    cmd.Execute(version, BuildTime, GitCommit)
+}
+```
+
+**Verification:**
+```bash
+# After fix is merged and tagged
+go install github.com/astrostl/slack-butler@v1.X.X
+slack-butler --version  # Should show: slack-butler version v1.X.X
+```
+
+### Issue: `go install` Shows Old Version (Proxy Cache)
+
+**Cause:** Go module proxy cache hasn't refreshed yet after a new release.
 
 **Solution:**
 - Wait 5-10 minutes for the proxy cache to refresh

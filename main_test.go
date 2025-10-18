@@ -45,7 +45,9 @@ func TestMainIntegration(t *testing.T) {
 
 		outputStr := strings.TrimSpace(string(output))
 		assert.Contains(t, outputStr, "slack-butler", "Version output should contain tool name")
-		assert.Contains(t, outputStr, "dev", "Version output should contain version")
+		assert.Contains(t, outputStr, "version", "Version output should contain 'version' keyword")
+		// Version could be "dev" or actual version from build info (e.g., "v1.3.0")
+		assert.Regexp(t, `version (dev|v\d+\.\d+\.\d+)`, outputStr, "Version output should contain version")
 	})
 
 	t.Run("Help command works", func(t *testing.T) {

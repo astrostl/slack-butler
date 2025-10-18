@@ -1,6 +1,8 @@
 package main
 
 import (
+	"runtime/debug"
+
 	"github.com/astrostl/slack-butler/cmd"
 )
 
@@ -12,5 +14,13 @@ var (
 )
 
 func main() {
-	cmd.Execute(Version, BuildTime, GitCommit)
+	// If version is still "dev", try to get it from build info (for go install)
+	version := Version
+	if version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			version = info.Main.Version
+		}
+	}
+
+	cmd.Execute(version, BuildTime, GitCommit)
 }

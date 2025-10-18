@@ -65,8 +65,20 @@ docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest health --ver
 # Detect new channels
 docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7
 
+# Announce new channels (with --commit to actually post)
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7 --announce-to=#general --commit
+
 # Archive inactive channels (dry run)
 docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels archive --warn-days=45 --archive-days=30
+
+# Highlight random channels
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels highlight --count=3 --announce-to=#general --commit
+```
+
+**For shorter commands, create a shell alias:**
+```bash
+alias slack-butler='docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest'
+# Then use: slack-butler health --verbose
 ```
 
 ### Install via Go
@@ -132,6 +144,8 @@ export SLACK_TOKEN=xoxb-your-bot-token-here
 
 ## Usage
 
+**Note:** Examples below show native binary usage. For Docker usage, replace `slack-butler` with `docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest`. See [Docker examples](#docker-usage-examples) for more details.
+
 ### Health Check
 ```bash
 # Basic health check
@@ -139,6 +153,9 @@ slack-butler health
 
 # Detailed health check with verbose output
 slack-butler health --verbose
+
+# Docker equivalent
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest health --verbose
 ```
 
 ### New Channel Detection
@@ -148,6 +165,9 @@ slack-butler channels detect
 
 # Detect from last week
 slack-butler channels detect --since=7
+
+# Docker equivalent
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7
 ```
 
 ### Warning and Archiving Inactive Channels
@@ -160,6 +180,9 @@ slack-butler channels archive --warn-days=45 --archive-days=30 --commit
 
 # Exclude important channels from archival
 slack-butler channels archive --exclude-channels="general,announcements" --exclude-prefixes="prod-,admin-" --commit
+
+# Docker equivalent
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels archive --warn-days=45 --archive-days=30 --commit
 ```
 
 ### Dry Run vs Commit Mode
@@ -169,6 +192,9 @@ slack-butler channels detect --since=7 --announce-to=#general
 
 # Actually post announcements
 slack-butler channels detect --since=7 --announce-to=#general --commit
+
+# Docker: Actually post announcements
+docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7 --announce-to=#general --commit
 
 # The default behavior is safe dry run mode
 ```

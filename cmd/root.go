@@ -94,6 +94,18 @@ func initConfig() {
 		// BindEnv rarely fails, but handle for completeness
 		return
 	}
+	if err := viper.BindEnv("include_default_channels", "SLACK_INCLUDE_DEFAULT_CHANNELS"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
+	if err := viper.BindEnv("default_channel_sample_size", "SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
+	if err := viper.BindEnv("default_channel_threshold", "SLACK_DEFAULT_CHANNEL_THRESHOLD"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
 
 	// Set log level based on debug flag
 	if viper.GetBool("debug") {

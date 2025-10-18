@@ -187,6 +187,22 @@ func (m *MockSlackAPI) GetTeamInfo() (*slack.TeamInfo, error) {
 	return m.TeamInfo, nil
 }
 
+func (m *MockSlackAPI) GetConversationInfo(input *slack.GetConversationInfoInput) (*slack.Channel, error) {
+	// Find channel by ID in the mock channels list
+	for _, ch := range m.Channels {
+		if ch.ID == input.ChannelID {
+			return &ch, nil
+		}
+	}
+	return nil, fmt.Errorf("channel not found: %s", input.ChannelID)
+}
+
+func (m *MockSlackAPI) GetConversationsForUser(params *slack.GetConversationsForUserParameters) ([]slack.Channel, string, error) {
+	// Return all channels for simplicity in tests
+	// In real implementation, this would filter by user membership
+	return m.Channels, "", nil
+}
+
 // Helper methods for testing
 
 func (m *MockSlackAPI) AddChannel(id, name string, created time.Time, purpose string) {

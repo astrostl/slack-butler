@@ -11,6 +11,7 @@
 ## Current Features
 - **Channel Detection**: Detect new channels created during a specified time period
 - **Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period (✅ **IMPLEMENTED**)
+- **Default Channel Protection**: Automatically detects and protects workspace default channels from archival using user intersection heuristics (✅ **IMPLEMENTED**)
 - **Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation (✅ **IMPLEMENTED**)
 - **Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **Announcement System**: Optionally announce new channels to a target channel
@@ -52,9 +53,25 @@ source .env
 ./bin/slack-butler channels detect --since=7 --announce-to=#general --commit
 
 # Channel archival management (dry run mode by default)
+# Automatically protects default channels (detected via user intersection)
 ./bin/slack-butler channels archive
 ./bin/slack-butler channels archive --warn-days=45 --archive-days=30 --commit
 ./bin/slack-butler channels archive --exclude-channels="general,announcements" --commit
+
+# Override default channel protection (allows archiving of default channels)
+./bin/slack-butler channels archive --include-default-channels --commit
+
+# Customize default channel detection sample size (default: 10 users)
+./bin/slack-butler channels archive --default-channel-sample-size=20 --commit
+
+# Use environment variables for configuration
+export SLACK_INCLUDE_DEFAULT_CHANNELS=true
+export SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE=15
+export SLACK_DEFAULT_CHANNEL_THRESHOLD=0.85
+./bin/slack-butler channels archive --commit
+
+# Adjust detection threshold (default: 0.9 = 90%)
+./bin/slack-butler channels archive --default-channel-threshold=0.95 --commit
 
 # Random channel highlights (dry run mode by default)
 ./bin/slack-butler channels highlight
@@ -83,13 +100,53 @@ docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels arc
 docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels detect --since=7 --announce-to=#general --commit
 ```
 
+## Default Channel Protection
+
+The archive command automatically detects and protects workspace default channels (channels that new members automatically join) from archival.
+
+### How Detection Works
+- **Membership Threshold Heuristic**: Samples recent workspace users and finds channels shared by a configurable percentage of sampled users
+- **Sample Size**: Default 10 users (configurable via `--default-channel-sample-size` or `SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE`)
+- **Threshold**: Default 90% membership requirement (e.g., 9 out of 10 users) - configurable via `--default-channel-threshold` or `SLACK_DEFAULT_CHANNEL_THRESHOLD`
+- **Automatic Protection**: Detected default channels are automatically excluded from archival consideration
+- **Override Available**: Use `--include-default-channels` flag to disable protection
+
+### Why This Matters
+Slack's public API does not expose workspace-level "Default Channels" configuration. This heuristic approach:
+- Protects critical workspace channels without requiring admin API access
+- Works on all Slack plans (Free, Pro, Business+, Enterprise Grid)
+- Provides a reliable approximation by analyzing actual user membership patterns
+- Resilient to edge cases where users leave default channels
+
+### Example Output
+```
+🔍 Detecting default channels (sampling 10 recent users, 90% threshold)...
+✅ Detected 9 default channels: #tech, #meta, #company-events, #company-general, #support, #company-announcements, #kudos, #company-all-hands, #random
+   These channels will be excluded from archival.
+   Use --include-default-channels to override this protection.
+```
+
+### Configuration Examples
+
+| Threshold | Sample Size | Behavior |
+|-----------|-------------|----------|
+| **0.9** (default) | 10 | Requires 9/10 users - good balance |
+| **0.95** | 10 | Requires 10/10 users - very strict |
+| **0.8** | 10 | Requires 8/10 users - more permissive |
+| **0.9** | 20 | Requires 18/20 users - higher confidence |
+
+### API Efficiency
+- **Moderate API Calls**: With 10 users sampled, typically makes 20-30 API calls total
+- **Fast Detection**: Completes in seconds, even with Slack rate limits
+- **Configurable**: Increase sample size for higher confidence in large workspaces
+
 ## Required Slack Permissions
 - `channels:read` - To list public channels (**required**)
 - `channels:history` - To read channel messages for activity detection (**required**)
 - `chat:write` - To post announcements and warnings (**required**)
 - `channels:join` - To join public channels for warnings (**required for archive**)
 - `channels:manage` - To archive channels (**required for archive**)
-- `users:read` - To resolve user names in messages (**required for enhanced features**)
+- `users:read` - To resolve user names in messages and detect default channels (**required for enhanced features and default channel detection**)
 
 ## Project Structure
 ```
@@ -247,7 +304,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.2.1 - Current stable release
+- **Version**: 1.3.0 - Current stable release
 - **Status**: ✅ **STABLE** - Homebrew tap + go install + Docker distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Distribution**:

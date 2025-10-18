@@ -2433,6 +2433,264 @@ func (c *Client) GetUserMap() (map[string]string, error) {
 	return c.getUserMap()
 }
 
+// getUsersForDefaultDetection fetches all workspace users with retry logic.
+func (c *Client) getUsersForDefaultDetection() ([]slack.User, error) {
+	const maxRetries = 3
+	var users []slack.User
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		users, err = c.api.GetUsers()
+		if err != nil {
+			if shouldRetryRateLimit(err, attempt, maxRetries) {
+				waitDuration := parseSlackRetryAfter(err.Error())
+				if waitDuration > 0 {
+					logger.WithFields(logger.LogFields{
+						"attempt":       attempt,
+						"max_tries":     maxRetries,
+						"wait_duration": waitDuration,
+					}).Debug("Rate limited while fetching users, waiting before retry")
+					showProgressBar(waitDuration)
+				}
+				continue
+			}
+			return nil, fmt.Errorf("failed to get users after %d attempts: %w", maxRetries, err)
+		}
+		break
+	}
+	return users, nil
+}
+
+// filterAndSortRealUsers extracts real users and sorts them by most recently updated.
+func filterAndSortRealUsers(users []slack.User, sampleSize int) []string {
+	type userInfo struct {
+		ID      string
+		Updated int64
+	}
+	var realUsers []userInfo
+	for _, user := range users {
+		if !user.IsBot && !user.Deleted && user.ID != "USLACKBOT" {
+			realUsers = append(realUsers, userInfo{
+				ID:      user.ID,
+				Updated: int64(user.Updated),
+			})
+		}
+	}
+
+	if len(realUsers) < 2 {
+		return []string{}
+	}
+
+	// Sort by updated time (newest first)
+	for i := 0; i < len(realUsers)-1; i++ {
+		for j := i + 1; j < len(realUsers); j++ {
+			if realUsers[j].Updated > realUsers[i].Updated {
+				realUsers[i], realUsers[j] = realUsers[j], realUsers[i]
+			}
+		}
+	}
+
+	// Take sample of most recent users
+	if len(realUsers) < sampleSize {
+		sampleSize = len(realUsers)
+	}
+
+	result := make([]string, sampleSize)
+	for i := 0; i < sampleSize; i++ {
+		result[i] = realUsers[i].ID
+	}
+	return result
+}
+
+// getConversationsForUserWithRetry fetches user conversations with retry logic.
+func (c *Client) getConversationsForUserWithRetry(userID, cursor string) ([]slack.Channel, string, error) {
+	const maxRetries = 3
+	var channelList []slack.Channel
+	var nextCursor string
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		params := &slack.GetConversationsForUserParameters{
+			UserID: userID,
+			Types:  []string{"public_channel"},
+			Cursor: cursor,
+		}
+		channelList, nextCursor, err = c.api.GetConversationsForUser(params)
+		if err != nil {
+			if shouldRetryRateLimit(err, attempt, maxRetries) {
+				waitDuration := parseSlackRetryAfter(err.Error())
+				if waitDuration > 0 {
+					logger.WithFields(logger.LogFields{
+						"user_id":       userID,
+						"attempt":       attempt,
+						"max_tries":     maxRetries,
+						"wait_duration": waitDuration,
+					}).Debug("Rate limited while fetching user channels, waiting before retry")
+					showProgressBar(waitDuration)
+				}
+				continue
+			}
+			logger.WithFields(logger.LogFields{
+				"user_id": userID,
+				"error":   err.Error(),
+			}).Warn("Failed to get channels for user, skipping")
+			return nil, "", err
+		}
+		break
+	}
+
+	return channelList, nextCursor, err
+}
+
+// getUserChannelMemberships fetches channel memberships for a single user with retry logic.
+func (c *Client) getUserChannelMemberships(userID string) (map[string]bool, error) {
+	channelSet := make(map[string]bool)
+	cursor := ""
+
+	for {
+		channelList, nextCursor, err := c.getConversationsForUserWithRetry(userID, cursor)
+		if err != nil {
+			return channelSet, err
+		}
+
+		for _, ch := range channelList {
+			channelSet[ch.ID] = true
+		}
+
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
+	}
+	return channelSet, nil
+}
+
+// shouldRetryRateLimit checks if we should retry due to rate limiting.
+func shouldRetryRateLimit(err error, attempt, maxRetries int) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	isRateLimited := strings.Contains(errStr, "rate_limited") || strings.Contains(errStr, "rate limit")
+	return isRateLimited && attempt < maxRetries
+}
+
+// getChannelNameByID fetches a channel's name by ID with retry logic.
+func (c *Client) getChannelNameByID(channelID string) (string, error) {
+	const maxRetries = 3
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		channel, err := c.api.GetConversationInfo(&slack.GetConversationInfoInput{
+			ChannelID: channelID,
+		})
+		if err != nil {
+			if shouldRetryRateLimit(err, attempt, maxRetries) {
+				waitDuration := parseSlackRetryAfter(err.Error())
+				if waitDuration > 0 {
+					logger.WithFields(logger.LogFields{
+						"channel_id":    channelID,
+						"attempt":       attempt,
+						"max_tries":     maxRetries,
+						"wait_duration": waitDuration,
+					}).Debug("Rate limited while fetching channel info, waiting before retry")
+					showProgressBar(waitDuration)
+				}
+				continue
+			}
+			logger.WithFields(logger.LogFields{
+				"channel_id": channelID,
+				"error":      err.Error(),
+			}).Warn("Failed to get channel info, skipping")
+			return "", err
+		}
+		return channel.Name, nil
+	}
+	return "", fmt.Errorf("failed to get channel info after retries")
+}
+
+// GetDefaultChannels detects likely default channels by finding channels that all recent users share.
+// It samples the most recent non-bot users and returns channels that meet the membership threshold.
+// threshold: percentage of sampled users that must be members (e.g., 0.9 = 90%)
+// Returns a list of channel names (without # prefix) that are likely auto-join default channels.
+func (c *Client) GetDefaultChannels(sampleSize int, threshold float64) ([]string, error) {
+	logger.WithFields(logger.LogFields{
+		"sample_size": sampleSize,
+		"threshold":   threshold,
+	}).Debug("Detecting default channels")
+
+	// Get all users
+	users, err := c.getUsersForDefaultDetection()
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter and sort real users
+	recentUserIDs := filterAndSortRealUsers(users, sampleSize)
+	if len(recentUserIDs) == 0 {
+		logger.Debug("Not enough users to detect default channels")
+		return []string{}, nil
+	}
+
+	logger.WithField("sampled_users", len(recentUserIDs)).Debug("Sampled recent users for default channel detection")
+
+	// Get channel memberships for each user
+	userChannels := make(map[string]map[string]bool) // userID -> channelID -> true
+	for _, userID := range recentUserIDs {
+		channelSet, err := c.getUserChannelMemberships(userID)
+		if err != nil {
+			// Error already logged in helper, continue with other users
+			continue
+		}
+		userChannels[userID] = channelSet
+	}
+
+	if len(userChannels) == 0 {
+		logger.Debug("No channel data collected")
+		return []string{}, nil
+	}
+
+	// Find channels that meet the threshold (e.g., 90% of sampled users must be members)
+	// This is more resilient than requiring ALL users (100%) in case some users leave default channels
+	minMembership := int(float64(len(userChannels)) * threshold)
+	if minMembership < 1 {
+		minMembership = 1
+	}
+
+	// Count membership for each channel across all sampled users
+	channelMembership := make(map[string]int)
+	for _, channels := range userChannels {
+		for chID := range channels {
+			channelMembership[chID]++
+		}
+	}
+
+	// Channels that meet the threshold are likely defaults
+	var commonChannelIDs []string
+	for chID, memberCount := range channelMembership {
+		if memberCount >= minMembership {
+			commonChannelIDs = append(commonChannelIDs, chID)
+		}
+	}
+
+	// Get channel names for the common channel IDs
+	defaultChannelNames := make([]string, 0, len(commonChannelIDs))
+	for _, chID := range commonChannelIDs {
+		name, err := c.getChannelNameByID(chID)
+		if err != nil {
+			// Error already logged in helper, continue with other channels
+			continue
+		}
+		defaultChannelNames = append(defaultChannelNames, name)
+	}
+
+	logger.WithFields(logger.LogFields{
+		"detected_count": len(defaultChannelNames),
+		"channels":       strings.Join(defaultChannelNames, ", "),
+	}).Debug("Default channel detection complete")
+
+	return defaultChannelNames, nil
+}
+
 // GetChannelActivityWithMessageAndUsers returns activity info plus message details with resolved user names.
 func (c *Client) GetChannelActivityWithMessageAndUsers(channelID string, userMap map[string]string) (lastActivity time.Time, hasWarning bool, warningTime time.Time, lastMessage *MessageInfo, err error) {
 	// Get the basic activity info

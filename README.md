@@ -6,12 +6,13 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.
 
-**Version 1.2.1** ✅
+**Version 1.3.0** ✅
 
 ## Features
 
 - **🔍 Channel Detection**: Automatically detect new channels created within specified time periods
 - **📁 Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period
+- **🛡️ Default Channel Protection**: Automatically detect and protect workspace default channels from archival using intelligent heuristics
 - **🧭 Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation
 - **📢 Smart Announcements**: Announce new channels to designated channels with rich formatting
 - **🩺 Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
@@ -251,23 +252,45 @@ slack-butler channels detect --since=1 --announce-to=#general --commit
 ```
 
 ### `channels archive`
-Manage inactive channel archival with automated warnings and grace periods.
+Manage inactive channel archival with automated warnings and grace periods. Automatically detects and protects workspace default channels.
 
 **Flags:**
 - `--warn-days` - Days of inactivity before warning (default: 30)
 - `--archive-days` - Days after warning before archiving (default: 30)
 - `--exclude-channels` - Comma-separated list of channels to exclude
 - `--exclude-prefixes` - Comma-separated list of prefixes to exclude
+- `--include-default-channels` - Include auto-detected default channels in archival (default: false, protects defaults)
+- `--default-channel-sample-size` - Number of users to sample for default detection (default: 10)
+- `--default-channel-threshold` - Membership threshold for default detection, 0.0-1.0 (default: 0.9)
 - `--commit` - Actually warn and archive channels (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
+
+**Default Channel Protection:**
+The archive command automatically detects workspace default channels (channels new members auto-join) by analyzing user membership patterns. These channels are protected from archival by default. Use `--include-default-channels` to override.
+
+**Environment Variables:**
+- `SLACK_INCLUDE_DEFAULT_CHANNELS` - Set to "true" to include defaults in archival
+- `SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE` - Number of users to sample
+- `SLACK_DEFAULT_CHANNEL_THRESHOLD` - Membership threshold (e.g., "0.9")
 
 **Note:** Archive timing supports decimal precision (e.g., 0.5 = 12 hours, 7.5 = 7.5 days). While sub-day precision is available, day-based values are recommended for practical channel management.
 
 **Examples:**
 ```bash
+# Basic archival with automatic default protection
 slack-butler channels archive
-slack-butler channels archive --warn-days=60 --archive-days=14 --commit
+
+# Customize default detection (sample 20 users, require 95% membership)
+slack-butler channels archive --default-channel-sample-size=20 --default-channel-threshold=0.95 --commit
+
+# Override default protection to include all channels
+slack-butler channels archive --include-default-channels --commit
+
+# Exclude specific channels and prefixes
 slack-butler channels archive --exclude-channels="general,random" --commit
+
+# Full archival with custom timings
+slack-butler channels archive --warn-days=60 --archive-days=14 --commit
 ```
 
 ### `channels highlight`

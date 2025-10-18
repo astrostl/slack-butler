@@ -68,14 +68,17 @@ Use --commit with --announce-to to actually post messages (default is dry run mo
 }
 
 var (
-	since           string
-	announceTo      string
-	commit          bool
-	warnDays        float64
-	archiveDays     float64
-	excludeChannels string
-	excludePrefixes string
-	count           int
+	since                    string
+	announceTo               string
+	commit                   bool
+	warnDays                 float64
+	archiveDays              float64
+	excludeChannels          string
+	excludePrefixes          string
+	count                    int
+	includeDefaultChannels   bool
+	defaultChannelSampleSize int
+	defaultChannelThreshold  float64
 )
 
 // displayWorkspaceInfo gets and displays workspace information.
@@ -103,6 +106,9 @@ func init() {
 	archiveCmd.Flags().BoolVar(&commit, "commit", false, "Actually warn and archive channels (default is dry run mode)")
 	archiveCmd.Flags().StringVar(&excludeChannels, "exclude-channels", "", "Comma-separated list of channel names to exclude (with or without # prefix, e.g., 'general,random,#important')")
 	archiveCmd.Flags().StringVar(&excludePrefixes, "exclude-prefixes", "", "Comma-separated list of channel prefixes to exclude (with or without # prefix, e.g., 'prod-,#temp-,admin')")
+	archiveCmd.Flags().BoolVar(&includeDefaultChannels, "include-default-channels", false, "Include auto-detected default channels in archival consideration (default: false, meaning default channels are protected)")
+	archiveCmd.Flags().IntVar(&defaultChannelSampleSize, "default-channel-sample-size", 10, "Number of recent users to sample for default channel detection (higher = more accurate but slower)")
+	archiveCmd.Flags().Float64Var(&defaultChannelThreshold, "default-channel-threshold", 0.9, "Membership threshold for default channel detection (0.0-1.0, e.g., 0.9 = 90% of users must share the channel)")
 
 	highlightCmd.Flags().IntVar(&count, "count", 3, "Number of random channels to highlight (e.g., 1, 3, 5)")
 	highlightCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce highlights to (e.g., #general). Required when using --commit")
@@ -315,6 +321,31 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("archive-days must be positive, got %g", archiveDays)
 	}
 
+	// Check if flags were explicitly set, otherwise use environment variables
+	includeDefaultsValue := includeDefaultChannels
+	if cmd != nil && !cmd.Flags().Changed("include-default-channels") {
+		includeDefaultsValue = viper.GetBool("include_default_channels")
+	}
+
+	sampleSizeValue := defaultChannelSampleSize
+	if cmd != nil && !cmd.Flags().Changed("default-channel-sample-size") {
+		if envSampleSize := viper.GetInt("default_channel_sample_size"); envSampleSize > 0 {
+			sampleSizeValue = envSampleSize
+		}
+	}
+
+	thresholdValue := defaultChannelThreshold
+	if cmd != nil && !cmd.Flags().Changed("default-channel-threshold") {
+		if envThreshold := viper.GetFloat64("default_channel_threshold"); envThreshold > 0 {
+			thresholdValue = envThreshold
+		}
+	}
+
+	// Validate threshold is between 0 and 1
+	if thresholdValue < 0 || thresholdValue > 1 {
+		return fmt.Errorf("default-channel-threshold must be between 0.0 and 1.0, got %g", thresholdValue)
+	}
+
 	// Convert days to seconds for internal use
 	warnSeconds := int(warnDays * 24 * 60 * 60)
 	archiveSeconds := int(archiveDays * 24 * 60 * 60)
@@ -324,10 +355,15 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create Slack client: %w", err)
 	}
 
-	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes, warnDays, archiveDays)
+	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes, warnDays, archiveDays, includeDefaultsValue, sampleSizeValue, thresholdValue)
 }
 
-func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64) error {
+func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64, includeDefaults bool, sampleSize int, threshold float64) error {
+	// Validate client
+	if client == nil {
+		return fmt.Errorf("client cannot be nil")
+	}
+
 	// Get and display workspace info
 	if err := displayWorkspaceInfo(client); err != nil {
 		return err
@@ -357,6 +393,9 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 
 	fmt.Printf("🔍 Analyzing inactive channels...\n\n")
 
+	// Detect default channels unless explicitly included
+	defaultChannels := detectAndDisplayDefaultChannels(client, includeDefaults, sampleSize, threshold)
+
 	// Get user map for name resolution
 	userMap, err := getUserMapWithErrorHandling(client, isDebug)
 	if err != nil {
@@ -365,7 +404,11 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 
 	// Parse and display exclusion lists
 	excludeChannelsList, excludePrefixesList := parseExclusionLists(excludeChannels, excludePrefixes)
-	displayExclusionInfo(excludeChannelsList, excludePrefixesList)
+
+	// Merge default channels into exclusion list
+	excludeChannelsList = mergeChannelLists(excludeChannelsList, defaultChannels)
+
+	displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels)
 
 	// Analyze inactive channels
 	toWarn, toArchive, totalChannels, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
@@ -452,18 +495,76 @@ func parseExclusionLists(excludeChannels, excludePrefixes string) ([]string, []s
 	return excludeChannelsList, excludePrefixesList
 }
 
-// displayExclusionInfo shows configured exclusions to the user.
-func displayExclusionInfo(excludeChannelsList, excludePrefixesList []string) {
-	if len(excludeChannelsList) > 0 || len(excludePrefixesList) > 0 {
-		fmt.Printf("📋 Channel exclusions configured:\n")
-		if len(excludeChannelsList) > 0 {
-			fmt.Printf("   Excluded channels: %s\n", strings.Join(excludeChannelsList, ", "))
-		}
-		if len(excludePrefixesList) > 0 {
-			fmt.Printf("   Excluded prefixes: %s\n", strings.Join(excludePrefixesList, ", "))
-		}
-		fmt.Println()
+// separateManualExclusions separates manually excluded channels from auto-detected defaults.
+func separateManualExclusions(excludeChannelsList, defaultChannels []string) []string {
+	defaultSet := make(map[string]bool)
+	for _, ch := range defaultChannels {
+		defaultSet[ch] = true
 	}
+
+	var manualExclusions []string
+	for _, ch := range excludeChannelsList {
+		if !defaultSet[ch] {
+			manualExclusions = append(manualExclusions, ch)
+		}
+	}
+	return manualExclusions
+}
+
+// displayExclusionInfo shows configured exclusions to the user.
+func displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels []string) {
+	if len(excludeChannelsList) == 0 && len(excludePrefixesList) == 0 {
+		return
+	}
+
+	fmt.Printf("📋 Channel exclusions configured:\n")
+
+	if len(excludeChannelsList) > 0 {
+		manualExclusions := separateManualExclusions(excludeChannelsList, defaultChannels)
+		if len(manualExclusions) > 0 {
+			fmt.Printf("   Manually excluded channels: %s\n", strings.Join(manualExclusions, ", "))
+		}
+		if len(defaultChannels) > 0 {
+			fmt.Printf("   Auto-detected default channels: %s\n", strings.Join(defaultChannels, ", "))
+		}
+	}
+
+	if len(excludePrefixesList) > 0 {
+		fmt.Printf("   Excluded prefixes: %s\n", strings.Join(excludePrefixesList, ", "))
+	}
+
+	fmt.Println()
+}
+
+// mergeChannelLists merges two channel lists without duplicates.
+func mergeChannelLists(list1, list2 []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(list1)+len(list2))
+
+	for _, ch := range list1 {
+		if !seen[ch] {
+			result = append(result, ch)
+			seen[ch] = true
+		}
+	}
+
+	for _, ch := range list2 {
+		if !seen[ch] {
+			result = append(result, ch)
+			seen[ch] = true
+		}
+	}
+
+	return result
+}
+
+// addHashPrefix adds # prefix to channel names for display.
+func addHashPrefix(channels []string) []string {
+	result := make([]string, len(channels))
+	for i, ch := range channels {
+		result[i] = "#" + ch
+	}
+	return result
 }
 
 // getInactiveChannelsWithErrorHandling analyzes inactive channels with proper error handling.
@@ -482,6 +583,34 @@ func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, arc
 		return nil, nil, 0, fmt.Errorf("failed to analyze inactive channels: %w", err)
 	}
 	return toWarn, toArchive, totalChannels, nil
+}
+
+// detectAndDisplayDefaultChannels detects default channels and displays results to user.
+func detectAndDisplayDefaultChannels(client *slack.Client, includeDefaults bool, sampleSize int, threshold float64) []string {
+	if includeDefaults {
+		fmt.Printf("⚠️  Default channel protection DISABLED (--include-default-channels flag set)\n")
+		fmt.Printf("   Auto-detected default channels will NOT be protected from archival.\n\n")
+		return []string{}
+	}
+
+	fmt.Printf("🔍 Detecting default channels (sampling %d recent users, %.0f%% threshold)...\n", sampleSize, threshold*100)
+	detectedDefaults, err := client.GetDefaultChannels(sampleSize, threshold)
+	if err != nil {
+		logger.WithField("error", err.Error()).Warn("Failed to detect default channels, continuing without automatic exclusions")
+		fmt.Printf("⚠️  Warning: Could not detect default channels: %v\n", err)
+		fmt.Printf("   Continuing without automatic default channel exclusions.\n\n")
+		return []string{}
+	}
+
+	if len(detectedDefaults) > 0 {
+		fmt.Printf("✅ Detected %d default channels: %s\n", len(detectedDefaults), strings.Join(addHashPrefix(detectedDefaults), ", "))
+		fmt.Printf("   These channels will be excluded from archival.\n")
+		fmt.Printf("   Use --include-default-channels to override this protection.\n\n")
+	} else {
+		fmt.Printf("ℹ️  No default channels detected.\n\n")
+	}
+
+	return detectedDefaults
 }
 
 // displayChannelDetails shows channel information with last message details.

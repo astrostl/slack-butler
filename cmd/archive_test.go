@@ -226,7 +226,7 @@ func TestRunArchiveWithClient(t *testing.T) {
 			// Convert seconds to days for the new API
 			testWarnDays := float64(tt.warnSeconds) / (24 * 60 * 60)
 			testArchiveDays := float64(tt.archiveSeconds) / (24 * 60 * 60)
-			err = runArchiveWithClient(client, tt.warnSeconds, tt.archiveSeconds, tt.isPreviewMode, "", "", testWarnDays, testArchiveDays)
+			err = runArchiveWithClient(client, tt.warnSeconds, tt.archiveSeconds, tt.isPreviewMode, "", "", testWarnDays, testArchiveDays, false, 10, 0.9)
 			validateTestResults(t, tt, err, mockAPI)
 		})
 	}

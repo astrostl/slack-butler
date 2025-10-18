@@ -720,7 +720,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{"general", "random"}, []string{"test-", "dev-"})
+		displayExclusionInfo([]string{"general", "random"}, []string{"test-", "dev-"}, []string{})
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -731,7 +731,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		outputStr := string(output)
 
 		assert.Contains(t, outputStr, "📋 Channel exclusions configured:")
-		assert.Contains(t, outputStr, "Excluded channels: general, random")
+		assert.Contains(t, outputStr, "Manually excluded channels: general, random")
 		assert.Contains(t, outputStr, "Excluded prefixes: test-, dev-")
 	})
 
@@ -740,7 +740,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{"general"}, []string{})
+		displayExclusionInfo([]string{"general"}, []string{}, []string{})
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -751,7 +751,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		outputStr := string(output)
 
 		assert.Contains(t, outputStr, "📋 Channel exclusions configured:")
-		assert.Contains(t, outputStr, "Excluded channels: general")
+		assert.Contains(t, outputStr, "Manually excluded channels: general")
 		assert.NotContains(t, outputStr, "Excluded prefixes:")
 	})
 
@@ -760,7 +760,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{}, []string{"test-"})
+		displayExclusionInfo([]string{}, []string{"test-"}, []string{})
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -780,7 +780,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{}, []string{})
+		displayExclusionInfo([]string{}, []string{}, []string{})
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -1342,5 +1342,92 @@ func TestHandleHighlightDryRunWithoutChannel(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Empty(t, outputStr)
+	})
+}
+
+func TestMergeChannelLists(t *testing.T) {
+	t.Run("Merge two lists without duplicates", func(t *testing.T) {
+		list1 := []string{"channel1", "channel2"}
+		list2 := []string{"channel3", "channel4"}
+		result := mergeChannelLists(list1, list2)
+		assert.Len(t, result, 4)
+		assert.Contains(t, result, "channel1")
+		assert.Contains(t, result, "channel2")
+		assert.Contains(t, result, "channel3")
+		assert.Contains(t, result, "channel4")
+	})
+
+	t.Run("Merge lists with duplicates", func(t *testing.T) {
+		list1 := []string{"channel1", "channel2"}
+		list2 := []string{"channel2", "channel3"}
+		result := mergeChannelLists(list1, list2)
+		assert.Len(t, result, 3)
+		assert.Contains(t, result, "channel1")
+		assert.Contains(t, result, "channel2")
+		assert.Contains(t, result, "channel3")
+	})
+
+	t.Run("Merge empty lists", func(t *testing.T) {
+		result := mergeChannelLists([]string{}, []string{})
+		assert.Len(t, result, 0)
+	})
+
+	t.Run("Merge with one empty list", func(t *testing.T) {
+		list1 := []string{"channel1"}
+		result := mergeChannelLists(list1, []string{})
+		assert.Len(t, result, 1)
+		assert.Contains(t, result, "channel1")
+	})
+}
+
+func TestSeparateManualExclusions(t *testing.T) {
+	t.Run("Separate manual from defaults", func(t *testing.T) {
+		excludeList := []string{"manual1", "default1", "manual2"}
+		defaultList := []string{"default1", "default2"}
+		result := separateManualExclusions(excludeList, defaultList)
+		assert.Len(t, result, 2)
+		assert.Contains(t, result, "manual1")
+		assert.Contains(t, result, "manual2")
+		assert.NotContains(t, result, "default1")
+	})
+
+	t.Run("All are manual exclusions", func(t *testing.T) {
+		excludeList := []string{"manual1", "manual2"}
+		defaultList := []string{"default1"}
+		result := separateManualExclusions(excludeList, defaultList)
+		assert.Len(t, result, 2)
+		assert.Contains(t, result, "manual1")
+		assert.Contains(t, result, "manual2")
+	})
+
+	t.Run("All are default channels", func(t *testing.T) {
+		excludeList := []string{"default1", "default2"}
+		defaultList := []string{"default1", "default2"}
+		result := separateManualExclusions(excludeList, defaultList)
+		assert.Len(t, result, 0)
+	})
+}
+
+func TestAddHashPrefix(t *testing.T) {
+	t.Run("Add prefix to channels", func(t *testing.T) {
+		channels := []string{"general", "random", "tech"}
+		result := addHashPrefix(channels)
+		assert.Len(t, result, 3)
+		assert.Equal(t, "#general", result[0])
+		assert.Equal(t, "#random", result[1])
+		assert.Equal(t, "#tech", result[2])
+	})
+
+	t.Run("Add prefix to empty list", func(t *testing.T) {
+		channels := []string{}
+		result := addHashPrefix(channels)
+		assert.Len(t, result, 0)
+	})
+
+	t.Run("Add prefix to single channel", func(t *testing.T) {
+		channels := []string{"general"}
+		result := addHashPrefix(channels)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "#general", result[0])
 	})
 }

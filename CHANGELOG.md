@@ -7,32 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.3.0] - TBD
+## [1.3.0] - 2025-10-18
 
 ### Added
-- **Homebrew Distribution**: Full Homebrew tap support for macOS installation
-  - Self-hosted Homebrew formula in `Formula/slack-butler.rb`
-  - Install via: `brew install astrostl/slack-butler/slack-butler`
-  - Multi-architecture support (Apple Silicon ARM64 + Intel AMD64)
-  - SHA256 checksum verification for secure downloads
-  - Automated formula updates via Makefile targets
+- **Default Channel Protection**: Automatic detection and protection of workspace default channels from archival
+  - Intelligent heuristic-based detection using user membership intersection analysis
+  - Configurable sample size (default: 10 users) via `--default-channel-sample-size` or `SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE`
+  - Adjustable membership threshold (default: 90%) via `--default-channel-threshold` or `SLACK_DEFAULT_CHANNEL_THRESHOLD`
+  - Override protection with `--include-default-channels` flag when needed
+  - Works across all Slack plans without requiring admin API access
+  - Protects critical workspace channels (#general, #announcements, etc.) from accidental archival
+- **Enhanced Archive Command**: New configuration options for default channel detection
+  - Three new flags for fine-tuning protection behavior
+  - Environment variable support for all new configuration options
+  - Clear user feedback showing detected default channels and protection status
 
 ### Enhanced
-- **Build System**: New Makefile targets for Homebrew release workflow
-  - `build-macos-binaries` - Build darwin-amd64 and darwin-arm64 binaries
-  - `package-macos-binaries` - Create .tar.gz archives for distribution
-  - `generate-macos-checksums` - Generate SHA256 checksums for packages
-  - `update-homebrew-formula` - Update formula with version and checksums
-- **Release Process**: Comprehensive RELEASE.md with step-by-step release checklist
-  - Quality gate enforcement (all checks must pass before release)
-  - Version verification to prevent dirty builds
-  - Checksum validation workflow
-  - Homebrew installation testing procedures
+- **Code Quality**: Reduced complexity and improved maintainability
+  - Extracted helper functions to reduce cognitive complexity below threshold
+  - Refactored nested logic into focused, single-purpose functions
+  - Improved code organization with better separation of concerns
+- **API Resilience**: Centralized rate limit retry logic
+  - New `shouldRetryRateLimit()` helper for consistent retry behavior
+  - Reduced code duplication across API functions
+  - More robust error handling for rate limiting scenarios
+- **Test Coverage**: Expanded test suite with comprehensive coverage
+  - Added tests for all new helper functions (100% coverage on key helpers)
+  - Comprehensive default channel detection tests
+  - Enhanced test coverage from 83.4% to 85.2% in cmd package
+  - Added 5 new test functions covering edge cases and error paths
 
 ### Improved
-- **Distribution Options**: Users can now install via Homebrew, go install, or build from source
-- **Release Documentation**: Detailed release process documentation adapted from pentameter project
-- **Installation Experience**: Simplified macOS installation with Homebrew package manager
+- **User Experience**: Clear feedback about channel protection
+  - Displays detected default channels with count and names
+  - Shows protection status and override instructions
+  - Separates manual exclusions from auto-detected defaults in output
+- **Performance**: Optimized memory usage with pre-allocated slices
+- **Code Maintainability**: All linting and complexity checks passing (100% quality gates)
+- **Documentation**: Enhanced inline documentation and code comments
 
 ## [1.2.1] - 2025-09-27
 

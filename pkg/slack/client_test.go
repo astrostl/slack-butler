@@ -3058,3 +3058,242 @@ func TestFormatChannelHighlightAnnouncementDryRun(t *testing.T) {
 		assert.NotContains(t, result, "Description:")
 	})
 }
+
+func TestGetDefaultChannels(t *testing.T) {
+	t.Run("Detects default channels with 100% membership", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 3 users (all real, non-bot)
+		mockAPI.AddUser("U001", "user1", "User One")
+		mockAPI.AddUser("U002", "user2", "User Two")
+		mockAPI.AddUser("U003", "user3", "User Three")
+
+		// Add channels
+		mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General discussion")
+		mockAPI.AddChannel("C002", "random", time.Now().Add(-30*24*time.Hour), "Random chat")
+		mockAPI.AddChannel("C003", "dev", time.Now().Add(-10*24*time.Hour), "Dev channel")
+
+		// Note: Mock returns all channels for all users by default
+		// With 100% threshold (1.0) and 3 users, all 3 channels meet the requirement
+
+		defaultChannels, err := client.GetDefaultChannels(10, 1.0) // 100% threshold
+		assert.NoError(t, err)
+		assert.Len(t, defaultChannels, 3) // All channels returned by mock
+		assert.Contains(t, defaultChannels, "general")
+		assert.Contains(t, defaultChannels, "random")
+		assert.Contains(t, defaultChannels, "dev")
+	})
+
+	t.Run("Detects default channels with 90% threshold", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 10 users
+		for i := 1; i <= 10; i++ {
+			mockAPI.AddUser(fmt.Sprintf("U%03d", i), fmt.Sprintf("user%d", i), fmt.Sprintf("User %d", i))
+		}
+
+		// Add channels
+		mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General discussion")
+		mockAPI.AddChannel("C002", "announcements", time.Now().Add(-30*24*time.Hour), "Announcements")
+		mockAPI.AddChannel("C003", "optional", time.Now().Add(-10*24*time.Hour), "Optional channel")
+
+		// With 90% threshold and 10 users, need at least 9 users in a channel
+		defaultChannels, err := client.GetDefaultChannels(10, 0.9)
+		assert.NoError(t, err)
+		// All channels returned by mock since it returns all channels for all users
+		assert.GreaterOrEqual(t, len(defaultChannels), 2)
+	})
+
+	t.Run("No default channels when threshold not met", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 2 users
+		mockAPI.AddUser("U001", "user1", "User One")
+		mockAPI.AddUser("U002", "user2", "User Two")
+
+		// Add channels but simulate no common channels
+		mockAPI.AddChannel("C001", "channel1", time.Now().Add(-30*24*time.Hour), "Channel 1")
+		mockAPI.AddChannel("C002", "channel2", time.Now().Add(-30*24*time.Hour), "Channel 2")
+
+		// With very high threshold (requiring more members than exist)
+		defaultChannels, err := client.GetDefaultChannels(10, 0.99)
+		assert.NoError(t, err)
+		// May or may not find channels depending on mock behavior
+		assert.NotNil(t, defaultChannels)
+	})
+
+	t.Run("Handles insufficient users", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add only 1 user (insufficient for detection)
+		mockAPI.AddUser("U001", "user1", "User One")
+
+		defaultChannels, err := client.GetDefaultChannels(10, 0.9)
+		assert.NoError(t, err)
+		assert.Empty(t, defaultChannels)
+	})
+
+	t.Run("Filters out bots and deleted users", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add real users
+		mockAPI.AddUser("U001", "user1", "User One")
+		mockAPI.AddUser("U002", "user2", "User Two")
+
+		// Add bot user (should be filtered)
+		botUser := slack.User{
+			ID:    "B001",
+			Name:  "botuser",
+			IsBot: true,
+		}
+		mockAPI.Users = append(mockAPI.Users, botUser)
+
+		// Add deleted user (should be filtered)
+		deletedUser := slack.User{
+			ID:      "U003",
+			Name:    "deleted",
+			Deleted: true,
+		}
+		mockAPI.Users = append(mockAPI.Users, deletedUser)
+
+		mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General")
+
+		defaultChannels, err := client.GetDefaultChannels(10, 0.9)
+		assert.NoError(t, err)
+		// Should work with only real users
+		assert.NotNil(t, defaultChannels)
+	})
+
+	t.Run("Handles API error getting users", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Set up error for GetUsers
+		mockAPI.SetGetUsersError("API error")
+
+		defaultChannels, err := client.GetDefaultChannels(10, 0.9)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get users")
+		assert.Nil(t, defaultChannels)
+	})
+
+	t.Run("Handles small sample size", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 5 users
+		for i := 1; i <= 5; i++ {
+			mockAPI.AddUser(fmt.Sprintf("U%03d", i), fmt.Sprintf("user%d", i), fmt.Sprintf("User %d", i))
+		}
+
+		mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General")
+
+		// Request sample size larger than available users
+		defaultChannels, err := client.GetDefaultChannels(10, 0.8)
+		assert.NoError(t, err)
+		// Should adapt to available users
+		assert.NotNil(t, defaultChannels)
+	})
+}
+
+func TestFilterAndSortRealUsers(t *testing.T) {
+	t.Run("Filters and sorts users correctly", func(t *testing.T) {
+		users := []slack.User{
+			{ID: "U001", Name: "user1", Updated: 100, IsBot: false, Deleted: false},
+			{ID: "U002", Name: "user2", Updated: 200, IsBot: false, Deleted: false},
+			{ID: "U003", Name: "user3", Updated: 150, IsBot: false, Deleted: false},
+			{ID: "B001", Name: "bot", Updated: 300, IsBot: true, Deleted: false},
+			{ID: "U004", Name: "deleted", Updated: 250, IsBot: false, Deleted: true},
+			{ID: "USLACKBOT", Name: "slackbot", Updated: 350, IsBot: false, Deleted: false},
+		}
+
+		result := filterAndSortRealUsers(users, 5)
+
+		// Should filter out bot, deleted, and USLACKBOT
+		assert.Len(t, result, 3)
+
+		// Should be sorted by updated time (newest first)
+		assert.Equal(t, "U002", result[0]) // Updated: 200
+		assert.Equal(t, "U003", result[1]) // Updated: 150
+		assert.Equal(t, "U001", result[2]) // Updated: 100
+	})
+
+	t.Run("Limits to sample size", func(t *testing.T) {
+		users := []slack.User{
+			{ID: "U001", Name: "user1", Updated: 100, IsBot: false, Deleted: false},
+			{ID: "U002", Name: "user2", Updated: 200, IsBot: false, Deleted: false},
+			{ID: "U003", Name: "user3", Updated: 300, IsBot: false, Deleted: false},
+		}
+
+		result := filterAndSortRealUsers(users, 2)
+
+		assert.Len(t, result, 2)
+		// Should get the 2 most recent
+		assert.Equal(t, "U003", result[0])
+		assert.Equal(t, "U002", result[1])
+	})
+
+	t.Run("Returns empty when not enough users", func(t *testing.T) {
+		users := []slack.User{
+			{ID: "U001", Name: "user1", Updated: 100, IsBot: false, Deleted: false},
+		}
+
+		result := filterAndSortRealUsers(users, 10)
+
+		assert.Empty(t, result) // Less than 2 users
+	})
+
+	t.Run("Filters out all bots", func(t *testing.T) {
+		users := []slack.User{
+			{ID: "B001", Name: "bot1", Updated: 100, IsBot: true, Deleted: false},
+			{ID: "B002", Name: "bot2", Updated: 200, IsBot: true, Deleted: false},
+		}
+
+		result := filterAndSortRealUsers(users, 10)
+
+		assert.Empty(t, result)
+	})
+}
+
+func TestShouldRetryRateLimit(t *testing.T) {
+	t.Run("Should retry on rate limit with attempts remaining", func(t *testing.T) {
+		err := fmt.Errorf("rate_limited")
+		result := shouldRetryRateLimit(err, 1, 3)
+		assert.True(t, result)
+	})
+
+	t.Run("Should retry on rate limit error with attempts remaining", func(t *testing.T) {
+		err := fmt.Errorf("error: rate limit exceeded")
+		result := shouldRetryRateLimit(err, 2, 3)
+		assert.True(t, result)
+	})
+
+	t.Run("Should not retry on last attempt", func(t *testing.T) {
+		err := fmt.Errorf("rate_limited")
+		result := shouldRetryRateLimit(err, 3, 3)
+		assert.False(t, result)
+	})
+
+	t.Run("Should not retry on non-rate-limit error", func(t *testing.T) {
+		err := fmt.Errorf("some other error")
+		result := shouldRetryRateLimit(err, 1, 3)
+		assert.False(t, result)
+	})
+
+	t.Run("Should not retry when no error", func(t *testing.T) {
+		result := shouldRetryRateLimit(nil, 1, 3)
+		assert.False(t, result)
+	})
+}

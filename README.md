@@ -29,8 +29,14 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 ### Install via Homebrew (macOS)
 ```bash
-brew install astrostl/slack-butler/slack-butler
+# Tap the repository (first time only)
+brew tap astrostl/slack-butler https://github.com/astrostl/slack-butler
+
+# Install slack-butler
+brew install slack-butler
 ```
+
+**Note:** The tap step is only needed once. After tapping, you can install or upgrade using just `brew install slack-butler` or `brew upgrade slack-butler`.
 
 This is the recommended installation method for macOS users. The formula supports both Apple Silicon (ARM64) and Intel (AMD64) architectures.
 

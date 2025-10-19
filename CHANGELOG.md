@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2025-10-18
+
+### Added
+- **Default Channel Diagnostic Mode**: New `--default-channel-check` flag for archive command
+  - Shows which users are sampled for default channel detection
+  - Displays detected default channels before running archival
+  - Helps users verify and tune detection parameters
+  - Provides clear guidance on adjusting threshold and sample size
+- **Enhanced Test Coverage**: Comprehensive test suite for default channel check functionality
+  - 141 new lines of test code covering all diagnostic scenarios
+  - Tests for user display, API errors, empty names, and parameter variations
+  - 100% coverage of new diagnostic mode code paths
+
+### Improved
+- **Code Quality**: Refactored archive command for better maintainability
+  - Extracted `validateArchiveDays` helper function for input validation
+  - Extracted `resolveArchiveConfig` helper for configuration resolution
+  - Cleaner separation of concerns and improved testability
+- **Default Channel Detection**: Enhanced user selection logic
+  - Clarified that "last N users" refers to most recently joined members
+  - Improved documentation explaining Slack API returns users oldest-first
+  - More accurate detection by focusing on recent workspace members
+- **API Client**: New `GetDefaultChannelsWithUsers` method
+  - Returns both default channels and sampled user details
+  - Enables diagnostic reporting with user context
+  - Better transparency into detection algorithm
+
+### Updated
+- **Dependencies**: Updated to latest versions for security and compatibility
+  - `github.com/securego/gosec/v2` v2.22.9 → v2.22.10
+  - `github.com/anthropics/anthropic-sdk-go` v1.12.0 → v1.13.0
+  - `golang.org/x/crypto` v0.42.0 → v0.43.0
+  - `golang.org/x/mod` v0.28.0 → v0.29.0
+  - `golang.org/x/net` v0.44.0 → v0.46.0
+  - `golang.org/x/sys` v0.36.0 → v0.37.0
+  - `golang.org/x/tools` v0.37.0 → v0.38.0
+  - Various other minor dependency updates
+
+### Documentation
+- **CLAUDE.md**: Enhanced default channel protection documentation
+  - Added usage examples for `--default-channel-check` flag
+  - Clarified user selection algorithm (last N users = most recent)
+  - Added verification guidance using diagnostic flag
+  - Documented Go module proxy caching behavior for releases
+- **README.md**: Will be updated with diagnostic flag documentation
+
 ## [1.3.1] - 2025-10-18
 
 ### Fixed

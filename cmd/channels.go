@@ -79,6 +79,7 @@ var (
 	includeDefaultChannels   bool
 	defaultChannelSampleSize int
 	defaultChannelThreshold  float64
+	defaultChannelCheck      bool
 )
 
 // displayWorkspaceInfo gets and displays workspace information.
@@ -109,6 +110,7 @@ func init() {
 	archiveCmd.Flags().BoolVar(&includeDefaultChannels, "include-default-channels", false, "Include auto-detected default channels in archival consideration (default: false, meaning default channels are protected)")
 	archiveCmd.Flags().IntVar(&defaultChannelSampleSize, "default-channel-sample-size", 10, "Number of recent users to sample for default channel detection (higher = more accurate but slower)")
 	archiveCmd.Flags().Float64Var(&defaultChannelThreshold, "default-channel-threshold", 0.9, "Membership threshold for default channel detection (0.0-1.0, e.g., 0.9 = 90% of users must share the channel)")
+	archiveCmd.Flags().BoolVar(&defaultChannelCheck, "default-channel-check", false, "Only check and report which channels are detected as defaults (diagnostic mode, skips archival)")
 
 	highlightCmd.Flags().IntVar(&count, "count", 3, "Number of random channels to highlight (e.g., 1, 3, 5)")
 	highlightCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce highlights to (e.g., #general). Required when using --commit")
@@ -313,37 +315,13 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("slack token is required. Set SLACK_TOKEN environment variable or use --token flag")
 	}
 
-	if warnDays <= 0 {
-		return fmt.Errorf("warn-days must be positive, got %g", warnDays)
+	if err := validateArchiveDays(warnDays, archiveDays); err != nil {
+		return err
 	}
 
-	if archiveDays <= 0 {
-		return fmt.Errorf("archive-days must be positive, got %g", archiveDays)
-	}
-
-	// Check if flags were explicitly set, otherwise use environment variables
-	includeDefaultsValue := includeDefaultChannels
-	if cmd != nil && !cmd.Flags().Changed("include-default-channels") {
-		includeDefaultsValue = viper.GetBool("include_default_channels")
-	}
-
-	sampleSizeValue := defaultChannelSampleSize
-	if cmd != nil && !cmd.Flags().Changed("default-channel-sample-size") {
-		if envSampleSize := viper.GetInt("default_channel_sample_size"); envSampleSize > 0 {
-			sampleSizeValue = envSampleSize
-		}
-	}
-
-	thresholdValue := defaultChannelThreshold
-	if cmd != nil && !cmd.Flags().Changed("default-channel-threshold") {
-		if envThreshold := viper.GetFloat64("default_channel_threshold"); envThreshold > 0 {
-			thresholdValue = envThreshold
-		}
-	}
-
-	// Validate threshold is between 0 and 1
-	if thresholdValue < 0 || thresholdValue > 1 {
-		return fmt.Errorf("default-channel-threshold must be between 0.0 and 1.0, got %g", thresholdValue)
+	includeDefaultsValue, sampleSizeValue, thresholdValue, err := resolveArchiveConfig(cmd)
+	if err != nil {
+		return err
 	}
 
 	// Convert days to seconds for internal use
@@ -355,7 +333,55 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create Slack client: %w", err)
 	}
 
+	// If --default-channel-check flag is set, run diagnostic mode
+	if defaultChannelCheck {
+		return runDefaultChannelCheckWithClient(client, sampleSizeValue, thresholdValue)
+	}
+
 	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes, warnDays, archiveDays, includeDefaultsValue, sampleSizeValue, thresholdValue)
+}
+
+// validateArchiveDays validates warn and archive days are positive.
+func validateArchiveDays(warnDays, archiveDays float64) error {
+	if warnDays <= 0 {
+		return fmt.Errorf("warn-days must be positive, got %g", warnDays)
+	}
+
+	if archiveDays <= 0 {
+		return fmt.Errorf("archive-days must be positive, got %g", archiveDays)
+	}
+
+	return nil
+}
+
+// resolveArchiveConfig resolves configuration from flags or environment variables.
+func resolveArchiveConfig(cmd *cobra.Command) (includeDefaults bool, sampleSize int, threshold float64, err error) {
+	// Check if flags were explicitly set, otherwise use environment variables
+	includeDefaults = includeDefaultChannels
+	if cmd != nil && !cmd.Flags().Changed("include-default-channels") {
+		includeDefaults = viper.GetBool("include_default_channels")
+	}
+
+	sampleSize = defaultChannelSampleSize
+	if cmd != nil && !cmd.Flags().Changed("default-channel-sample-size") {
+		if envSampleSize := viper.GetInt("default_channel_sample_size"); envSampleSize > 0 {
+			sampleSize = envSampleSize
+		}
+	}
+
+	threshold = defaultChannelThreshold
+	if cmd != nil && !cmd.Flags().Changed("default-channel-threshold") {
+		if envThreshold := viper.GetFloat64("default_channel_threshold"); envThreshold > 0 {
+			threshold = envThreshold
+		}
+	}
+
+	// Validate threshold is between 0 and 1
+	if threshold < 0 || threshold > 1 {
+		return false, 0, 0, fmt.Errorf("default-channel-threshold must be between 0.0 and 1.0, got %g", threshold)
+	}
+
+	return includeDefaults, sampleSize, threshold, nil
 }
 
 func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64, includeDefaults bool, sampleSize int, threshold float64) error {
@@ -925,4 +951,53 @@ func formatTimeRange(cutoffTime time.Time) string {
 
 	// Less than a minute
 	return "minute"
+}
+
+func runDefaultChannelCheckWithClient(client *slack.Client, sampleSize int, threshold float64) error {
+	// Get and display workspace info
+	if err := displayWorkspaceInfo(client); err != nil {
+		return err
+	}
+
+	// Display configuration
+	fmt.Printf("Default Channel Detection Configuration:\n")
+	fmt.Printf("  Sample size: %d users\n", sampleSize)
+	fmt.Printf("  Threshold: %.0f%% (%.2f)\n\n", threshold*100, threshold)
+
+	// Detect default channels with user details
+	fmt.Printf("🔍 Detecting default channels...\n\n")
+	result, err := client.GetDefaultChannelsWithUsers(sampleSize, threshold)
+	if err != nil {
+		return fmt.Errorf("failed to detect default channels: %w", err)
+	}
+
+	// Display sampled users
+	if len(result.SampledUsers) > 0 {
+		fmt.Printf("📋 Sampled users (%d):\n", len(result.SampledUsers))
+		for i, user := range result.SampledUsers {
+			displayName := user.RealName
+			if displayName == "" {
+				displayName = user.Name
+			}
+			fmt.Printf("  %2d. %s (@%s)\n", i+1, displayName, user.Name)
+		}
+		fmt.Printf("\n")
+	}
+
+	// Display results
+	if len(result.DefaultChannels) > 0 {
+		fmt.Printf("✅ Detected %d default channels:\n", len(result.DefaultChannels))
+		for _, channelName := range result.DefaultChannels {
+			fmt.Printf("  #%s\n", channelName)
+		}
+		fmt.Printf("\nThese channels would be automatically excluded from archival.\n")
+		fmt.Printf("Use --include-default-channels flag with 'archive' command to override this protection.\n")
+	} else {
+		fmt.Printf("ℹ️  No default channels detected with current settings.\n")
+		fmt.Printf("\nTry adjusting the parameters:\n")
+		fmt.Printf("  - Decrease --default-channel-threshold (e.g., 0.8 for 80%% membership)\n")
+		fmt.Printf("  - Increase --default-channel-sample-size (e.g., 20 users)\n")
+	}
+
+	return nil
 }

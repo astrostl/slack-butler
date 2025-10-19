@@ -3224,10 +3224,10 @@ func TestFilterAndSortRealUsers(t *testing.T) {
 		// Should filter out bot, deleted, and USLACKBOT
 		assert.Len(t, result, 3)
 
-		// Should be sorted by updated time (newest first)
-		assert.Equal(t, "U002", result[0]) // Updated: 200
-		assert.Equal(t, "U003", result[1]) // Updated: 150
-		assert.Equal(t, "U001", result[2]) // Updated: 100
+		// Should take from the end of the list (Slack returns oldest-first, so last users are newest)
+		assert.Equal(t, "U001", result[0]) // First in list
+		assert.Equal(t, "U002", result[1]) // Second in list
+		assert.Equal(t, "U003", result[2]) // Third in list (last real user)
 	})
 
 	t.Run("Limits to sample size", func(t *testing.T) {
@@ -3240,9 +3240,9 @@ func TestFilterAndSortRealUsers(t *testing.T) {
 		result := filterAndSortRealUsers(users, 2)
 
 		assert.Len(t, result, 2)
-		// Should get the 2 most recent
-		assert.Equal(t, "U003", result[0])
-		assert.Equal(t, "U002", result[1])
+		// Should take the last 2 users from the list
+		assert.Equal(t, "U002", result[0])
+		assert.Equal(t, "U003", result[1])
 	})
 
 	t.Run("Returns empty when not enough users", func(t *testing.T) {
@@ -3264,6 +3264,86 @@ func TestFilterAndSortRealUsers(t *testing.T) {
 		result := filterAndSortRealUsers(users, 10)
 
 		assert.Empty(t, result)
+	})
+}
+
+func TestGetDefaultChannelsWithUsers(t *testing.T) {
+	t.Run("Returns default channels with user info", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add 3 users
+		mockAPI.AddUser("U001", "alice", "Alice Smith")
+		mockAPI.AddUser("U002", "bob", "Bob Jones")
+		mockAPI.AddUser("U003", "charlie", "Charlie Brown")
+
+		// Add channels
+		mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General discussion")
+		mockAPI.AddChannel("C002", "random", time.Now().Add(-30*24*time.Hour), "Random chat")
+
+		result, err := client.GetDefaultChannelsWithUsers(10, 1.0)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Len(t, result.DefaultChannels, 2)
+		assert.Len(t, result.SampledUsers, 3)
+
+		// Verify user info is populated
+		assert.Equal(t, "U001", result.SampledUsers[0].ID)
+		assert.Equal(t, "alice", result.SampledUsers[0].Name)
+		assert.Equal(t, "Alice Smith", result.SampledUsers[0].RealName)
+	})
+
+	t.Run("Returns empty user list when no users", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// No users added
+		result, err := client.GetDefaultChannelsWithUsers(10, 0.9)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Empty(t, result.DefaultChannels)
+		assert.Empty(t, result.SampledUsers)
+	})
+
+	t.Run("Handles API error getting users", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		mockAPI.SetGetUsersError("API error")
+
+		result, err := client.GetDefaultChannelsWithUsers(10, 0.9)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("User info includes empty RealName fallback", func(t *testing.T) {
+		mockAPI := NewMockSlackAPI()
+		client, err := NewClientWithAPI(mockAPI)
+		require.NoError(t, err)
+
+		// Add user without RealName
+		user := slack.User{
+			ID:   "U001",
+			Name: "testuser",
+			// RealName is empty
+		}
+		mockAPI.Users = append(mockAPI.Users, user)
+		mockAPI.AddUser("U002", "user2", "User Two")
+
+		mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General")
+
+		result, err := client.GetDefaultChannelsWithUsers(10, 1.0)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Len(t, result.SampledUsers, 2)
+
+		// Verify empty RealName is handled
+		assert.Equal(t, "U001", result.SampledUsers[0].ID)
+		assert.Equal(t, "testuser", result.SampledUsers[0].Name)
+		assert.Equal(t, "", result.SampledUsers[0].RealName)
 	})
 }
 

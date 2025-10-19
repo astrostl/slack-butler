@@ -2461,19 +2461,13 @@ func (c *Client) getUsersForDefaultDetection() ([]slack.User, error) {
 	return users, nil
 }
 
-// filterAndSortRealUsers extracts real users and sorts them by most recently updated.
+// filterAndSortRealUsers extracts real users, taking the last N users from Slack's response.
+// Slack appears to return users oldest-first, so we take from the end to get newer users.
 func filterAndSortRealUsers(users []slack.User, sampleSize int) []string {
-	type userInfo struct {
-		ID      string
-		Updated int64
-	}
-	var realUsers []userInfo
+	var realUsers []slack.User
 	for _, user := range users {
 		if !user.IsBot && !user.Deleted && user.ID != "USLACKBOT" {
-			realUsers = append(realUsers, userInfo{
-				ID:      user.ID,
-				Updated: int64(user.Updated),
-			})
+			realUsers = append(realUsers, user)
 		}
 	}
 
@@ -2481,23 +2475,15 @@ func filterAndSortRealUsers(users []slack.User, sampleSize int) []string {
 		return []string{}
 	}
 
-	// Sort by updated time (newest first)
-	for i := 0; i < len(realUsers)-1; i++ {
-		for j := i + 1; j < len(realUsers); j++ {
-			if realUsers[j].Updated > realUsers[i].Updated {
-				realUsers[i], realUsers[j] = realUsers[j], realUsers[i]
-			}
-		}
-	}
-
-	// Take sample of most recent users
+	// Take sample from the end of the list (newest users)
 	if len(realUsers) < sampleSize {
 		sampleSize = len(realUsers)
 	}
 
 	result := make([]string, sampleSize)
+	startIndex := len(realUsers) - sampleSize
 	for i := 0; i < sampleSize; i++ {
-		result[i] = realUsers[i].ID
+		result[i] = realUsers[startIndex+i].ID
 	}
 	return result
 }
@@ -2612,7 +2598,28 @@ func (c *Client) getChannelNameByID(channelID string) (string, error) {
 // It samples the most recent non-bot users and returns channels that meet the membership threshold.
 // threshold: percentage of sampled users that must be members (e.g., 0.9 = 90%)
 // Returns a list of channel names (without # prefix) that are likely auto-join default channels.
+// DefaultChannelResult contains the result of default channel detection.
+type DefaultChannelResult struct {
+	DefaultChannels []string
+	SampledUsers    []UserInfo
+}
+
+// UserInfo contains basic user information.
+type UserInfo struct {
+	ID       string
+	RealName string
+	Name     string
+}
+
 func (c *Client) GetDefaultChannels(sampleSize int, threshold float64) ([]string, error) {
+	result, err := c.GetDefaultChannelsWithUsers(sampleSize, threshold)
+	if err != nil {
+		return nil, err
+	}
+	return result.DefaultChannels, nil
+}
+
+func (c *Client) GetDefaultChannelsWithUsers(sampleSize int, threshold float64) (*DefaultChannelResult, error) {
 	logger.WithFields(logger.LogFields{
 		"sample_size": sampleSize,
 		"threshold":   threshold,
@@ -2628,14 +2635,61 @@ func (c *Client) GetDefaultChannels(sampleSize int, threshold float64) ([]string
 	recentUserIDs := filterAndSortRealUsers(users, sampleSize)
 	if len(recentUserIDs) == 0 {
 		logger.Debug("Not enough users to detect default channels")
-		return []string{}, nil
+		return &DefaultChannelResult{DefaultChannels: []string{}, SampledUsers: []UserInfo{}}, nil
 	}
 
+	// Build user info for reporting
+	sampledUsers := buildSampledUserInfo(users, recentUserIDs)
 	logger.WithField("sampled_users", len(recentUserIDs)).Debug("Sampled recent users for default channel detection")
 
 	// Get channel memberships for each user
-	userChannels := make(map[string]map[string]bool) // userID -> channelID -> true
+	userChannels := c.collectUserChannelMemberships(recentUserIDs)
+	if len(userChannels) == 0 {
+		logger.Debug("No channel data collected")
+		return &DefaultChannelResult{DefaultChannels: []string{}, SampledUsers: sampledUsers}, nil
+	}
+
+	// Find channels that meet the membership threshold
+	commonChannelIDs := findCommonChannels(userChannels, threshold)
+
+	// Get channel names for the common channel IDs
+	defaultChannelNames := c.resolveChannelNames(commonChannelIDs)
+
+	logger.WithFields(logger.LogFields{
+		"detected_count": len(defaultChannelNames),
+		"channels":       strings.Join(defaultChannelNames, ", "),
+	}).Debug("Default channel detection complete")
+
+	return &DefaultChannelResult{
+		DefaultChannels: defaultChannelNames,
+		SampledUsers:    sampledUsers,
+	}, nil
+}
+
+// buildSampledUserInfo creates UserInfo structs for sampled users.
+func buildSampledUserInfo(users []slack.User, recentUserIDs []string) []UserInfo {
+	userMap := make(map[string]UserInfo)
+	for _, user := range users {
+		userMap[user.ID] = UserInfo{
+			ID:       user.ID,
+			RealName: user.RealName,
+			Name:     user.Name,
+		}
+	}
+
+	sampledUsers := make([]UserInfo, 0, len(recentUserIDs))
 	for _, userID := range recentUserIDs {
+		if info, ok := userMap[userID]; ok {
+			sampledUsers = append(sampledUsers, info)
+		}
+	}
+	return sampledUsers
+}
+
+// collectUserChannelMemberships gets channel memberships for all sampled users.
+func (c *Client) collectUserChannelMemberships(userIDs []string) map[string]map[string]bool {
+	userChannels := make(map[string]map[string]bool)
+	for _, userID := range userIDs {
 		channelSet, err := c.getUserChannelMemberships(userID)
 		if err != nil {
 			// Error already logged in helper, continue with other users
@@ -2643,20 +2697,16 @@ func (c *Client) GetDefaultChannels(sampleSize int, threshold float64) ([]string
 		}
 		userChannels[userID] = channelSet
 	}
+	return userChannels
+}
 
-	if len(userChannels) == 0 {
-		logger.Debug("No channel data collected")
-		return []string{}, nil
-	}
-
-	// Find channels that meet the threshold (e.g., 90% of sampled users must be members)
-	// This is more resilient than requiring ALL users (100%) in case some users leave default channels
+// findCommonChannels identifies channels that meet the membership threshold.
+func findCommonChannels(userChannels map[string]map[string]bool, threshold float64) []string {
 	minMembership := int(float64(len(userChannels)) * threshold)
 	if minMembership < 1 {
 		minMembership = 1
 	}
 
-	// Count membership for each channel across all sampled users
 	channelMembership := make(map[string]int)
 	for _, channels := range userChannels {
 		for chID := range channels {
@@ -2664,31 +2714,27 @@ func (c *Client) GetDefaultChannels(sampleSize int, threshold float64) ([]string
 		}
 	}
 
-	// Channels that meet the threshold are likely defaults
 	var commonChannelIDs []string
 	for chID, memberCount := range channelMembership {
 		if memberCount >= minMembership {
 			commonChannelIDs = append(commonChannelIDs, chID)
 		}
 	}
+	return commonChannelIDs
+}
 
-	// Get channel names for the common channel IDs
-	defaultChannelNames := make([]string, 0, len(commonChannelIDs))
-	for _, chID := range commonChannelIDs {
+// resolveChannelNames converts channel IDs to names.
+func (c *Client) resolveChannelNames(channelIDs []string) []string {
+	channelNames := make([]string, 0, len(channelIDs))
+	for _, chID := range channelIDs {
 		name, err := c.getChannelNameByID(chID)
 		if err != nil {
 			// Error already logged in helper, continue with other channels
 			continue
 		}
-		defaultChannelNames = append(defaultChannelNames, name)
+		channelNames = append(channelNames, name)
 	}
-
-	logger.WithFields(logger.LogFields{
-		"detected_count": len(defaultChannelNames),
-		"channels":       strings.Join(defaultChannelNames, ", "),
-	}).Debug("Default channel detection complete")
-
-	return defaultChannelNames, nil
+	return channelNames
 }
 
 // GetChannelActivityWithMessageAndUsers returns activity info plus message details with resolved user names.

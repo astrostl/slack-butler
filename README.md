@@ -6,7 +6,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.
 
-**Version 1.3.1** ✅
+**Version 1.3.2** ✅
 
 ## Features
 
@@ -262,6 +262,7 @@ Manage inactive channel archival with automated warnings and grace periods. Auto
 - `--include-default-channels` - Include auto-detected default channels in archival (default: false, protects defaults)
 - `--default-channel-sample-size` - Number of users to sample for default detection (default: 10)
 - `--default-channel-threshold` - Membership threshold for default detection, 0.0-1.0 (default: 0.9)
+- `--default-channel-check` - Diagnostic mode: show which channels are detected as defaults and which users are sampled (skips archival)
 - `--commit` - Actually warn and archive channels (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
@@ -279,6 +280,12 @@ The archive command automatically detects workspace default channels (channels n
 ```bash
 # Basic archival with automatic default protection
 slack-butler channels archive
+
+# Check which channels are detected as defaults (diagnostic mode)
+slack-butler channels archive --default-channel-check
+
+# Customize default detection and check results
+slack-butler channels archive --default-channel-sample-size=20 --default-channel-threshold=0.95 --default-channel-check
 
 # Customize default detection (sample 20 users, require 95% membership)
 slack-butler channels archive --default-channel-sample-size=20 --default-channel-threshold=0.95 --commit

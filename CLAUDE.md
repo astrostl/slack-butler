@@ -12,6 +12,7 @@
 - **Channel Detection**: Detect new channels created during a specified time period
 - **Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period (✅ **IMPLEMENTED**)
 - **Default Channel Protection**: Automatically detects and protects workspace default channels from archival using user intersection heuristics (✅ **IMPLEMENTED**)
+- **Default Channel Check**: Diagnostic flag (`--default-channel-check`) for archive command to see which channels are detected as defaults and which users are sampled (✅ **IMPLEMENTED**)
 - **Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation (✅ **IMPLEMENTED**)
 - **Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **Announcement System**: Optionally announce new channels to a target channel
@@ -73,6 +74,11 @@ export SLACK_DEFAULT_CHANNEL_THRESHOLD=0.85
 # Adjust detection threshold (default: 0.9 = 90%)
 ./bin/slack-butler channels archive --default-channel-threshold=0.95 --commit
 
+# Check which channels are detected as defaults (diagnostic flag)
+./bin/slack-butler channels archive --default-channel-check
+./bin/slack-butler channels archive --default-channel-check --default-channel-sample-size=20
+./bin/slack-butler channels archive --default-channel-check --default-channel-threshold=0.95
+
 # Random channel highlights (dry run mode by default)
 ./bin/slack-butler channels highlight
 ./bin/slack-butler channels highlight --count=5 --announce-to=#general
@@ -105,11 +111,13 @@ docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels det
 The archive command automatically detects and protects workspace default channels (channels that new members automatically join) from archival.
 
 ### How Detection Works
-- **Membership Threshold Heuristic**: Samples recent workspace users and finds channels shared by a configurable percentage of sampled users
+- **Membership Threshold Heuristic**: Samples recently joined workspace users and finds channels shared by a configurable percentage of sampled users
+- **User Selection**: Takes the last N users from Slack's API response (Slack returns users oldest-first, so the last users are the most recently joined)
 - **Sample Size**: Default 10 users (configurable via `--default-channel-sample-size` or `SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE`)
 - **Threshold**: Default 90% membership requirement (e.g., 9 out of 10 users) - configurable via `--default-channel-threshold` or `SLACK_DEFAULT_CHANNEL_THRESHOLD`
 - **Automatic Protection**: Detected default channels are automatically excluded from archival consideration
 - **Override Available**: Use `--include-default-channels` flag to disable protection
+- **Verification**: Use `slack-butler channels archive --default-channel-check` to see which users are sampled and which channels are detected
 
 ### Why This Matters
 Slack's public API does not expose workspace-level "Default Channels" configuration. This heuristic approach:
@@ -304,7 +312,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.3.1 - Current stable release
+- **Version**: 1.3.2 - Current stable release
 - **Status**: ✅ **STABLE** - Homebrew tap + go install + Docker distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Distribution**:
@@ -404,6 +412,20 @@ for attempt := 1; attempt <= maxRetries; attempt++ {
 ### Release Process
 
 **All release instructions are documented in [RELEASE.md](RELEASE.md).**
+
+#### Go Module Proxy and Version Caching
+
+**IMPORTANT**: Be aware of Go module proxy caching behavior when managing releases:
+
+- **Module Proxy Caching**: The Go module proxy (proxy.golang.org) caches version information, including the @latest version
+- **Deleted Tags**: If you delete a tag from GitHub after it's been cached by the proxy, the proxy will continue to serve the deleted version
+- **Cache Duration**: The proxy can take 24-48 hours to naturally refresh and detect new versions
+- **Impact on Tools**: Tools like Go Report Card use the proxy's version information, so they may show outdated versions during the cache period
+- **No Manual Refresh**: There is no official way to force the proxy to immediately refresh its @latest cache
+- **Best Practice**: Avoid deleting tags after release. Instead, create a new version (e.g., v1.3.1) and use the `retract` directive in go.mod if needed
+- **Retract Directive**: Use `retract v1.x.x` in go.mod to officially mark versions as withdrawn (requires releasing in a subsequent version)
+
+**Example Issue**: If you release v1.3.0, then delete the tag and create v1.3.1, the proxy may still report v1.3.0 as @latest for up to 48 hours, causing tools like goreportcard.com to display the old version even after refresh.
 
 #### Testing Excellence
 **MANDATORY**: Maintain comprehensive testing without artificial shortcuts.

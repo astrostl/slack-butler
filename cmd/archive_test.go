@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	slackSDK "github.com/slack-go/slack"
+
 	"github.com/astrostl/slack-butler/pkg/slack"
 )
 
@@ -546,4 +548,143 @@ func TestArchiveGetInactiveChannelsErrorPaths(t *testing.T) {
 			t.Errorf("Expected analysis error, got: %v", err)
 		}
 	})
+}
+
+func TestRunDefaultChannelCheckWithClient(t *testing.T) {
+	t.Run("Shows default channels with user info", testDefaultChannelCheckWithUserInfo)
+	t.Run("Shows no default channels when none detected", testDefaultChannelCheckNoChannels)
+	t.Run("Handles API error gracefully", testDefaultChannelCheckAPIError)
+	t.Run("Handles user with empty RealName", testDefaultChannelCheckEmptyRealName)
+	t.Run("Works with different sample sizes", testDefaultChannelCheckSampleSizes)
+	t.Run("Works with different thresholds", testDefaultChannelCheckThresholds)
+}
+
+func testDefaultChannelCheckWithUserInfo(t *testing.T) {
+	mockAPI := slack.NewMockSlackAPI()
+	client, err := slack.NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Add users
+	mockAPI.AddUser("U001", "alice", "Alice Smith")
+	mockAPI.AddUser("U002", "bob", "Bob Jones")
+	mockAPI.AddUser("U003", "charlie", "Charlie Brown")
+
+	// Add default channels
+	mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General discussion")
+	mockAPI.AddChannel("C002", "random", time.Now().Add(-30*24*time.Hour), "Random chat")
+
+	// Should run without error
+	err = runDefaultChannelCheckWithClient(client, 10, 1.0)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func testDefaultChannelCheckNoChannels(t *testing.T) {
+	mockAPI := slack.NewMockSlackAPI()
+	client, err := slack.NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Add only 1 user (insufficient for detection)
+	mockAPI.AddUser("U001", "alice", "Alice Smith")
+
+	// Should run without error
+	err = runDefaultChannelCheckWithClient(client, 10, 0.9)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func testDefaultChannelCheckAPIError(t *testing.T) {
+	mockAPI := slack.NewMockSlackAPI()
+	client, err := slack.NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Set up error for GetUsers
+	mockAPI.SetGetUsersError("API error")
+
+	// Should return error
+	err = runDefaultChannelCheckWithClient(client, 10, 0.9)
+	if err == nil {
+		t.Error("Expected error, got nil")
+	} else if !strings.Contains(err.Error(), "failed to detect default channels") {
+		t.Errorf("Expected \"failed to detect default channels\" error, got: %v", err)
+	}
+}
+
+func testDefaultChannelCheckEmptyRealName(t *testing.T) {
+	mockAPI := slack.NewMockSlackAPI()
+	client, err := slack.NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Add user without RealName
+	user := slackSDK.User{
+		ID:   "U001",
+		Name: "testuser",
+		// RealName is empty
+	}
+	mockAPI.Users = append(mockAPI.Users, user)
+	mockAPI.AddUser("U002", "user2", "User Two")
+
+	mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General")
+
+	// Should run without error
+	err = runDefaultChannelCheckWithClient(client, 10, 1.0)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func testDefaultChannelCheckSampleSizes(t *testing.T) {
+	mockAPI := slack.NewMockSlackAPI()
+	client, err := slack.NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Add 5 users
+	for i := 1; i <= 5; i++ {
+		mockAPI.AddUser(fmt.Sprintf("U%03d", i), fmt.Sprintf("user%d", i), fmt.Sprintf("User %d", i))
+	}
+
+	mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General")
+
+	// Test with different sample sizes
+	for _, sampleSize := range []int{5, 10, 20} {
+		err = runDefaultChannelCheckWithClient(client, sampleSize, 0.8)
+		if err != nil {
+			t.Errorf("Expected no error with sample size %d, got: %v", sampleSize, err)
+		}
+	}
+}
+
+func testDefaultChannelCheckThresholds(t *testing.T) {
+	mockAPI := slack.NewMockSlackAPI()
+	client, err := slack.NewClientWithAPI(mockAPI)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Add 3 users
+	mockAPI.AddUser("U001", "alice", "Alice Smith")
+	mockAPI.AddUser("U002", "bob", "Bob Jones")
+	mockAPI.AddUser("U003", "charlie", "Charlie Brown")
+
+	mockAPI.AddChannel("C001", "general", time.Now().Add(-30*24*time.Hour), "General")
+
+	// Test with different thresholds
+	for _, threshold := range []float64{0.8, 0.9, 0.95, 1.0} {
+		err = runDefaultChannelCheckWithClient(client, 10, threshold)
+		if err != nil {
+			t.Errorf("Expected no error with threshold %.2f, got: %v", threshold, err)
+		}
+	}
 }

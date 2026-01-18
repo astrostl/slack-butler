@@ -734,7 +734,7 @@ func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSec
 		fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
 		var exampleMessage string
 		if warnOnlyMode {
-			exampleMessage = client.FormatInactiveChannelWarningWarnOnly(toWarn[0], warnSeconds, "")
+			exampleMessage = client.FormatInactiveChannelWarningWarnOnly(toWarn[0], warnSeconds, archiveSeconds, "")
 		} else {
 			exampleMessage = client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds, "")
 		}
@@ -758,7 +758,7 @@ func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSecon
 	for _, channel := range toWarn {
 		var warnErr error
 		if warnOnlyMode {
-			warnErr = client.WarnInactiveChannelWarnOnly(channel, warnSeconds, metaChannelID)
+			warnErr = client.WarnInactiveChannelWarnOnly(channel, warnSeconds, archiveSeconds, metaChannelID)
 		} else {
 			warnErr = client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds, metaChannelID)
 		}

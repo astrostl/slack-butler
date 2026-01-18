@@ -1870,8 +1870,8 @@ func (c *Client) WarnInactiveChannel(channel Channel, warnSeconds, archiveSecond
 	return c.postMessageToChannelID(channel.ID, message)
 }
 
-// WarnInactiveChannelWarnOnly sends a warning without archive timeline (warn-only mode).
-func (c *Client) WarnInactiveChannelWarnOnly(channel Channel, warnSeconds int, metaChannelID string) error {
+// WarnInactiveChannelWarnOnly sends a warning in warn-only mode (uses archive-days for timeline).
+func (c *Client) WarnInactiveChannelWarnOnly(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) error {
 	// First, try to join the channel if it's public
 	if err := c.ensureBotInChannel(channel); err != nil {
 		logger.WithFields(logger.LogFields{
@@ -1881,11 +1881,12 @@ func (c *Client) WarnInactiveChannelWarnOnly(channel Channel, warnSeconds int, m
 		return fmt.Errorf("failed to join channel %s: %w", channel.Name, err)
 	}
 
-	message := c.FormatInactiveChannelWarningWarnOnly(channel, warnSeconds, metaChannelID)
+	message := c.FormatInactiveChannelWarningWarnOnly(channel, warnSeconds, archiveSeconds, metaChannelID)
 
 	logger.WithFields(logger.LogFields{
-		"channel":      channel.Name,
-		"warn_seconds": warnSeconds,
+		"channel":         channel.Name,
+		"warn_seconds":    warnSeconds,
+		"archive_seconds": archiveSeconds,
 	}).Debug("Posting inactive channel warning (warn-only mode)")
 
 	return c.postMessageToChannelID(channel.ID, message)
@@ -2024,28 +2025,10 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 	return builder.String()
 }
 
-// FormatInactiveChannelWarningWarnOnly formats a warning message for warn-only mode (no archive timeline).
-func (c *Client) FormatInactiveChannelWarningWarnOnly(channel Channel, warnSeconds int, metaChannelID string) string {
-	var builder strings.Builder
-
-	builder.WriteString("🚨 Inactive Channel Warning 🚨\n\n")
-
-	warnText := formatDurationSeconds(warnSeconds)
-
-	builder.WriteString(fmt.Sprintf("This channel has been inactive for more than %s.\n\n", warnText))
-
-	builder.WriteString("This channel may be considered for archival in the future if it remains inactive.\n\n")
-
-	builder.WriteString("To keep this channel active:\n\n")
-	builder.WriteString("• Post a message in this channel or\n")
-	// Create meta channel link if available
-	metaLink := metaChannelText
-	if metaChannelID != "" {
-		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
-	}
-	builder.WriteString(fmt.Sprintf("• Discuss in %s if this channel warrants admin intervention\n\n", metaLink))
-
-	return builder.String()
+// FormatInactiveChannelWarningWarnOnly formats a warning message for warn-only mode.
+func (c *Client) FormatInactiveChannelWarningWarnOnly(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {
+	// Use the same format as the regular warning - consistent messaging
+	return c.FormatInactiveChannelWarning(channel, warnSeconds, archiveSeconds, metaChannelID)
 }
 
 func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {

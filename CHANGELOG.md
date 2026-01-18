@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-01-18
+
+### Fixed
+- **Warning Message Consistency**: Warn-only mode now uses the same message format as regular archive mode
+  - Both modes now show: "This channel could be archived in another X days unless new messages are posted."
+  - Previously, warn-only mode showed a vague "may be considered for archival in the future" message
+  - The `--archive-days` value (default 30) is used for the timeline in both modes
+  - Rewarn functionality also uses consistent messaging
+
 ## [1.4.0] - 2026-01-18
 
 ### Added

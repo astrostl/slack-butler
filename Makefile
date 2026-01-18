@@ -12,7 +12,7 @@ BINARY_PATH=./bin/$(BINARY_NAME)
 GO_VERSION=1.24.4
 
 # Docker variables
-DOCKER_CMD ?= $(shell command -v nerdctl >/dev/null 2>&1 && echo nerdctl || echo docker)
+DOCKER_CMD ?= $(shell command -v docker >/dev/null 2>&1 && echo docker || echo nerdctl)
 DOCKER_IMAGE=astrostl/$(BINARY_NAME)
 DOCKER_TAG=latest
 

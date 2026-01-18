@@ -374,8 +374,6 @@ Authenticate with Docker Hub:
 
 ```bash
 docker login
-# OR for nerdctl:
-nerdctl login
 ```
 
 Enter your Docker Hub credentials when prompted.

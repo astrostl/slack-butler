@@ -80,6 +80,8 @@ var (
 	defaultChannelSampleSize int
 	defaultChannelThreshold  float64
 	defaultChannelCheck      bool
+	warnOnly                 bool
+	rewarnDays               float64
 )
 
 // displayWorkspaceInfo gets and displays workspace information.
@@ -111,6 +113,8 @@ func init() {
 	archiveCmd.Flags().IntVar(&defaultChannelSampleSize, "default-channel-sample-size", 10, "Number of recent users to sample for default channel detection (higher = more accurate but slower)")
 	archiveCmd.Flags().Float64Var(&defaultChannelThreshold, "default-channel-threshold", 0.9, "Membership threshold for default channel detection (0.0-1.0, e.g., 0.9 = 90% of users must share the channel)")
 	archiveCmd.Flags().BoolVar(&defaultChannelCheck, "default-channel-check", false, "Only check and report which channels are detected as defaults (diagnostic mode, skips archival)")
+	archiveCmd.Flags().BoolVar(&warnOnly, "warn-only", false, "Only send warnings, do not archive channels (use with --commit to actually send warnings)")
+	archiveCmd.Flags().Float64Var(&rewarnDays, "rewarn-days", 0, "Re-warn channels whose last warning is older than this many days (0 = disabled, no rewarning)")
 
 	highlightCmd.Flags().IntVar(&count, "count", 3, "Number of random channels to highlight (e.g., 1, 3, 5)")
 	highlightCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce highlights to (e.g., #general). Required when using --commit")
@@ -315,8 +319,14 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("slack token is required. Set SLACK_TOKEN environment variable or use --token flag")
 	}
 
-	if err := validateArchiveDays(warnDays, archiveDays); err != nil {
+	// In warn-only mode, archive-days doesn't matter, so skip its validation
+	if err := validateArchiveDays(warnDays, archiveDays, warnOnly); err != nil {
 		return err
+	}
+
+	// Validate rewarn-days if set
+	if rewarnDays < 0 {
+		return fmt.Errorf("rewarn-days must be non-negative, got %g", rewarnDays)
 	}
 
 	includeDefaultsValue, sampleSizeValue, thresholdValue, err := resolveArchiveConfig(cmd)
@@ -327,6 +337,7 @@ func runArchive(cmd *cobra.Command, args []string) error {
 	// Convert days to seconds for internal use
 	warnSeconds := int(warnDays * 24 * 60 * 60)
 	archiveSeconds := int(archiveDays * 24 * 60 * 60)
+	rewarnSeconds := int(rewarnDays * 24 * 60 * 60)
 
 	client, err := slack.NewClient(token)
 	if err != nil {
@@ -338,16 +349,18 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return runDefaultChannelCheckWithClient(client, sampleSizeValue, thresholdValue)
 	}
 
-	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes, warnDays, archiveDays, includeDefaultsValue, sampleSizeValue, thresholdValue)
+	return runArchiveWithClient(client, warnSeconds, archiveSeconds, !commit, excludeChannels, excludePrefixes, warnDays, archiveDays, includeDefaultsValue, sampleSizeValue, thresholdValue, warnOnly, rewarnSeconds)
 }
 
 // validateArchiveDays validates warn and archive days are positive.
-func validateArchiveDays(warnDays, archiveDays float64) error {
+// In warn-only mode, archive-days validation is skipped since archiving won't happen.
+func validateArchiveDays(warnDays, archiveDays float64, warnOnlyMode bool) error {
 	if warnDays <= 0 {
 		return fmt.Errorf("warn-days must be positive, got %g", warnDays)
 	}
 
-	if archiveDays <= 0 {
+	// Skip archive-days validation in warn-only mode
+	if !warnOnlyMode && archiveDays <= 0 {
 		return fmt.Errorf("archive-days must be positive, got %g", archiveDays)
 	}
 
@@ -384,7 +397,7 @@ func resolveArchiveConfig(cmd *cobra.Command) (includeDefaults bool, sampleSize 
 	return includeDefaults, sampleSize, threshold, nil
 }
 
-func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64, includeDefaults bool, sampleSize int, threshold float64) error {
+func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64, includeDefaults bool, sampleSize int, threshold float64, warnOnlyMode bool, rewarnSeconds int) error {
 	// Validate client
 	if client == nil {
 		return fmt.Errorf("client cannot be nil")
@@ -405,15 +418,26 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 
 	// Format days nicely - show decimals only when needed
 	warnText := formatDays(warnDays)
-	archiveText := formatDays(archiveDays)
 
-	fmt.Printf("Channel Archive Status: Warning at %s days, archiving at %s days, %s\n\n", warnText, archiveText, modeText)
+	if warnOnlyMode {
+		fmt.Printf("Channel Warning Status (warn-only mode): Warning at %s days, %s\n", warnText, modeText)
+		if rewarnSeconds > 0 {
+			rewarnDaysFloat := float64(rewarnSeconds) / (24 * 60 * 60)
+			fmt.Printf("  Re-warning channels with warnings older than %s days\n", formatDays(rewarnDaysFloat))
+		}
+		fmt.Println()
+	} else {
+		archiveText := formatDays(archiveDays)
+		fmt.Printf("Channel Archive Status: Warning at %s days, archiving at %s days, %s\n\n", warnText, archiveText, modeText)
+	}
 
 	if isDebug {
 		logger.WithFields(logger.LogFields{
 			"warn_seconds":    warnSeconds,
 			"archive_seconds": archiveSeconds,
 			"dry_run_mode":    isDryRun,
+			"warn_only_mode":  warnOnlyMode,
+			"rewarn_seconds":  rewarnSeconds,
 		}).Info("Starting inactive channel analysis")
 	}
 
@@ -437,24 +461,30 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 	displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels)
 
 	// Analyze inactive channels
-	toWarn, toArchive, totalChannels, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
+	toWarn, toArchive, totalChannels, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug, warnOnlyMode, rewarnSeconds)
 	if err != nil {
 		return err
 	}
 
 	// Report findings
-	fmt.Printf("Inactive Channel Analysis Results:\n")
-	fmt.Printf("  Channels to warn: %d\n", len(toWarn))
-	fmt.Printf("  Channels to archive: %d\n", len(toArchive))
-	fmt.Println()
+	if warnOnlyMode {
+		fmt.Printf("Inactive Channel Analysis Results (warn-only mode):\n")
+		fmt.Printf("  Channels to warn: %d\n", len(toWarn))
+		fmt.Println()
+	} else {
+		fmt.Printf("Inactive Channel Analysis Results:\n")
+		fmt.Printf("  Channels to warn: %d\n", len(toWarn))
+		fmt.Printf("  Channels to archive: %d\n", len(toArchive))
+		fmt.Println()
+	}
 
 	// Process warnings
 	if len(toWarn) > 0 {
-		processWarnings(client, toWarn, warnSeconds, archiveSeconds, isDryRun, totalChannels)
+		processWarnings(client, toWarn, warnSeconds, archiveSeconds, isDryRun, totalChannels, warnOnlyMode)
 	}
 
-	// Process archival
-	if len(toArchive) > 0 {
+	// Process archival (skip in warn-only mode)
+	if !warnOnlyMode && len(toArchive) > 0 {
 		processArchival(client, toArchive, warnSeconds, archiveSeconds, isDryRun, totalChannels)
 	}
 
@@ -594,8 +624,8 @@ func addHashPrefix(channels []string) []string {
 }
 
 // getInactiveChannelsWithErrorHandling analyzes inactive channels with proper error handling.
-func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, archiveSeconds int, userMap map[string]string, excludeChannelsList, excludePrefixesList []string, isDebug bool) ([]slack.Channel, []slack.Channel, int, error) {
-	toWarn, toArchive, totalChannels, err := client.GetInactiveChannelsWithDetailsAndExclusions(warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug)
+func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, archiveSeconds int, userMap map[string]string, excludeChannelsList, excludePrefixesList []string, isDebug bool, warnOnlyMode bool, rewarnSeconds int) ([]slack.Channel, []slack.Channel, int, error) {
+	toWarn, toArchive, totalChannels, err := client.GetInactiveChannelsWithDetailsAndExclusions(warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug, warnOnlyMode, rewarnSeconds)
 	if err != nil {
 		// Check if this is a rate limit error and provide helpful guidance
 		if strings.Contains(err.Error(), "rate_limited") || strings.Contains(err.Error(), "rate limit") {
@@ -682,30 +712,39 @@ func displayChannelDetails(channels []slack.Channel, title string) {
 }
 
 // processWarnings handles warning channels in both dry-run and real modes.
-func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool, totalChannels int) {
+func processWarnings(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, isDryRun bool, totalChannels int, warnOnlyMode bool) {
 	displayChannelDetails(toWarn, "Channels to warn about inactivity")
 
 	if isDryRun {
-		processWarningsDryRun(client, toWarn, warnSeconds, archiveSeconds, totalChannels)
+		processWarningsDryRun(client, toWarn, warnSeconds, archiveSeconds, totalChannels, warnOnlyMode)
 	} else {
-		processWarningsReal(client, toWarn, warnSeconds, archiveSeconds)
+		processWarningsReal(client, toWarn, warnSeconds, archiveSeconds, warnOnlyMode)
 	}
 }
 
 // processWarningsDryRun handles the dry-run display for warnings.
-func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, totalChannels int) {
+func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, totalChannels int, warnOnlyMode bool) {
 	fmt.Printf("--- DRY RUN ---\n")
-	fmt.Printf("Would warn %d/%d channels about upcoming archival\n", len(toWarn), totalChannels)
+	if warnOnlyMode {
+		fmt.Printf("Would warn %d/%d channels about inactivity (warn-only mode, no archival)\n", len(toWarn), totalChannels)
+	} else {
+		fmt.Printf("Would warn %d/%d channels about upcoming archival\n", len(toWarn), totalChannels)
+	}
 	if len(toWarn) > 0 {
 		fmt.Printf("Example warning message for #%s:\n", toWarn[0].Name)
-		exampleMessage := client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds, "")
+		var exampleMessage string
+		if warnOnlyMode {
+			exampleMessage = client.FormatInactiveChannelWarningWarnOnly(toWarn[0], warnSeconds, "")
+		} else {
+			exampleMessage = client.FormatInactiveChannelWarning(toWarn[0], warnSeconds, archiveSeconds, "")
+		}
 		fmt.Printf("%s\n", exampleMessage)
 	}
 	fmt.Printf("--- END DRY RUN ---\n\n")
 }
 
 // processWarningsReal handles the actual warning sending.
-func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int) {
+func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, warnOnlyMode bool) {
 	fmt.Printf("Sending warnings to %d channels (joining channels as needed)...\n", len(toWarn))
 
 	// Look up meta channel ID once for all warnings to reduce API calls
@@ -717,12 +756,18 @@ func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSecon
 
 	warningsSent := 0
 	for _, channel := range toWarn {
-		if err := client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds, metaChannelID); err != nil {
+		var warnErr error
+		if warnOnlyMode {
+			warnErr = client.WarnInactiveChannelWarnOnly(channel, warnSeconds, metaChannelID)
+		} else {
+			warnErr = client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds, metaChannelID)
+		}
+		if warnErr != nil {
 			logger.WithFields(logger.LogFields{
 				"channel": channel.Name,
-				"error":   err.Error(),
+				"error":   warnErr.Error(),
 			}).Error("Failed to send warning")
-			fmt.Printf("  Failed to warn #%s: %s\n", channel.Name, err.Error())
+			fmt.Printf("  Failed to warn #%s: %s\n", channel.Name, warnErr.Error())
 		} else {
 			warningsSent++
 			logger.WithField("channel", channel.Name).Info("Warning sent successfully")

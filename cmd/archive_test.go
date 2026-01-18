@@ -228,7 +228,7 @@ func TestRunArchiveWithClient(t *testing.T) {
 			// Convert seconds to days for the new API
 			testWarnDays := float64(tt.warnSeconds) / (24 * 60 * 60)
 			testArchiveDays := float64(tt.archiveSeconds) / (24 * 60 * 60)
-			err = runArchiveWithClient(client, tt.warnSeconds, tt.archiveSeconds, tt.isPreviewMode, "", "", testWarnDays, testArchiveDays, false, 10, 0.9)
+			err = runArchiveWithClient(client, tt.warnSeconds, tt.archiveSeconds, tt.isPreviewMode, "", "", testWarnDays, testArchiveDays, false, 10, 0.9, false, 0)
 			validateTestResults(t, tt, err, mockAPI)
 		})
 	}
@@ -517,7 +517,7 @@ func TestArchiveGetInactiveChannelsErrorPaths(t *testing.T) {
 		excludeChannels := []string{}
 		excludePrefixes := []string{}
 
-		_, _, _, err = getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, excludeChannels, excludePrefixes, false)
+		_, _, _, err = getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, excludeChannels, excludePrefixes, false, false, 0)
 
 		if err == nil {
 			t.Error("Expected error for rate limit scenario")
@@ -540,7 +540,7 @@ func TestArchiveGetInactiveChannelsErrorPaths(t *testing.T) {
 		excludeChannels := []string{}
 		excludePrefixes := []string{}
 
-		_, _, _, err = getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, excludeChannels, excludePrefixes, false)
+		_, _, _, err = getInactiveChannelsWithErrorHandling(client, 30, 7, userMap, excludeChannels, excludePrefixes, false, false, 0)
 
 		if err == nil {
 			t.Error("Expected error for generic API error scenario")

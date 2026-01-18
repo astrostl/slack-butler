@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-01-18
+
+### Added
+- **Warn-Only Mode**: New `--warn-only` flag for archive command
+  - Send inactivity warnings without archiving channels
+  - Useful for extending grace periods or gradually introducing channel hygiene
+  - Warning message does not include archive timeline (softer messaging)
+  - Requires `--commit` to actually send warnings (safe dry-run by default)
+- **Re-warn Support**: New `--rewarn-days` flag for archive command
+  - Re-warn channels whose last warning is older than specified days
+  - Default: 0 (disabled, no rewarning)
+  - Only applies in warn-only mode
+  - Helps refresh stale warnings after a break from running the tool
+
+### Improved
+- **Code Quality**: Refactored channel analysis for lower cognitive complexity
+  - Extracted `categorizeChannel`, `categorizeChannelWarnOnly`, `categorizeChannelNormal` helpers
+  - Added `channelAnalysisParams` struct for cleaner parameter passing
+  - Made `#meta` channel reference a constant (`metaChannelText`)
+
+### Documentation
+- **README.md**: Added warn-only mode documentation and examples
+- **CLAUDE.md**: Added warn-only mode to features list and usage examples
+
 ## [1.3.2] - 2025-10-18
 
 ### Added

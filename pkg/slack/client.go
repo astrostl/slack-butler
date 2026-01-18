@@ -14,11 +14,12 @@ import (
 
 // Common time duration text constants.
 const (
-	oneMinuteText = "1 minute"
-	oneHourText   = "1 hour"
-	oneDayText    = "1 day"
-	textDays      = "days"
-	textDay       = "day"
+	oneMinuteText   = "1 minute"
+	oneHourText     = "1 hour"
+	oneDayText      = "1 day"
+	textDays        = "days"
+	textDay         = "day"
+	metaChannelText = "#meta"
 )
 
 type Client struct {
@@ -894,17 +895,19 @@ func (c *Client) GetInactiveChannelsWithDetails(warnSeconds int, archiveSeconds 
 	}
 	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
 
-	// Analyze each candidate channel for activity
-	return c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug)
+	// Analyze each candidate channel for activity (no warn-only mode, no rewarn)
+	return c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug, false, 0)
 }
 
 // GetInactiveChannelsWithDetailsAndExclusions returns inactive channels with exclusion support.
-func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, archiveSeconds int, userMap map[string]string, excludeChannels, excludePrefixes []string, isDebug bool) (toWarn []Channel, toArchive []Channel, totalChannels int, err error) {
+func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, archiveSeconds int, userMap map[string]string, excludeChannels, excludePrefixes []string, isDebug bool, warnOnlyMode bool, rewarnSeconds int) (toWarn []Channel, toArchive []Channel, totalChannels int, err error) {
 	logger.WithFields(logger.LogFields{
 		"warn_seconds":     warnSeconds,
 		"archive_seconds":  archiveSeconds,
 		"exclude_channels": excludeChannels,
 		"exclude_prefixes": excludePrefixes,
+		"warn_only_mode":   warnOnlyMode,
+		"rewarn_seconds":   rewarnSeconds,
 	}).Debug("Starting inactive channel detection with message details and exclusions")
 
 	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
@@ -931,7 +934,7 @@ func (c *Client) GetInactiveChannelsWithDetailsAndExclusions(warnSeconds int, ar
 	logger.WithField("joined_count", joinedCount).Debug("Auto-joined public channels")
 
 	// Analyze each candidate channel for activity
-	toWarn, toArchive, err = c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug)
+	toWarn, toArchive, err = c.analyzeChannelsForInactivity(candidateChannels, userMap, warnCutoff, archiveSeconds, isDebug, warnOnlyMode, rewarnSeconds)
 	return toWarn, toArchive, len(candidateChannels), err
 }
 
@@ -1052,9 +1055,26 @@ func (c *Client) autoJoinChannelsForAnalysis(candidateChannels []slack.Channel, 
 	return joinedCount, err
 }
 
+// channelAnalysisParams holds parameters for channel analysis decisions.
+type channelAnalysisParams struct {
+	warnCutoff     time.Time
+	archiveSeconds int
+	warnOnlyMode   bool
+	rewarnSeconds  int
+}
+
 // analyzeChannelsForInactivity analyzes each candidate channel for activity and categorizes them.
-func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel, userMap map[string]string, warnCutoff time.Time, archiveSeconds int, isDebug bool) (toWarn []Channel, toArchive []Channel, err error) {
+// When warnOnlyMode is true, archival is skipped entirely.
+// When rewarnSeconds > 0, channels with warnings older than rewarnSeconds are re-warned.
+func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel, userMap map[string]string, warnCutoff time.Time, archiveSeconds int, isDebug bool, warnOnlyMode bool, rewarnSeconds int) (toWarn []Channel, toArchive []Channel, err error) {
 	now := time.Now()
+	params := channelAnalysisParams{
+		warnCutoff:     warnCutoff,
+		archiveSeconds: archiveSeconds,
+		warnOnlyMode:   warnOnlyMode,
+		rewarnSeconds:  rewarnSeconds,
+	}
+
 	for i, ch := range candidateChannels {
 		lastActivity, hasWarning, warningTime, lastMessage, err := c.GetChannelActivityWithMessageAndUsers(ch.ID, userMap)
 		if err != nil {
@@ -1071,23 +1091,57 @@ func (c *Client) analyzeChannelsForInactivity(candidateChannels []slack.Channel,
 		enhancedChannel := c.createEnhancedChannel(ch, lastActivity, lastMessage)
 		c.displayChannelAnalysis(ch, lastActivity, hasWarning, warningTime, lastMessage, now, i, len(candidateChannels))
 
-		if hasWarning {
-			if c.shouldArchiveChannel(warningTime, archiveSeconds) {
-				toArchive = append(toArchive, enhancedChannel)
-				c.logChannelDecision(ch.Name, "archival", warningTime)
-			}
-		} else if c.shouldWarnChannel(lastActivity, warnCutoff) {
-			toWarn = append(toWarn, enhancedChannel)
-			c.logChannelDecision(ch.Name, "warning", lastActivity)
-		}
+		toWarn, toArchive = c.categorizeChannel(enhancedChannel, hasWarning, warningTime, lastActivity, params, toWarn, toArchive)
 	}
 
 	logger.WithFields(logger.LogFields{
 		"channels_to_warn":    len(toWarn),
 		"channels_to_archive": len(toArchive),
+		"warn_only_mode":      warnOnlyMode,
 	}).Debug("Inactive channel analysis completed")
 
 	return toWarn, toArchive, nil
+}
+
+// categorizeChannel decides whether to warn or archive a channel based on its state.
+func (c *Client) categorizeChannel(channel Channel, hasWarning bool, warningTime, lastActivity time.Time, params channelAnalysisParams, toWarn, toArchive []Channel) ([]Channel, []Channel) {
+	if params.warnOnlyMode {
+		return c.categorizeChannelWarnOnly(channel, hasWarning, warningTime, lastActivity, params, toWarn), toArchive
+	}
+	return c.categorizeChannelNormal(channel, hasWarning, warningTime, lastActivity, params, toWarn, toArchive)
+}
+
+// categorizeChannelWarnOnly handles channel categorization in warn-only mode.
+func (c *Client) categorizeChannelWarnOnly(channel Channel, hasWarning bool, warningTime, lastActivity time.Time, params channelAnalysisParams, toWarn []Channel) []Channel {
+	if !hasWarning && c.shouldWarnChannel(lastActivity, params.warnCutoff) {
+		c.logChannelDecision(channel.Name, "warning", lastActivity)
+		return append(toWarn, channel)
+	}
+	if hasWarning && params.rewarnSeconds > 0 && c.shouldRewarnChannel(warningTime, params.rewarnSeconds) {
+		c.logChannelDecision(channel.Name, "rewarn", warningTime)
+		return append(toWarn, channel)
+	}
+	return toWarn
+}
+
+// categorizeChannelNormal handles channel categorization in normal (archive) mode.
+func (c *Client) categorizeChannelNormal(channel Channel, hasWarning bool, warningTime, lastActivity time.Time, params channelAnalysisParams, toWarn, toArchive []Channel) ([]Channel, []Channel) {
+	if hasWarning && c.shouldArchiveChannel(warningTime, params.archiveSeconds) {
+		c.logChannelDecision(channel.Name, "archival", warningTime)
+		return toWarn, append(toArchive, channel)
+	}
+	if !hasWarning && c.shouldWarnChannel(lastActivity, params.warnCutoff) {
+		c.logChannelDecision(channel.Name, "warning", lastActivity)
+		return append(toWarn, channel), toArchive
+	}
+	return toWarn, toArchive
+}
+
+// shouldRewarnChannel determines if a channel should be re-warned based on warning age.
+// Returns true if the warning is older than rewarnSeconds.
+func (c *Client) shouldRewarnChannel(warningTime time.Time, rewarnSeconds int) bool {
+	warningAge := time.Since(warningTime)
+	return warningAge > time.Duration(rewarnSeconds)*time.Second
 }
 
 // handleChannelAnalysisError handles errors during channel analysis and returns true if processing should stop.
@@ -1816,6 +1870,27 @@ func (c *Client) WarnInactiveChannel(channel Channel, warnSeconds, archiveSecond
 	return c.postMessageToChannelID(channel.ID, message)
 }
 
+// WarnInactiveChannelWarnOnly sends a warning without archive timeline (warn-only mode).
+func (c *Client) WarnInactiveChannelWarnOnly(channel Channel, warnSeconds int, metaChannelID string) error {
+	// First, try to join the channel if it's public
+	if err := c.ensureBotInChannel(channel); err != nil {
+		logger.WithFields(logger.LogFields{
+			"channel": channel.Name,
+			"error":   err.Error(),
+		}).Warn("Could not join channel, skipping warning")
+		return fmt.Errorf("failed to join channel %s: %w", channel.Name, err)
+	}
+
+	message := c.FormatInactiveChannelWarningWarnOnly(channel, warnSeconds, metaChannelID)
+
+	logger.WithFields(logger.LogFields{
+		"channel":      channel.Name,
+		"warn_seconds": warnSeconds,
+	}).Debug("Posting inactive channel warning (warn-only mode)")
+
+	return c.postMessageToChannelID(channel.ID, message)
+}
+
 func (c *Client) ensureBotInChannel(channel Channel) error {
 	logger.WithField("channel", channel.Name).Debug("Ensuring bot is in channel")
 
@@ -1940,7 +2015,31 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 	builder.WriteString("To keep this channel active:\n\n")
 	builder.WriteString("• Post a message in this channel or\n")
 	// Create meta channel link if available
-	metaLink := "#meta"
+	metaLink := metaChannelText
+	if metaChannelID != "" {
+		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
+	}
+	builder.WriteString(fmt.Sprintf("• Discuss in %s if this channel warrants admin intervention\n\n", metaLink))
+
+	return builder.String()
+}
+
+// FormatInactiveChannelWarningWarnOnly formats a warning message for warn-only mode (no archive timeline).
+func (c *Client) FormatInactiveChannelWarningWarnOnly(channel Channel, warnSeconds int, metaChannelID string) string {
+	var builder strings.Builder
+
+	builder.WriteString("🚨 Inactive Channel Warning 🚨\n\n")
+
+	warnText := formatDurationSeconds(warnSeconds)
+
+	builder.WriteString(fmt.Sprintf("This channel has been inactive for more than %s.\n\n", warnText))
+
+	builder.WriteString("This channel may be considered for archival in the future if it remains inactive.\n\n")
+
+	builder.WriteString("To keep this channel active:\n\n")
+	builder.WriteString("• Post a message in this channel or\n")
+	// Create meta channel link if available
+	metaLink := metaChannelText
 	if metaChannelID != "" {
 		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
 	}
@@ -1966,7 +2065,7 @@ func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, arch
 	builder.WriteString("This channel is now being archived.\n\n")
 
 	// Create meta channel link if available
-	metaLink := "#meta"
+	metaLink := metaChannelText
 	if metaChannelID != "" {
 		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
 	}

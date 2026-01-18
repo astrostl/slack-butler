@@ -11,6 +11,7 @@
 ## Current Features
 - **Channel Detection**: Detect new channels created during a specified time period
 - **Channel Archival**: Detect inactive channels, warn about upcoming archival, and automatically archive channels after grace period (✅ **IMPLEMENTED**)
+- **Warn-Only Mode**: Send inactivity warnings without archiving, with optional rewarn for stale warnings (`--warn-only`, `--rewarn-days`) (✅ **IMPLEMENTED**)
 - **Default Channel Protection**: Automatically detects and protects workspace default channels from archival using user intersection heuristics (✅ **IMPLEMENTED**)
 - **Default Channel Check**: Diagnostic flag (`--default-channel-check`) for archive command to see which channels are detected as defaults and which users are sampled (✅ **IMPLEMENTED**)
 - **Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation (✅ **IMPLEMENTED**)
@@ -78,6 +79,15 @@ export SLACK_DEFAULT_CHANNEL_THRESHOLD=0.85
 ./bin/slack-butler channels archive --default-channel-check
 ./bin/slack-butler channels archive --default-channel-check --default-channel-sample-size=20
 ./bin/slack-butler channels archive --default-channel-check --default-channel-threshold=0.95
+
+# Warn-only mode: send warnings without archiving (dry run preview)
+./bin/slack-butler channels archive --warn-only
+
+# Warn-only mode: actually send warnings (use with --commit)
+./bin/slack-butler channels archive --warn-only --commit
+
+# Warn-only mode with rewarn: re-warn channels whose warning is older than 30 days
+./bin/slack-butler channels archive --warn-only --rewarn-days=30 --commit
 
 # Random channel highlights (dry run mode by default)
 ./bin/slack-butler channels highlight
@@ -312,7 +322,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.3.2 - Current stable release
+- **Version**: 1.4.0 - Current stable release
 - **Status**: ✅ **STABLE** - Homebrew tap + go install + Docker distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Distribution**:

@@ -184,6 +184,12 @@ slack-butler channels archive --exclude-channels="general,announcements" --exclu
 
 # Docker equivalent
 docker run -e SLACK_TOKEN=$SLACK_TOKEN astrostl/slack-butler:latest channels archive --warn-days=45 --archive-days=30 --commit
+
+# Warn-only mode: send warnings without archiving
+slack-butler channels archive --warn-only --commit
+
+# Warn-only with rewarn: re-warn channels whose warning is older than 30 days
+slack-butler channels archive --warn-only --rewarn-days=30 --commit
 ```
 
 ### Dry Run vs Commit Mode
@@ -255,8 +261,10 @@ slack-butler channels detect --since=1 --announce-to=#general --commit
 Manage inactive channel archival with automated warnings and grace periods. Automatically detects and protects workspace default channels.
 
 **Flags:**
-- `--warn-days` - Days of inactivity before warning (default: 30)
+- `--warn-days` - Days of inactivity before warning (default: 45)
 - `--archive-days` - Days after warning before archiving (default: 30)
+- `--warn-only` - Only send warnings, do not archive channels (use with --commit)
+- `--rewarn-days` - Re-warn channels whose last warning is older than this many days (default: 0 = disabled)
 - `--exclude-channels` - Comma-separated list of channels to exclude
 - `--exclude-prefixes` - Comma-separated list of prefixes to exclude
 - `--include-default-channels` - Include auto-detected default channels in archival (default: false, protects defaults)
@@ -298,7 +306,19 @@ slack-butler channels archive --exclude-channels="general,random" --commit
 
 # Full archival with custom timings
 slack-butler channels archive --warn-days=60 --archive-days=14 --commit
+
+# Warn-only mode: send warnings without archiving
+slack-butler channels archive --warn-only --commit
+
+# Warn-only with rewarn: refresh warnings older than 30 days
+slack-butler channels archive --warn-only --rewarn-days=30 --commit
 ```
+
+**Warn-Only Mode:**
+Use `--warn-only` to send inactivity warnings without proceeding to archival. This is useful for:
+- Gradually introducing channel hygiene without immediately archiving
+- Extending grace periods after a break from running the tool
+- Refreshing stale warnings with `--rewarn-days` to notify users again
 
 ### `channels highlight`
 Randomly select and highlight active channels to encourage discovery and participation.

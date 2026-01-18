@@ -1837,7 +1837,7 @@ func TestGetInactiveChannelsWithDetailsAndExclusions(t *testing.T) {
 		excludeChannels := []string{"general"}
 		excludePrefixes := []string{"prod-"}
 
-		toWarn, toArchive, _, err := client.GetInactiveChannelsWithDetailsAndExclusions(600, 300, userMap, excludeChannels, excludePrefixes, false)
+		toWarn, toArchive, _, err := client.GetInactiveChannelsWithDetailsAndExclusions(600, 300, userMap, excludeChannels, excludePrefixes, false, false, 0)
 
 		assert.NoError(t, err)
 		// Only test-channel should remain (general excluded by name, prod-alerts excluded by prefix)

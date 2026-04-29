@@ -324,7 +324,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.5.0 - Current stable release
+- **Version**: 1.5.1 - Current stable release
 - **Status**: ✅ **STABLE** - Homebrew tap + go install + Docker distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Distribution**:

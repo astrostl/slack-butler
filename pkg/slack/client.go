@@ -1,3 +1,6 @@
+// Package slack wraps the slack-go SDK with the higher-level operations
+// slack-butler needs: channel inactivity analysis, default-channel
+// detection, archival, announcements, and rate-limit-aware retries.
 package slack
 
 import (
@@ -242,9 +245,9 @@ func (c *Client) FormatNewChannelAnnouncement(channels []Channel, since time.Tim
 	var builder strings.Builder
 
 	if len(channels) == 1 {
-		builder.WriteString(fmt.Sprintf("New channel created in the last %d %s!", daysSince, daysText))
+		fmt.Fprintf(&builder, "New channel created in the last %d %s!", daysSince, daysText)
 	} else {
-		builder.WriteString(fmt.Sprintf("%d new channels created in the last %d %s!", len(channels), daysSince, daysText))
+		fmt.Fprintf(&builder, "%d new channels created in the last %d %s!", len(channels), daysSince, daysText)
 	}
 
 	builder.WriteString("\n\n")
@@ -257,18 +260,18 @@ func (c *Client) FormatNewChannelAnnouncement(channels []Channel, since time.Tim
 			daysText = "day"
 		}
 
-		builder.WriteString(fmt.Sprintf("• <#%s>", ch.ID))
+		fmt.Fprintf(&builder, "• <#%s>", ch.ID)
 
 		// Add creator info if available
 		if ch.Creator != "" {
-			builder.WriteString(fmt.Sprintf(" created by <@%s>", ch.Creator))
+			fmt.Fprintf(&builder, " created by <@%s>", ch.Creator)
 		}
 
 		// Add creation time info
-		builder.WriteString(fmt.Sprintf(" %d %s ago", daysSinceCreated, daysText))
+		fmt.Fprintf(&builder, " %d %s ago", daysSinceCreated, daysText)
 
 		if ch.Purpose != "" {
-			builder.WriteString(fmt.Sprintf("\n  Description: %s", ch.Purpose))
+			fmt.Fprintf(&builder, "\n  Description: %s", ch.Purpose)
 		}
 
 		// Add spacing between channels (but not after the last one)
@@ -300,9 +303,9 @@ func (c *Client) FormatNewChannelAnnouncementDryRun(channels []Channel, since ti
 	var builder strings.Builder
 
 	if len(channels) == 1 {
-		builder.WriteString(fmt.Sprintf("New channel created in the last %d %s!", daysSince, daysText))
+		fmt.Fprintf(&builder, "New channel created in the last %d %s!", daysSince, daysText)
 	} else {
-		builder.WriteString(fmt.Sprintf("%d new channels created in the last %d %s!", len(channels), daysSince, daysText))
+		fmt.Fprintf(&builder, "%d new channels created in the last %d %s!", len(channels), daysSince, daysText)
 	}
 
 	builder.WriteString("\n\n")
@@ -315,7 +318,7 @@ func (c *Client) FormatNewChannelAnnouncementDryRun(channels []Channel, since ti
 			daysText = "day"
 		}
 
-		builder.WriteString(fmt.Sprintf("• #%s", ch.Name))
+		fmt.Fprintf(&builder, "• #%s", ch.Name)
 
 		// Add creator info with pretty name if available
 		if ch.Creator != "" {
@@ -323,14 +326,14 @@ func (c *Client) FormatNewChannelAnnouncementDryRun(channels []Channel, since ti
 			if userName, exists := userMap[ch.Creator]; exists && userName != "" {
 				creatorName = userName
 			}
-			builder.WriteString(fmt.Sprintf(" created by %s", creatorName))
+			fmt.Fprintf(&builder, " created by %s", creatorName)
 		}
 
 		// Add creation time info
-		builder.WriteString(fmt.Sprintf(" %d %s ago", daysSinceCreated, daysText))
+		fmt.Fprintf(&builder, " %d %s ago", daysSinceCreated, daysText)
 
 		if ch.Purpose != "" {
-			builder.WriteString(fmt.Sprintf("\n  Description: %s", ch.Purpose))
+			fmt.Fprintf(&builder, "\n  Description: %s", ch.Purpose)
 		}
 
 		// Add spacing between channels (but not after the last one)
@@ -1299,16 +1302,16 @@ func (c *Client) FormatChannelHighlightAnnouncement(channels []Channel) string {
 	if len(channels) == 1 {
 		builder.WriteString("🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
 	} else {
-		builder.WriteString(fmt.Sprintf("🧭 Here are %d randomly-selected public channels that you are welcome to explore!", len(channels)))
+		fmt.Fprintf(&builder, "🧭 Here are %d randomly-selected public channels that you are welcome to explore!", len(channels))
 	}
 
 	builder.WriteString("\n\n")
 
 	for i, ch := range channels {
-		builder.WriteString(fmt.Sprintf("• <#%s>", ch.ID))
+		fmt.Fprintf(&builder, "• <#%s>", ch.ID)
 
 		if ch.Purpose != "" {
-			builder.WriteString(fmt.Sprintf("\n  %s", ch.Purpose))
+			fmt.Fprintf(&builder, "\n  %s", ch.Purpose)
 		}
 
 		// Add spacing between channels (but not after the last one)
@@ -1329,16 +1332,16 @@ func (c *Client) FormatChannelHighlightAnnouncementDryRun(channels []Channel) st
 	if len(channels) == 1 {
 		builder.WriteString("🧭 Here is 1 randomly-selected public channel that you are welcome to explore!")
 	} else {
-		builder.WriteString(fmt.Sprintf("🧭 Here are %d randomly-selected public channels that you are welcome to explore!", len(channels)))
+		fmt.Fprintf(&builder, "🧭 Here are %d randomly-selected public channels that you are welcome to explore!", len(channels))
 	}
 
 	builder.WriteString("\n\n")
 
 	for i, ch := range channels {
-		builder.WriteString(fmt.Sprintf("• #%s", ch.Name))
+		fmt.Fprintf(&builder, "• #%s", ch.Name)
 
 		if ch.Purpose != "" {
-			builder.WriteString(fmt.Sprintf("\n  %s", ch.Purpose))
+			fmt.Fprintf(&builder, "\n  %s", ch.Purpose)
 		}
 
 		// Add spacing between channels (but not after the last one)
@@ -2061,15 +2064,15 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 
 	warnText := formatDurationSeconds(warnSeconds)
 
-	builder.WriteString(fmt.Sprintf("This channel has been inactive for more than %s.\n\n", warnText))
+	fmt.Fprintf(&builder, "This channel has been inactive for more than %s.\n\n", warnText)
 
 	archiveText := formatDurationSeconds(archiveSeconds)
 
-	builder.WriteString(fmt.Sprintf("This channel could be archived in another %s unless new messages are posted.\n\n", archiveText))
+	fmt.Fprintf(&builder, "This channel could be archived in another %s unless new messages are posted.\n\n", archiveText)
 
 	builder.WriteString("To keep this channel active:\n\n")
 	builder.WriteString("• Post a message in this channel or\n")
-	builder.WriteString(fmt.Sprintf("• Discuss in %s if this channel warrants admin intervention\n\n", c.discussionChannelLink(discussionChannelID)))
+	fmt.Fprintf(&builder, "• Discuss in %s if this channel warrants admin intervention\n\n", c.discussionChannelLink(discussionChannelID))
 
 	return builder.String()
 }
@@ -2090,13 +2093,13 @@ func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, arch
 	archiveText := formatDurationSeconds(archiveSeconds)
 
 	builder.WriteString("This channel is being archived because:\n\n")
-	builder.WriteString(fmt.Sprintf("• It was inactive for more than %s (warning threshold)\n", warnText))
+	fmt.Fprintf(&builder, "• It was inactive for more than %s (warning threshold)\n", warnText)
 	builder.WriteString("• An inactivity warning was posted\n")
-	builder.WriteString(fmt.Sprintf("• No new activity occurred within %s after the warning (archive threshold)\n\n", archiveText))
+	fmt.Fprintf(&builder, "• No new activity occurred within %s after the warning (archive threshold)\n\n", archiveText)
 
 	builder.WriteString("This channel is now being archived.\n\n")
 
-	builder.WriteString(fmt.Sprintf("You may unarchive the channel yourself (given permissions) or discuss in %s if you disagree!", c.discussionChannelLink(discussionChannelID)))
+	fmt.Fprintf(&builder, "You may unarchive the channel yourself (given permissions) or discuss in %s if you disagree!", c.discussionChannelLink(discussionChannelID))
 
 	return builder.String()
 }
@@ -2734,11 +2737,9 @@ func (c *Client) getChannelNameByID(channelID string) (string, error) {
 	return "", fmt.Errorf("failed to get channel info after retries")
 }
 
-// GetDefaultChannels detects likely default channels by finding channels that all recent users share.
-// It samples the most recent non-bot users and returns channels that meet the membership threshold.
-// threshold: percentage of sampled users that must be members (e.g., 0.9 = 90%)
-// Returns a list of channel names (without # prefix) that are likely auto-join default channels.
-// DefaultChannelResult contains the result of default channel detection.
+// DefaultChannelResult contains the result of default channel detection:
+// the channels that meet the membership threshold and the users sampled
+// to derive that intersection.
 type DefaultChannelResult struct {
 	DefaultChannels []string
 	SampledUsers    []UserInfo

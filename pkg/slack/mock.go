@@ -315,7 +315,8 @@ func (m *MockSlackAPI) SetJoinError(errorType string) {
 	}
 }
 
-// Additional helper methods for specific error types.
+// SetMissingScopeError configures the mock to return a "missing_scope" error
+// from GetConversations when hasError is true.
 func (m *MockSlackAPI) SetMissingScopeError(hasError bool) {
 	if hasError {
 		m.GetConversationsError = errors.New(missingScope)
@@ -365,7 +366,7 @@ func (m *MockSlackAPI) SetConversationHistoryError(hasError bool) {
 	}
 }
 
-// Simulate specific error types.
+// SimulateMissingScopeError is a shorthand for SetMissingScopeError(true).
 func (m *MockSlackAPI) SimulateMissingScopeError() {
 	m.SetMissingScopeError(true)
 }
@@ -464,7 +465,7 @@ func (m *MockSlackAPI) SetGetTeamInfoError(errorType string) {
 
 // Additional helper methods for archive testing
 
-// MockMessage represents a message in conversation history for testing.
+// MockHistoryMessage represents a message in conversation history for testing.
 type MockHistoryMessage struct {
 	Timestamp string
 	User      string

@@ -1,3 +1,6 @@
+// Package logger provides a thin convenience wrapper around logrus
+// configured for slack-butler's CLI output (debug-gated INFO logging,
+// structured fields, JSON formatter when not on a TTY).
 package logger
 
 import (

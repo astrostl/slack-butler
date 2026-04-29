@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-04-29
+
+### Changed
+- **Linting**: Re-enabled the four `staticcheck` v2-bundled checks that v1.5.0 silenced (`ST1000`, `ST1020`, `ST1021`, `QF1012`). All existing violations are now fixed:
+  - Added `// Package …` doc comments to `cmd`, `pkg/logger`, and `pkg/slack`.
+  - Reworded mismatched exported-type/method comments to begin with the identifier name (`DefaultChannelResult`, `MockHistoryMessage`, `SetMissingScopeError`, `SimulateMissingScopeError`).
+  - Converted `builder.WriteString(fmt.Sprintf(...))` call sites in `pkg/slack/client.go` to `fmt.Fprintf(&builder, ...)` (one allocation per call instead of two).
+  - Replaced `"unknown"` string literals in `cmd/version.go` with the existing `unknownValue` constant.
+
 ## [1.5.0] - 2026-04-29
 
 ### Added

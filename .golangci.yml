@@ -62,13 +62,6 @@ linters:
     staticcheck:
       checks:
         - all
-        # The following stylistic/quickfix checks were not part of v1's
-        # default staticcheck bundle; keep the v1 bar to avoid scope creep
-        # in this release.
-        - -ST1000 # Missing package comment
-        - -ST1020 # Method comment form
-        - -ST1021 # Type comment form
-        - -QF1012 # Use fmt.Fprintf instead of WriteString(fmt.Sprintf)
   exclusions:
     generated: lax
     rules:

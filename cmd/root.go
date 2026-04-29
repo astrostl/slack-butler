@@ -1,3 +1,4 @@
+// Package cmd implements the slack-butler CLI commands using cobra.
 package cmd
 
 import (

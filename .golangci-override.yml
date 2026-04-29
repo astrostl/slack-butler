@@ -1,47 +1,57 @@
+version: "2"
 linters:
-  disable:
-    # Disable style and optimization linters for maintenance workflow
-    - godot         # Disable comment period requirements  
-    - goconst       # Disable constant suggestions
-    - nestif        # Disable complex nested block warnings
-    - gofumpt       # Disable stricter formatting requirements
-    - nolintlint    # Disable nolint directive validation
-    - revive        # Disable some revive rules that may conflict with updates
   enable:
-    # Keep critical error and security checks
-    - errcheck      # CRITICAL: Keep error handling checks
-    - gosec         # Keep security checks
-    - govet         # Keep essential vet checks
-    - staticcheck   # Keep static analysis
-    - ineffassign   # Keep inefficient assignment checks
-    - misspell      # Keep spell checking
-
-issues:
-  exclude:
-    - "G101"  # Disable hardcoded credentials check (too many false positives in tests)
-
-linters-settings:
-  govet:
-    enable:
-      - assign
-      - atomic
-      - bools
-      - buildtag
-      - cgocall
-      - composites
-      - copylocks
-      - httpresponse
-      - loopclosure
-      - lostcancel
-      - nilfunc
-      - printf
-      - shift
-      - stdmethods
-      - structtag
-      - tests
-      - unmarshal
-      - unreachable
-      - unsafeptr
-      - unusedresult
-    disable:
-      - shadow     # Disable variable shadowing
+    - gosec
+    - misspell
+  disable:
+    - goconst
+    - godot
+    - nestif
+    - nolintlint
+    - revive
+  settings:
+    govet:
+      enable:
+        - assign
+        - atomic
+        - bools
+        - buildtag
+        - cgocall
+        - composites
+        - copylocks
+        - httpresponse
+        - loopclosure
+        - lostcancel
+        - nilfunc
+        - printf
+        - shift
+        - stdmethods
+        - structtag
+        - tests
+        - unmarshal
+        - unreachable
+        - unsafeptr
+        - unusedresult
+      disable:
+        - shadow
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: (.+)\.go$
+        text: G101
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

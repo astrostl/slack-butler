@@ -8,7 +8,7 @@ package tools
 
 import (
 	_ "github.com/fzipp/gocyclo/cmd/gocyclo"
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "github.com/securego/gosec/v2/cmd/gosec"
 	_ "golang.org/x/vuln/cmd/govulncheck"
 )

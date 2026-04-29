@@ -14,6 +14,8 @@
 - **Warn-Only Mode**: Send inactivity warnings without archiving, with optional rewarn for stale warnings (`--warn-only`, `--rewarn-days`) (✅ **IMPLEMENTED**)
 - **Default Channel Protection**: Automatically detects and protects workspace default channels from archival using user intersection heuristics (✅ **IMPLEMENTED**)
 - **Default Channel Check**: Diagnostic flag (`--default-channel-check`) for archive command to see which channels are detected as defaults and which users are sampled (✅ **IMPLEMENTED**)
+- **Configurable Discussion Channel**: `--discussion-channel` flag (env: `SLACK_DISCUSSION_CHANNEL`, default: `meta`) controls the channel referenced in warning/archival messages for discussing admin intervention. The configured channel is automatically excluded from archival. (✅ **IMPLEMENTED**)
+- **External-Shared (Slack Connect) Protection**: Channels with `is_ext_shared` or `is_pending_ext_shared` are automatically protected from archival. Override with `--include-ext-shared` flag (env: `SLACK_INCLUDE_EXT_SHARED`). (✅ **IMPLEMENTED**)
 - **Random Channel Highlights**: Randomly select and highlight active channels to encourage discovery and participation (✅ **IMPLEMENTED**)
 - **Health Checks**: Diagnostic command to verify configuration, permissions, and connectivity
 - **Announcement System**: Optionally announce new channels to a target channel
@@ -322,7 +324,7 @@ slack-butler channels detect --help
 ```
 
 ## Git Repository
-- **Version**: 1.4.1 - Current stable release
+- **Version**: 1.5.0 - Current stable release
 - **Status**: ✅ **STABLE** - Homebrew tap + go install + Docker distribution
 - **Security**: ✅ **COMMUNITY SECURITY** - Security tools available, community-maintained
 - **Distribution**:

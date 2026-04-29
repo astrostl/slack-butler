@@ -106,6 +106,14 @@ func initConfig() {
 		// BindEnv rarely fails, but handle for completeness
 		return
 	}
+	if err := viper.BindEnv("discussion_channel", "SLACK_DISCUSSION_CHANNEL"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
+	if err := viper.BindEnv("include_ext_shared", "SLACK_INCLUDE_EXT_SHARED"); err != nil {
+		// BindEnv rarely fails, but handle for completeness
+		return
+	}
 
 	// Set log level based on debug flag
 	if viper.GetBool("debug") {

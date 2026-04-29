@@ -14,16 +14,22 @@ import (
 
 // Common time duration text constants.
 const (
-	oneMinuteText   = "1 minute"
-	oneHourText     = "1 hour"
-	oneDayText      = "1 day"
-	textDays        = "days"
-	textDay         = "day"
-	metaChannelText = "#meta"
+	oneMinuteText = "1 minute"
+	oneHourText   = "1 hour"
+	oneDayText    = "1 day"
+	textDays      = "days"
+	textDay       = "day"
 )
 
+// DefaultDiscussionChannel is the channel name used for the "discuss admin
+// intervention" link in inactivity warning and archival messages when no
+// override is configured.
+const DefaultDiscussionChannel = "meta"
+
 type Client struct {
-	api SlackAPI
+	api                   SlackAPI
+	discussionChannelName string
+	includeExtShared      bool
 }
 
 type Channel struct {
@@ -66,7 +72,8 @@ func NewClient(token string) (*Client, error) {
 	}).Debug("Successfully connected to Slack")
 	// Connection info logged but not printed to reduce output noise
 	return &Client{
-		api: api,
+		api:                   api,
+		discussionChannelName: DefaultDiscussionChannel,
 	}, nil
 }
 
@@ -87,8 +94,43 @@ func NewClientWithAPI(api SlackAPI) (*Client, error) {
 	}).Debug("Successfully connected to Slack")
 	// Connection info logged but not printed to reduce output noise
 	return &Client{
-		api: api,
+		api:                   api,
+		discussionChannelName: DefaultDiscussionChannel,
 	}, nil
+}
+
+// SetDiscussionChannel configures the channel name used for the
+// "discuss admin intervention" link in warning/archival messages.
+// Empty input or input equal to "#" reverts to the default ("meta").
+// A leading "#" is stripped and surrounding whitespace is trimmed.
+func (c *Client) SetDiscussionChannel(name string) {
+	name = strings.TrimSpace(name)
+	name = strings.TrimPrefix(name, "#")
+	if name == "" {
+		name = DefaultDiscussionChannel
+	}
+	c.discussionChannelName = name
+}
+
+// DiscussionChannel returns the configured discussion channel name (no leading "#").
+func (c *Client) DiscussionChannel() string {
+	if c.discussionChannelName == "" {
+		return DefaultDiscussionChannel
+	}
+	return c.discussionChannelName
+}
+
+// SetIncludeExtShared controls whether Slack Connect (externally shared)
+// channels participate in inactivity warning/archival. When false (the
+// default), channels with is_ext_shared or is_pending_ext_shared set are
+// skipped during pre-filtering.
+func (c *Client) SetIncludeExtShared(include bool) {
+	c.includeExtShared = include
+}
+
+// IncludeExtShared reports whether Slack Connect channels are included.
+func (c *Client) IncludeExtShared() bool {
+	return c.includeExtShared
 }
 
 func (c *Client) GetNewChannels(since time.Time) ([]Channel, error) {
@@ -944,6 +986,7 @@ type channelFilterStats struct {
 	skippedExcluded     int
 	skippedNew          int
 	skippedUserExcluded int
+	skippedExtShared    int
 }
 
 // preFilterChannelsWithExclusions filters channels using metadata and exclusions to reduce API calls.
@@ -952,6 +995,16 @@ func (c *Client) preFilterChannelsWithExclusions(allChannels []slack.Channel, wa
 	stats := channelFilterStats{}
 
 	for _, ch := range allChannels {
+		if !c.includeExtShared && (ch.IsExtShared || ch.IsPendingExtShared) {
+			logger.WithFields(logger.LogFields{
+				"channel":               ch.Name,
+				"is_ext_shared":         ch.IsExtShared,
+				"is_pending_ext_shared": ch.IsPendingExtShared,
+			}).Debug("Skipping externally shared (Slack Connect) channel")
+			stats.skippedExtShared++
+			continue
+		}
+
 		if c.shouldSkipChannelWithExclusions(ch.Name, excludeChannels, excludePrefixes) {
 			stats.skippedUserExcluded++
 			continue
@@ -1004,13 +1057,14 @@ func (c *Client) logChannelFilteringStats(totalChannels, candidateChannels int, 
 		"skipped_excluded":      stats.skippedExcluded,
 		"skipped_new":           stats.skippedNew,
 		"skipped_user_excluded": stats.skippedUserExcluded,
+		"skipped_ext_shared":    stats.skippedExtShared,
 	}).Debug("Pre-filtered channels using metadata and exclusions")
 
 	if isDebug {
 		fmt.Printf("📞 API Call 2: Getting channel list with metadata...\n")
 		fmt.Printf("✅ Got %d channels from API\n", totalChannels)
-		fmt.Printf("   Pre-filtered to %d candidates (skipped %d active, %d excluded, %d too new, %d user-excluded)\n\n",
-			candidateChannels, stats.skippedActive, stats.skippedExcluded, stats.skippedNew, stats.skippedUserExcluded)
+		fmt.Printf("   Pre-filtered to %d candidates (skipped %d active, %d excluded, %d too new, %d user-excluded, %d ext-shared)\n\n",
+			candidateChannels, stats.skippedActive, stats.skippedExcluded, stats.skippedNew, stats.skippedUserExcluded, stats.skippedExtShared)
 	}
 }
 
@@ -2000,7 +2054,7 @@ func (c *Client) postMessageToChannelID(channelID, message string) error {
 	return nil
 }
 
-func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {
+func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, archiveSeconds int, discussionChannelID string) string {
 	var builder strings.Builder
 
 	builder.WriteString("🚨 Inactive Channel Warning 🚨\n\n")
@@ -2015,23 +2069,18 @@ func (c *Client) FormatInactiveChannelWarning(channel Channel, warnSeconds, arch
 
 	builder.WriteString("To keep this channel active:\n\n")
 	builder.WriteString("• Post a message in this channel or\n")
-	// Create meta channel link if available
-	metaLink := metaChannelText
-	if metaChannelID != "" {
-		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
-	}
-	builder.WriteString(fmt.Sprintf("• Discuss in %s if this channel warrants admin intervention\n\n", metaLink))
+	builder.WriteString(fmt.Sprintf("• Discuss in %s if this channel warrants admin intervention\n\n", c.discussionChannelLink(discussionChannelID)))
 
 	return builder.String()
 }
 
 // FormatInactiveChannelWarningWarnOnly formats a warning message for warn-only mode.
-func (c *Client) FormatInactiveChannelWarningWarnOnly(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {
+func (c *Client) FormatInactiveChannelWarningWarnOnly(channel Channel, warnSeconds, archiveSeconds int, discussionChannelID string) string {
 	// Use the same format as the regular warning - consistent messaging
-	return c.FormatInactiveChannelWarning(channel, warnSeconds, archiveSeconds, metaChannelID)
+	return c.FormatInactiveChannelWarning(channel, warnSeconds, archiveSeconds, discussionChannelID)
 }
 
-func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, archiveSeconds int, metaChannelID string) string {
+func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, archiveSeconds int, discussionChannelID string) string {
 	var builder strings.Builder
 
 	builder.WriteString("📋 Channel Archival Notice 📋\n\n")
@@ -2047,14 +2096,19 @@ func (c *Client) FormatChannelArchivalMessage(channel Channel, warnSeconds, arch
 
 	builder.WriteString("This channel is now being archived.\n\n")
 
-	// Create meta channel link if available
-	metaLink := metaChannelText
-	if metaChannelID != "" {
-		metaLink = fmt.Sprintf("<#%s|meta>", metaChannelID)
-	}
-	builder.WriteString(fmt.Sprintf("You may unarchive the channel yourself (given permissions) or discuss in %s if you disagree!", metaLink))
+	builder.WriteString(fmt.Sprintf("You may unarchive the channel yourself (given permissions) or discuss in %s if you disagree!", c.discussionChannelLink(discussionChannelID)))
 
 	return builder.String()
+}
+
+// discussionChannelLink returns a Slack channel mention for the configured
+// discussion channel when an ID is known, or a plain "#name" string otherwise.
+func (c *Client) discussionChannelLink(discussionChannelID string) string {
+	name := c.DiscussionChannel()
+	if discussionChannelID != "" {
+		return fmt.Sprintf("<#%s|%s>", discussionChannelID, name)
+	}
+	return "#" + name
 }
 
 func (c *Client) ArchiveChannel(channel Channel) error {
@@ -2065,11 +2119,15 @@ func (c *Client) ArchiveChannel(channel Channel) error {
 func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, archiveSeconds int) error {
 	logger.WithField("channel", channel.Name).Debug("Archiving inactive channel")
 
-	// Look up meta channel ID once to reduce API calls
-	metaChannelID, err := c.ResolveChannelNameToID("meta")
+	// Look up the discussion channel ID once to enrich the archival message.
+	discussionName := c.DiscussionChannel()
+	discussionChannelID, err := c.ResolveChannelNameToID(discussionName)
 	if err != nil {
-		logger.WithField("error", err.Error()).Debug("Could not find #meta channel for linking")
-		metaChannelID = "" // Fall back to plain text #meta
+		logger.WithFields(logger.LogFields{
+			"discussion_channel": discussionName,
+			"error":              err.Error(),
+		}).Debug("Could not find discussion channel for linking")
+		discussionChannelID = "" // Fall back to plain text mention
 	}
 
 	// First, ensure the bot is in the channel to post the archival message
@@ -2082,7 +2140,7 @@ func (c *Client) ArchiveChannelWithThresholds(channel Channel, warnSeconds, arch
 	}
 
 	// Post archival message explaining why the channel is being archived
-	archivalMessage := c.FormatChannelArchivalMessage(channel, warnSeconds, archiveSeconds, metaChannelID)
+	archivalMessage := c.FormatChannelArchivalMessage(channel, warnSeconds, archiveSeconds, discussionChannelID)
 	if postErr := c.postMessageToChannelID(channel.ID, archivalMessage); postErr != nil {
 		logger.WithFields(logger.LogFields{
 			"channel": channel.Name,

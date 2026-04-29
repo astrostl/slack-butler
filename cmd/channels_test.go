@@ -720,7 +720,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{"general", "random"}, []string{"test-", "dev-"}, []string{})
+		displayExclusionInfo([]string{"general", "random"}, []string{"test-", "dev-"}, []string{}, "")
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -740,7 +740,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{"general"}, []string{}, []string{})
+		displayExclusionInfo([]string{"general"}, []string{}, []string{}, "")
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -760,7 +760,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{}, []string{"test-"}, []string{})
+		displayExclusionInfo([]string{}, []string{"test-"}, []string{}, "")
 
 		err = w.Close()
 		require.NoError(t, err)
@@ -780,7 +780,7 @@ func TestDisplayExclusionInfo(t *testing.T) {
 		require.NoError(t, err)
 		os.Stdout = w
 
-		displayExclusionInfo([]string{}, []string{}, []string{})
+		displayExclusionInfo([]string{}, []string{}, []string{}, "")
 
 		err = w.Close()
 		require.NoError(t, err)

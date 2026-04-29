@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-29
+
+### Added
+- **Configurable Discussion Channel**: New `--discussion-channel` flag for archive command (env: `SLACK_DISCUSSION_CHANNEL`)
+  - Replaces the hardcoded `#meta` reference in inactivity warning and archival messages
+  - Defaults to `meta` for backward compatibility
+  - Accepts channel names with or without a leading `#`
+  - The configured channel is automatically excluded from archival
+- **External-Shared (Slack Connect) Channel Protection**: Channels with `is_ext_shared` or `is_pending_ext_shared` are now protected from archival by default
+  - New `--include-ext-shared` flag (env: `SLACK_INCLUDE_EXT_SHARED`) opts back in if you want to manage Slack Connect channels alongside internal ones
+  - Filtering happens during pre-flight using the existing channel list — no extra API calls
+  - Skipped count is reported in debug-mode filter stats
+
+### Changed
+- `FormatInactiveChannelWarning`, `FormatChannelArchivalMessage`, and related helpers now derive the discussion-channel link/label from the configured name rather than the `metaChannelText` constant
+- `displayExclusionInfo` reports the auto-protected discussion channel separately from manually excluded channels and auto-detected default channels
+- **Tooling**: Bumped `golangci-lint` to v2.11.4 (built with Go 1.26) and migrated `.golangci.yml` / `.golangci-override.yml` to v2 format. Required because v1.64 (Go 1.25) cannot typecheck the Go 1.26 stdlib internals it pulls in transitively.
+- **Refactor**: Split `resolveArchiveConfig` into focused per-key helpers (`resolveBoolConfig`, `resolvePositiveIntConfig`, `resolvePositiveFloatConfig`, `resolveDiscussionChannelConfig`) to keep cyclomatic complexity below 15.
+
 ## [1.4.1] - 2026-01-18
 
 ### Fixed

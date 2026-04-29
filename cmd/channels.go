@@ -82,6 +82,8 @@ var (
 	defaultChannelCheck      bool
 	warnOnly                 bool
 	rewarnDays               float64
+	discussionChannel        string
+	includeExtShared         bool
 )
 
 // displayWorkspaceInfo gets and displays workspace information.
@@ -115,6 +117,8 @@ func init() {
 	archiveCmd.Flags().BoolVar(&defaultChannelCheck, "default-channel-check", false, "Only check and report which channels are detected as defaults (diagnostic mode, skips archival)")
 	archiveCmd.Flags().BoolVar(&warnOnly, "warn-only", false, "Only send warnings, do not archive channels (use with --commit to actually send warnings)")
 	archiveCmd.Flags().Float64Var(&rewarnDays, "rewarn-days", 0, "Re-warn channels whose last warning is older than this many days (0 = disabled, no rewarning)")
+	archiveCmd.Flags().StringVar(&discussionChannel, "discussion-channel", slack.DefaultDiscussionChannel, "Channel referenced in warning/archival messages for discussing admin intervention (with or without # prefix). Automatically excluded from archival.")
+	archiveCmd.Flags().BoolVar(&includeExtShared, "include-ext-shared", false, "Include externally shared (Slack Connect) channels in archival consideration (default: false, meaning ext-shared channels are protected)")
 
 	highlightCmd.Flags().IntVar(&count, "count", 3, "Number of random channels to highlight (e.g., 1, 3, 5)")
 	highlightCmd.Flags().StringVar(&announceTo, "announce-to", "", "Channel to announce highlights to (e.g., #general). Required when using --commit")
@@ -329,7 +333,7 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("rewarn-days must be non-negative, got %g", rewarnDays)
 	}
 
-	includeDefaultsValue, sampleSizeValue, thresholdValue, err := resolveArchiveConfig(cmd)
+	includeDefaultsValue, sampleSizeValue, thresholdValue, discussionChannelValue, includeExtSharedValue, err := resolveArchiveConfig(cmd)
 	if err != nil {
 		return err
 	}
@@ -343,6 +347,8 @@ func runArchive(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create Slack client: %w", err)
 	}
+	client.SetDiscussionChannel(discussionChannelValue)
+	client.SetIncludeExtShared(includeExtSharedValue)
 
 	// If --default-channel-check flag is set, run diagnostic mode
 	if defaultChannelCheck {
@@ -368,33 +374,64 @@ func validateArchiveDays(warnDays, archiveDays float64, warnOnlyMode bool) error
 }
 
 // resolveArchiveConfig resolves configuration from flags or environment variables.
-func resolveArchiveConfig(cmd *cobra.Command) (includeDefaults bool, sampleSize int, threshold float64, err error) {
-	// Check if flags were explicitly set, otherwise use environment variables
-	includeDefaults = includeDefaultChannels
-	if cmd != nil && !cmd.Flags().Changed("include-default-channels") {
-		includeDefaults = viper.GetBool("include_default_channels")
-	}
-
-	sampleSize = defaultChannelSampleSize
-	if cmd != nil && !cmd.Flags().Changed("default-channel-sample-size") {
-		if envSampleSize := viper.GetInt("default_channel_sample_size"); envSampleSize > 0 {
-			sampleSize = envSampleSize
-		}
-	}
-
-	threshold = defaultChannelThreshold
-	if cmd != nil && !cmd.Flags().Changed("default-channel-threshold") {
-		if envThreshold := viper.GetFloat64("default_channel_threshold"); envThreshold > 0 {
-			threshold = envThreshold
-		}
-	}
+func resolveArchiveConfig(cmd *cobra.Command) (includeDefaults bool, sampleSize int, threshold float64, discussionChannelValue string, includeExtSharedValue bool, err error) {
+	includeDefaults = resolveBoolConfig(cmd, "include-default-channels", "include_default_channels", includeDefaultChannels)
+	sampleSize = resolvePositiveIntConfig(cmd, "default-channel-sample-size", "default_channel_sample_size", defaultChannelSampleSize)
+	threshold = resolvePositiveFloatConfig(cmd, "default-channel-threshold", "default_channel_threshold", defaultChannelThreshold)
+	discussionChannelValue = resolveDiscussionChannelConfig(cmd)
+	includeExtSharedValue = resolveBoolConfig(cmd, "include-ext-shared", "include_ext_shared", includeExtShared)
 
 	// Validate threshold is between 0 and 1
 	if threshold < 0 || threshold > 1 {
-		return false, 0, 0, fmt.Errorf("default-channel-threshold must be between 0.0 and 1.0, got %g", threshold)
+		return false, 0, 0, "", false, fmt.Errorf("default-channel-threshold must be between 0.0 and 1.0, got %g", threshold)
 	}
 
-	return includeDefaults, sampleSize, threshold, nil
+	return includeDefaults, sampleSize, threshold, discussionChannelValue, includeExtSharedValue, nil
+}
+
+// resolveBoolConfig returns flagValue when the flag was explicitly set or cmd is nil; otherwise falls back to the env-bound viper key.
+func resolveBoolConfig(cmd *cobra.Command, flagName, viperKey string, flagValue bool) bool {
+	if cmd == nil || cmd.Flags().Changed(flagName) {
+		return flagValue
+	}
+	return viper.GetBool(viperKey)
+}
+
+// resolvePositiveIntConfig prefers an explicitly-set flag (or flagValue when cmd is nil); otherwise uses the env-bound int when > 0, else flagValue.
+func resolvePositiveIntConfig(cmd *cobra.Command, flagName, viperKey string, flagValue int) int {
+	if cmd == nil || cmd.Flags().Changed(flagName) {
+		return flagValue
+	}
+	if env := viper.GetInt(viperKey); env > 0 {
+		return env
+	}
+	return flagValue
+}
+
+// resolvePositiveFloatConfig is the float64 analogue of resolvePositiveIntConfig.
+func resolvePositiveFloatConfig(cmd *cobra.Command, flagName, viperKey string, flagValue float64) float64 {
+	if cmd == nil || cmd.Flags().Changed(flagName) {
+		return flagValue
+	}
+	if env := viper.GetFloat64(viperKey); env > 0 {
+		return env
+	}
+	return flagValue
+}
+
+// resolveDiscussionChannelConfig resolves the discussion channel from flag/env, normalizes it, and applies the default.
+func resolveDiscussionChannelConfig(cmd *cobra.Command) string {
+	value := discussionChannel
+	if cmd != nil && !cmd.Flags().Changed("discussion-channel") {
+		if env := viper.GetString("discussion_channel"); env != "" {
+			value = env
+		}
+	}
+	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
+	if value == "" {
+		value = slack.DefaultDiscussionChannel
+	}
+	return value
 }
 
 func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int, isDryRun bool, excludeChannels, excludePrefixes string, warnDays, archiveDays float64, includeDefaults bool, sampleSize int, threshold float64, warnOnlyMode bool, rewarnSeconds int) error {
@@ -443,6 +480,8 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 
 	fmt.Printf("🔍 Analyzing inactive channels...\n\n")
 
+	displayExtSharedProtectionStatus(client.IncludeExtShared())
+
 	// Detect default channels unless explicitly included
 	defaultChannels := detectAndDisplayDefaultChannels(client, includeDefaults, sampleSize, threshold)
 
@@ -458,7 +497,11 @@ func runArchiveWithClient(client *slack.Client, warnSeconds, archiveSeconds int,
 	// Merge default channels into exclusion list
 	excludeChannelsList = mergeChannelLists(excludeChannelsList, defaultChannels)
 
-	displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels)
+	// Always protect the configured discussion channel from archival.
+	discussionName := client.DiscussionChannel()
+	excludeChannelsList = mergeChannelLists(excludeChannelsList, []string{discussionName})
+
+	displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels, discussionName)
 
 	// Analyze inactive channels
 	toWarn, toArchive, totalChannels, err := getInactiveChannelsWithErrorHandling(client, warnSeconds, archiveSeconds, userMap, excludeChannelsList, excludePrefixesList, isDebug, warnOnlyMode, rewarnSeconds)
@@ -568,7 +611,7 @@ func separateManualExclusions(excludeChannelsList, defaultChannels []string) []s
 }
 
 // displayExclusionInfo shows configured exclusions to the user.
-func displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels []string) {
+func displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChannels []string, discussionChannelName string) {
 	if len(excludeChannelsList) == 0 && len(excludePrefixesList) == 0 {
 		return
 	}
@@ -576,12 +619,18 @@ func displayExclusionInfo(excludeChannelsList, excludePrefixesList, defaultChann
 	fmt.Printf("📋 Channel exclusions configured:\n")
 
 	if len(excludeChannelsList) > 0 {
-		manualExclusions := separateManualExclusions(excludeChannelsList, defaultChannels)
+		// Treat both auto-detected defaults and the discussion channel as
+		// non-manual exclusions so they're reported separately.
+		autoExcluded := mergeChannelLists(defaultChannels, []string{discussionChannelName})
+		manualExclusions := separateManualExclusions(excludeChannelsList, autoExcluded)
 		if len(manualExclusions) > 0 {
 			fmt.Printf("   Manually excluded channels: %s\n", strings.Join(manualExclusions, ", "))
 		}
 		if len(defaultChannels) > 0 {
 			fmt.Printf("   Auto-detected default channels: %s\n", strings.Join(defaultChannels, ", "))
+		}
+		if discussionChannelName != "" {
+			fmt.Printf("   Discussion channel (auto-protected): #%s\n", discussionChannelName)
 		}
 	}
 
@@ -639,6 +688,17 @@ func getInactiveChannelsWithErrorHandling(client *slack.Client, warnSeconds, arc
 		return nil, nil, 0, fmt.Errorf("failed to analyze inactive channels: %w", err)
 	}
 	return toWarn, toArchive, totalChannels, nil
+}
+
+// displayExtSharedProtectionStatus reports whether Slack Connect channels are
+// being skipped from archival consideration.
+func displayExtSharedProtectionStatus(includeExtShared bool) {
+	if includeExtShared {
+		fmt.Printf("⚠️  External-shared (Slack Connect) channel protection DISABLED (--include-ext-shared flag set)\n\n")
+		return
+	}
+	fmt.Printf("🔗 External-shared (Slack Connect) channels are protected from archival.\n")
+	fmt.Printf("   Use --include-ext-shared to override this protection.\n\n")
 }
 
 // detectAndDisplayDefaultChannels detects default channels and displays results to user.
@@ -747,20 +807,24 @@ func processWarningsDryRun(client *slack.Client, toWarn []slack.Channel, warnSec
 func processWarningsReal(client *slack.Client, toWarn []slack.Channel, warnSeconds, archiveSeconds int, warnOnlyMode bool) {
 	fmt.Printf("Sending warnings to %d channels (joining channels as needed)...\n", len(toWarn))
 
-	// Look up meta channel ID once for all warnings to reduce API calls
-	metaChannelID, err := client.ResolveChannelNameToID("meta")
+	// Look up the configured discussion channel ID once for all warnings to reduce API calls
+	discussionName := client.DiscussionChannel()
+	discussionChannelID, err := client.ResolveChannelNameToID(discussionName)
 	if err != nil {
-		logger.WithField("error", err.Error()).Debug("Could not find #meta channel for linking")
-		metaChannelID = "" // Fall back to plain text #meta
+		logger.WithFields(logger.LogFields{
+			"discussion_channel": discussionName,
+			"error":              err.Error(),
+		}).Debug("Could not find discussion channel for linking")
+		discussionChannelID = "" // Fall back to plain text mention
 	}
 
 	warningsSent := 0
 	for _, channel := range toWarn {
 		var warnErr error
 		if warnOnlyMode {
-			warnErr = client.WarnInactiveChannelWarnOnly(channel, warnSeconds, archiveSeconds, metaChannelID)
+			warnErr = client.WarnInactiveChannelWarnOnly(channel, warnSeconds, archiveSeconds, discussionChannelID)
 		} else {
-			warnErr = client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds, metaChannelID)
+			warnErr = client.WarnInactiveChannel(channel, warnSeconds, archiveSeconds, discussionChannelID)
 		}
 		if warnErr != nil {
 			logger.WithFields(logger.LogFields{

@@ -6,7 +6,7 @@ A powerful Go CLI tool designed to help Slack workspaces become more useful, org
 
 > **⚠️ Disclaimer**: This software is "vibe coded" (developed entirely using generative AI tools like Claude Code) and provided as-is without any warranties, guarantees, or official support. Use at your own risk.
 
-**Version 1.4.1** ✅
+**Version 1.5.0** ✅
 
 ## Features
 
@@ -271,6 +271,8 @@ Manage inactive channel archival with automated warnings and grace periods. Auto
 - `--default-channel-sample-size` - Number of users to sample for default detection (default: 10)
 - `--default-channel-threshold` - Membership threshold for default detection, 0.0-1.0 (default: 0.9)
 - `--default-channel-check` - Diagnostic mode: show which channels are detected as defaults and which users are sampled (skips archival)
+- `--discussion-channel` - Channel referenced in warning/archival messages for discussing admin intervention (default: `meta`). Auto-excluded from archival.
+- `--include-ext-shared` - Include externally shared (Slack Connect) channels in archival (default: false, protects ext-shared channels)
 - `--commit` - Actually warn and archive channels (default is dry run mode)
 - `--token` - Slack bot token (can also use SLACK_TOKEN env var)
 
@@ -281,6 +283,8 @@ The archive command automatically detects workspace default channels (channels n
 - `SLACK_INCLUDE_DEFAULT_CHANNELS` - Set to "true" to include defaults in archival
 - `SLACK_DEFAULT_CHANNEL_SAMPLE_SIZE` - Number of users to sample
 - `SLACK_DEFAULT_CHANNEL_THRESHOLD` - Membership threshold (e.g., "0.9")
+- `SLACK_DISCUSSION_CHANNEL` - Channel referenced in warning/archival messages (default: "meta")
+- `SLACK_INCLUDE_EXT_SHARED` - Set to "true" to include Slack Connect channels in archival
 
 **Note:** Archive timing supports decimal precision (e.g., 0.5 = 12 hours, 7.5 = 7.5 days). While sub-day precision is available, day-based values are recommended for practical channel management.
 
@@ -303,6 +307,9 @@ slack-butler channels archive --include-default-channels --commit
 
 # Exclude specific channels and prefixes
 slack-butler channels archive --exclude-channels="general,random" --commit
+
+# Use a custom discussion channel (auto-excluded from archival)
+slack-butler channels archive --discussion-channel=admin-discussion --commit
 
 # Full archival with custom timings
 slack-butler channels archive --warn-days=60 --archive-days=14 --commit

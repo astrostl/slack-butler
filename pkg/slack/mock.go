@@ -226,6 +226,26 @@ func (m *MockSlackAPI) AddChannelWithCreator(id, name string, created time.Time,
 	m.Channels = append(m.Channels, channel)
 }
 
+// AddExtSharedChannel appends a Slack Connect (externally shared) channel.
+func (m *MockSlackAPI) AddExtSharedChannel(id, name string, created time.Time, purpose string) {
+	channel := slack.Channel{
+		GroupConversation: slack.GroupConversation{
+			Conversation: slack.Conversation{
+				ID:          id,
+				Created:     slack.JSONTime(created.Unix()),
+				IsShared:    true,
+				IsExtShared: true,
+			},
+			Name: name,
+			Purpose: slack.Purpose{
+				Value: purpose,
+			},
+			Creator: "U1234567",
+		},
+	}
+	m.Channels = append(m.Channels, channel)
+}
+
 func (m *MockSlackAPI) SetAuthError(hasError bool) {
 	if hasError {
 		m.AuthTestError = fmt.Errorf("authentication failed")

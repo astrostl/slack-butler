@@ -990,6 +990,86 @@ func TestFormatChannelArchivalMessageWithMetaLink(t *testing.T) {
 	})
 }
 
+func TestExtSharedChannelFiltering(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	// Both old enough to be candidates for archival.
+	oldEnough := time.Now().Add(-90 * 24 * time.Hour)
+	mockAPI.AddChannel("C-INTERNAL", "internal-stale", oldEnough, "")
+	mockAPI.AddExtSharedChannel("C-EXT", "partner-stale", oldEnough, "")
+
+	warnSeconds := 30 * 24 * 60 * 60
+	archiveSeconds := 30 * 24 * 60 * 60
+	warnCutoff := time.Now().Add(-time.Duration(warnSeconds) * time.Second)
+
+	t.Run("Default excludes ext-shared", func(t *testing.T) {
+		client.SetIncludeExtShared(false)
+		candidates, stats := client.preFilterChannelsWithExclusions(mockAPI.Channels, warnCutoff, nil, nil)
+		assert.Equal(t, 1, stats.skippedExtShared)
+		// Only the internal channel should remain a candidate.
+		require.Len(t, candidates, 1)
+		assert.Equal(t, "internal-stale", candidates[0].Name)
+	})
+
+	t.Run("Override includes ext-shared", func(t *testing.T) {
+		client.SetIncludeExtShared(true)
+		candidates, stats := client.preFilterChannelsWithExclusions(mockAPI.Channels, warnCutoff, nil, nil)
+		assert.Equal(t, 0, stats.skippedExtShared)
+		require.Len(t, candidates, 2)
+	})
+
+	// End-to-end through the public entry point.
+	t.Run("End-to-end protection via GetInactiveChannels", func(t *testing.T) {
+		client.SetIncludeExtShared(false)
+		toWarn, _, _, err := client.GetInactiveChannelsWithDetailsAndExclusions(
+			warnSeconds, archiveSeconds, map[string]string{}, nil, nil, false, true, 0,
+		)
+		require.NoError(t, err)
+		for _, ch := range toWarn {
+			assert.NotEqual(t, "partner-stale", ch.Name, "ext-shared channel should be protected")
+		}
+	})
+}
+
+func TestSetDiscussionChannel(t *testing.T) {
+	mockAPI := NewMockSlackAPI()
+	client, err := NewClientWithAPI(mockAPI)
+	require.NoError(t, err)
+
+	channel := Channel{ID: "C1234567890", Name: "test-channel"}
+
+	t.Run("Default is meta", func(t *testing.T) {
+		assert.Equal(t, "meta", client.DiscussionChannel())
+	})
+
+	t.Run("Custom name without # prefix", func(t *testing.T) {
+		client.SetDiscussionChannel("admin-discussion")
+		assert.Equal(t, "admin-discussion", client.DiscussionChannel())
+
+		warning := client.FormatInactiveChannelWarning(channel, 300, 60, "")
+		assert.Contains(t, warning, "#admin-discussion")
+		assert.NotContains(t, warning, "#meta")
+
+		archival := client.FormatChannelArchivalMessage(channel, 300, 60, "")
+		assert.Contains(t, archival, "#admin-discussion")
+	})
+
+	t.Run("Custom name strips leading #", func(t *testing.T) {
+		client.SetDiscussionChannel("#ops")
+		assert.Equal(t, "ops", client.DiscussionChannel())
+
+		warning := client.FormatInactiveChannelWarning(channel, 300, 60, "COPS123")
+		assert.Contains(t, warning, "<#COPS123|ops>")
+	})
+
+	t.Run("Empty input falls back to default", func(t *testing.T) {
+		client.SetDiscussionChannel("   ")
+		assert.Equal(t, "meta", client.DiscussionChannel())
+	})
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name     string

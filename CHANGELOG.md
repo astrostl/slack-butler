@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-05-18
+
+### Changed
+- **Dependencies**: Bumped `github.com/securego/gosec/v2` 2.25.0 → 2.26.1 (#36).
+- **Dependencies**: Bumped `github.com/slack-go/slack` 0.23.0 → 0.23.1 (#37).
+- **Dependencies**: Bumped `github.com/golangci/golangci-lint/v2` 2.11.4 → 2.12.2 (#38).
+
 ## [1.5.2] - 2026-05-18
 
 ### Fixed

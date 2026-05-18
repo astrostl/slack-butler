@@ -2517,8 +2517,11 @@ func isRealMessage(msg slack.Message, botUserID string) bool {
 		}
 	}
 
-	// Filter out empty messages (unless they have file attachments)
-	if strings.TrimSpace(text) == "" && len(msg.Files) == 0 {
+	// Filter out empty messages unless they carry non-text content. Slack
+	// message shares (e.g. sharing a post from another channel) arrive with
+	// empty Text and content in Attachments; block-kit messages put content
+	// in Blocks; file uploads use Files.
+	if strings.TrimSpace(text) == "" && len(msg.Files) == 0 && len(msg.Attachments) == 0 && len(msg.Blocks.BlockSet) == 0 {
 		return false
 	}
 

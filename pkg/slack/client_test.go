@@ -2780,6 +2780,51 @@ func TestIsRealMessage(t *testing.T) {
 		}
 		assert.True(t, isRealMessage(msgWithMultipleFiles, botUserID), "Message with multiple files should be considered real")
 	})
+
+	t.Run("Shared posts and block-kit messages with empty text", func(t *testing.T) {
+		// Message share (e.g. sharing a post from another channel) — arrives
+		// with empty text and the embedded preview in Attachments.
+		msgWithAttachment := slack.Message{
+			Msg: slack.Msg{
+				Text:    "",
+				User:    "U1234567",
+				SubType: "",
+				Attachments: []slack.Attachment{
+					{
+						AuthorName: "Zachary Klein",
+						Text:       "Hello team! I hope many of you are looking forward...",
+						Footer:     "Posted in #innovation-lunch-learn",
+					},
+				},
+			},
+		}
+		assert.True(t, isRealMessage(msgWithAttachment, botUserID), "Shared message with attachments should be considered real")
+
+		// Block-kit message with empty top-level text.
+		msgWithBlocks := slack.Message{
+			Msg: slack.Msg{
+				Text:    "",
+				User:    "U1234567",
+				SubType: "",
+				Blocks: slack.Blocks{
+					BlockSet: []slack.Block{
+						slack.NewSectionBlock(slack.NewTextBlockObject("mrkdwn", "Block content", false, false), nil, nil),
+					},
+				},
+			},
+		}
+		assert.True(t, isRealMessage(msgWithBlocks, botUserID), "Block-kit message should be considered real")
+
+		// Empty message with nothing at all — still not real.
+		emptyMsg := slack.Message{
+			Msg: slack.Msg{
+				Text:    "",
+				User:    "U1234567",
+				SubType: "",
+			},
+		}
+		assert.False(t, isRealMessage(emptyMsg, botUserID), "Truly empty message should not be considered real")
+	})
 }
 
 // TestParseSlackTimestamp tests edge cases in timestamp parsing.

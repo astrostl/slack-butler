@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-05-18
+
+### Fixed
+- **Inactivity Detection — Shared Posts & Block-Kit Messages**: `isRealMessage` now treats messages with non-empty `Attachments` or `Blocks` as activity, not just messages with `Files`. Previously, channels whose only recent activity was a shared message (Slack's "Share message…" feature, including linked posts from other channels) or a pure block-kit message were incorrectly classified as inactive and could be warned/archived. Existing `Files`-based file-share handling is unchanged.
+
 ## [1.5.1] - 2026-04-29
 
 ### Changed

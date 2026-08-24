@@ -7,7 +7,7 @@ require (
 	github.com/golangci/golangci-lint/v2 v2.12.2
 	github.com/securego/gosec/v2 v2.28.0
 	github.com/sirupsen/logrus v1.10.0
-	github.com/slack-go/slack v0.27.0
+	github.com/slack-go/slack v0.29.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
